@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0009**.
+**The highest number is the newest document.** Current head: **0010**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -15,6 +15,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0007](docs/0007-phase-0-decision-record.md) | Phase 0 Decision Record | DECISION | ACCEPTED | 2026-09-05 | Component verdict table. Two components deleted, two downgraded |
 | [0008](docs/0008-system-architecture-v1.md) | System Architecture v1 | ARCHITECTURE | **DRAFT** | 2026-09-05 | Seam analysis, three candidate architectures, Effect Ledger design |
 | [0009](docs/0009-open-questions-register.md) | Open Questions & Risk Register | REGISTER | LIVING | 2026-09-05 | 7 open questions, 5 risks. Q1–Q5 block 0008 |
+| [0010](docs/0010-latency-switching-mcp-integration.md) | Latency, Model Switching, and MCP/Plugin Integration | RESEARCH | ACCEPTED (frozen) | 2026-09-05 | Feature research. Cache latency claim corrected; MCP now stateless; Capability Broker proposed |
 
 ---
 
@@ -34,7 +35,7 @@ current verdicts, and the current design. About 30 minutes.
 | | |
 |---|---|
 | **Phase** | Phase 0 complete. Phase 1 not started. |
-| **Architecture** | `0008` in DRAFT. Blocked on Q1–Q5 in `0009`. |
+| **Architecture** | `0008` in DRAFT. Blocked on Q1–Q5 in `0009`. Revisions pending from `0010` §11. |
 | **Next action** | Build step 0 — the falsification experiment (`0008` §14). Resolves Q1, Q2, Q3 in one sitting. |
 | **Code written** | None, deliberately. |
 

@@ -100,6 +100,52 @@ These block `0008` from moving DRAFT → ACCEPTED.
 | **Impact** | If `context_window_fallbacks` mutates messages, cache affinity assumptions in §7 need revision. |
 | **Method** | Read `litellm/router.py::async_function_with_fallbacks`. |
 
+### Q8 — Which MCP spec revision does the OpenHands SDK implement?
+
+| | |
+|---|---|
+| **Status** | OPEN |
+| **Source** | `0010:U1` |
+| **Impact** | Determines whether MCP connection state can be deleted from the non-reconstructible list (`0010` §8.1). The 2026-07-28 revision made MCP stateless; a pre-RC client keeps the old behavior. |
+| **Method** | Read the SDK's MCP client and its pinned protocol version string. |
+
+### Q9 — What is the read/write ratio of tool calls by effect class?
+
+| | |
+|---|---|
+| **Status** | OPEN |
+| **Source** | `0010:U3` |
+| **Impact** | Decides whether speculative tool execution (`0010` §6.4) is worth building at all. It pays off only if `PURE_READ` calls dominate. |
+| **Method** | Instrument one real OpenHands session; count tool calls by effect class. |
+| **Note** | **Cheapest high-value measurement in the project.** One session answers it. |
+
+### Q10 — Is `tool_call_id` stable across *providers*, not just across resume?
+
+| | |
+|---|---|
+| **Status** | OPEN |
+| **Source** | New — `0010` §7.3 |
+| **Impact** | If not, a mid-turn provider switch defeats the effect ledger's primary key and a committed effect becomes invisible — re-executing it. Mitigated by the proposed turn-atomic routing rule. |
+| **Method** | Compare `tool_call_id` formats across Anthropic, OpenAI, and Gemini tool-call responses. Strict superset of Q2. |
+
+### Q11 — Does any provider expose cache residency directly?
+
+| | |
+|---|---|
+| **Status** | OPEN |
+| **Source** | `0010:U2` |
+| **Impact** | All current affinity schemes *infer* cache residency. Direct observation would simplify `0008` §7 considerably. |
+| **Method** | `0005` Phase 6 provider cache research. |
+
+### Q12 — Does the MCP registry expose policy-grade metadata?
+
+| | |
+|---|---|
+| **Status** | OPEN |
+| **Source** | `0010:U4` |
+| **Impact** | Capability gating (`0010` §8.3) needs declared scopes, auth model, and side-effect hints. |
+| **Method** | Read the registry OpenAPI spec at `registry.modelcontextprotocol.io`. |
+
 ---
 
 ## Risks

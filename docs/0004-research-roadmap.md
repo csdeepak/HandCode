@@ -53,6 +53,9 @@ optimization, cache-aware routing, safe recovery, policy, and evaluation.
 
 Prompts for each phase: `0005`.
 
+Ad-hoc feature research outside the phase sequence is recorded separately;
+see `0010` (latency, switching, MCP/plugins).
+
 ## The five concepts to hold precisely
 
 - **Session** — the durable logical identity of an agent task, independent of
