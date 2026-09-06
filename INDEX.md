@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0010**.
+**The highest number is the newest document.** Current head: **0011**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -16,13 +16,14 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0008](docs/0008-system-architecture-v1.md) | System Architecture v1 | ARCHITECTURE | **DRAFT** | 2026-09-05 | Seam analysis, three candidate architectures, Effect Ledger design |
 | [0009](docs/0009-open-questions-register.md) | Open Questions & Risk Register | REGISTER | LIVING | 2026-09-05 | 7 open questions, 5 risks. Q1–Q5 block 0008 |
 | [0010](docs/0010-latency-switching-mcp-integration.md) | Latency, Model Switching, and MCP/Plugin Integration | RESEARCH | ACCEPTED (frozen) | 2026-09-05 | Feature research. Cache latency claim corrected; MCP now stateless; Capability Broker proposed |
+| [0011](docs/0011-request-flow-architecture.md) | Request Flow — End-to-End Diagrams | ARCHITECTURE | DRAFT | 2026-09-05 | Five Mermaid diagrams tracing one user request through every concept; concept coverage map |
 
 ---
 
 ## Reading order
 
-**New to the project?** `0001` → `0007` → `0008`. That is the charter, the
-current verdicts, and the current design. About 30 minutes.
+**New to the project?** `0001` → `0007` → `0008` → `0011`. Charter, current
+verdicts, current design, then the diagrams. About 40 minutes.
 
 **Want the full history?** `0002` → `0003` → `0004` → `0006` → `0007` → `0008`.
 
