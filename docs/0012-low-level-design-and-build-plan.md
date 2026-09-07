@@ -6,7 +6,7 @@ Status:        DRAFT
 Created:       2026-09-05
 Supersedes:    —
 Superseded-by: —
-Depends-on:    0008, 0010, 0011
+Depends-on:    0008, 0010, 0011, 0014, 0015
 ---
 
 # 0012 — Low-Level Design & Build Plan
@@ -19,19 +19,25 @@ Written for long-term single-developer use. Every choice optimises for
 
 ---
 
-## 0. Two findings that change the LLD
+## 0. Findings that change the LLD
 
-**Seam C is confirmed reachable without a fork.** The OpenHands SDK separates
-`Tool` (schema) from `ToolExecutor` (implementation), and tools are registered
-with `register_tool(name, cls)`. An executor can therefore be wrapped by
-**composition** — a `GatedExecutor` holding the real executor — and registered
-in its place. `0009` Q3 moves to **likely-resolved**; confirm by running M0.
+*Revised 2026-09-08 with `0014` (M0 execution) and `0015` (source reading).*
+
+**Seam C is confirmed reachable without a fork — executed, not inferred**
+(`0014`). But the binding is simpler than this document originally specified.
+`ToolDefinition` carries the executor in a **field**, so Seam C binds as:
+
+```python
+gated = tool.model_copy(update={"executor": GatedExecutor(tool.executor)})
+```
+
+No subclassing, no re-registration. `0009` Q3 → **RESOLVED**.
 
 **Two LiteLLM hook gaps constrain Seam A.** Both are open issues:
 
 | Issue | Effect on us |
 |---|---|
-| `async_pre_call_hook` bypassed on the Anthropic `/v1/messages` endpoint (#27518) | **We must drive the OpenAI-format endpoint.** Configure OpenHands to talk `/v1/chat/completions` to the proxy, or Seam A silently does nothing. |
+| `async_pre_call_hook` bypassed on the Anthropic `/v1/messages` endpoint (#27518) | **Not a problem in practice** — `0014` confirms the SDK drives `/v1/chat/completions`. Still assert it live in M1; a future SDK change would break Seam A silently. |
 | `async_pre_call_hook` never fires for `/mcp/` tool calls — local registry dispatch bypasses hooks (#25011) | **MCP cannot be governed at Seam A.** Confirms the Capability Broker must bind at Seam C, where we control dispatch ourselves. |
 
 The second one is a genuine architectural confirmation: it independently proves
@@ -40,6 +46,23 @@ governance can live.
 
 > **Design rule added:** Seam A is best-effort and must be *verified live*, not
 > assumed. M1's acceptance test asserts the hook actually fires.
+
+### API corrections from M0
+
+Five assumptions in the original draft were wrong. Corrected throughout, and
+recorded here because they are easy to re-introduce:
+
+| Assumed | Actual |
+|---|---|
+| `register_tool(name, ToolExecutor)` | `register_tool(name, ToolDefinition \| type[ToolDefinition])` |
+| `ToolExecutor.__call__(action)` | `__call__(action, conversation=None)` |
+| `conversation_id: str` | `uuid.UUID` |
+| `persistence_dir` alone | `workspace` is a separate required parameter |
+| `include_default_tools: bool` | a **list** |
+| Tool names used verbatim | SDK **strips a `_tool` suffix** — `side_effect_tool` resolves to `side_effect` |
+
+The resolver calls `create(conv_state=conv_state, **params)` and expects
+`Sequence[ToolDefinition]`.
 
 ---
 
@@ -318,6 +341,24 @@ class EffectGate:
 `BLOCK` — fail closed, per `0008` §6.5. A gate that crashes open is worse than
 no gate, because it creates false confidence.
 
+### 3.2.1 Verdict routing across seams
+
+`0008` §3.5 splits enforcement by verdict. `guard()` is seam-agnostic and
+returns a decision; **two different bindings act on it**:
+
+| Verdict | Bound at | Mechanism |
+|---|---|---|
+| `EXECUTE` | either | do nothing |
+| `BLOCK`, `ESCALATE` | **Seam B** | `ConversationState.block_action(action_id, reason)` |
+| `SUBSTITUTE` | **Seam C** | return the stored observation from the executor wrap |
+
+Keep `guard()` free of seam knowledge. The value: **Seam B alone gives correct
+fail-closed behaviour**, so a harness with no executor wrap is still safe — it
+just loses clean resume. Build Seam B first in M2; add Seam C for `SUBSTITUTE`.
+
+`block_action` is read from source (`0015`), not executed. **M2's first test
+confirms it empirically** before the design depends on it.
+
 ### 3.3 Reconciliation probes
 
 ```python
@@ -402,7 +443,7 @@ class GatedExecutor(ToolExecutor):
     def __init__(self, inner: ToolExecutor, gate: EffectGate, ctx):
         self._inner, self._gate, self._ctx = inner, gate, ctx
 
-    def __call__(self, action):
+    def __call__(self, action, conversation=None):        # note: 2 args
         call = self._ctx.to_tool_call(action)
         d = self._gate.guard(call)
 
@@ -412,7 +453,7 @@ class GatedExecutor(ToolExecutor):
             return self._ctx.blocked_observation(d.reason)
 
         try:
-            obs = self._inner(action)
+            obs = self._inner(action, conversation)
         except Exception as e:
             self._gate.store.fail(call.tool_call_id, repr(e))
             raise
@@ -422,11 +463,23 @@ class GatedExecutor(ToolExecutor):
 
 ```python
 # agentctl/adapters/openhands/register.py
-def install(gate, ctx, tools: dict[str, type]) -> None:
-    """Register gated versions in place of the originals."""
-    from openhands.sdk.tool import register_tool
-    for name, tool_cls in tools.items():
-        register_tool(name, _gated(tool_cls, gate, ctx))
+def gate_tools(tools, gate, ctx):
+    """Bind Seam C by replacing the executor FIELD on each resolved tool.
+
+    Corrected per 0014 C1 — no subclassing, no re-registration.
+    """
+    return [t.model_copy(update={"executor": GatedExecutor(t.executor, gate, ctx)})
+            for t in tools]
+
+
+def install_seam_b(conversation, gate, ctx):
+    """Bind BLOCK/ESCALATE via the event callback (0008 §3.5)."""
+    def on_event(event):
+        if type(event).__name__ == "ActionEvent" and event.action is not None:
+            d = gate.guard(ctx.to_tool_call(event))
+            if d.verdict in ("BLOCK", "ESCALATE"):
+                conversation.state.block_action(event.id, d.reason or "blocked")
+    return on_event
 ```
 
 **Everything harness-specific lives in `ctx`** — how to read a tool call id off
@@ -546,6 +599,25 @@ def test_no_duplicate_effect(point, tmp_repo):
 That parametrised test *is* the specification. If it passes at all nine points,
 the guarantee in `0008` §10 holds. If you write nothing else, write this.
 
+### The harness must distinguish "did not happen" from "could not observe"
+
+M0 shipped a bug worth generalising (`0014` §5). The SDK's visualizer filled an
+undrained subprocess pipe and blocked the child mid-run. The parent was polling
+for a marker at that moment, timed out, and reported **"the tool never ran"** —
+when the tool had run perfectly.
+
+That failure pointed in the direction of the hypothesis, which is the dangerous
+direction. Rules for the chaos suite:
+
+- **Never pipe child output to memory without a reader.** Redirect to files.
+- **Every negative result must be distinguishable from a broken observation.**
+  A timeout is `INCONCLUSIVE`, never `CONFIRMED` or `FALSIFIED`.
+- **Assert the harness worked before interpreting what it measured** — did the
+  child reach the tool at all? Did the mock receive a request?
+
+A test harness that fails silently toward your hypothesis is worse than no
+harness.
+
 ---
 
 ## 7. Milestones
@@ -555,16 +627,22 @@ demonstrable, and teaches one thing.
 
 | M | Deliverable | Acceptance test | What it teaches |
 |---|---|---|---|
-| **M0** | Falsification spike | Reproduce a double commit; confirm `tool_call_id` stability; wrap one executor | Whether the project is real |
-| **M1** | LiteLLM wiring + live hook proof | `async_pre_call_hook` provably fires; two accounts fail over | Proxy architecture, the endpoint trap |
-| **M2** | Ledger + gate, read/write classes only | Chaos suite green at all 9 points for `PURE_READ`/`IDEMPOTENT_WRITE` | Write-ahead logging, durability, SQLite |
+| ~~M0~~ | ~~Falsification spike~~ | ✅ **DONE** — all four hypotheses confirmed (`0014`) | — |
+| **M1** | LiteLLM wiring + live hook proof | `async_pre_call_hook` provably fires; two accounts fail over. **Trace-id forwarding is already free** (`0015` §5) — only add the turn component | Proxy architecture, the endpoint trap |
+| **M2** | Ledger + gate. **Seam B first**, then Seam C | (a) `block_action` empirically confirmed; (b) chaos suite green at all 9 points for `PURE_READ`/`IDEMPOTENT_WRITE` | Write-ahead logging, durability, SQLite |
 | **M3** | Classifier + capability matrix | `execute_bash` classified correctly across a 50-command corpus | Why data beats code for policy |
 | **M4** | Git + filesystem probes | Chaos green for `NON_IDEMPOTENT_WRITE` | Reconciliation, idempotency |
 | **M5** | Cost ledger + attribution | `agentctl cost --today` shows spend per task | Telemetry joins, observability |
 | **M6** | Record/replay evaluator | Re-run a real session offline at zero cost | Deterministic testing of nondeterministic systems |
 | **M7** | Policy compiler | Budget cap actually blocks; escalation asks first | Control/data plane separation, DSL design |
 
-**M0 through M2 is the whole thesis.** Everything after is leverage.
+**M2 is now the whole thesis** — M0 is done and confirmed it. Everything after
+is leverage.
+
+M2 splits in two, per `0008` §3.5. **M2a** binds `BLOCK`/`ESCALATE` at Seam B
+via `block_action` — no executor wrapping, and it already delivers correct
+fail-closed behaviour. **M2b** adds Seam C for `SUBSTITUTE` and clean resume.
+Ship M2a and use it before starting M2b.
 
 Nothing here requires more than a laptop, a free-tier key or two, and a scratch
 git repo.
@@ -593,9 +671,14 @@ Written down because these are what usually kill personal infrastructure.
 
 | # | Question | Now |
 |---|---|---|
-| Q3 | Executor wrappable without forking? | **Likely resolved** — composition via `register_tool`. Confirm in M0. |
-| Q2 | `tool_call_id` stable across resume? | Still open. **Blocks §2.1.** M0. |
-| Q13 | Does OpenHands use `/v1/messages` or `/v1/chat/completions` upstream? | **New, blocking M1** — issue #27518 means Seam A silently dies on the former. |
-| Q14 | Can the gate inject a git trailer into an agent-authored commit? | **New** — §3.3 reconciliation depends on it. |
+| Q2 | `tool_call_id` stable across resume? | ✅ **RESOLVED** — byte-identical (`0014`) |
+| Q3 | Executor wrappable without forking? | ✅ **RESOLVED** — via the `executor` field (`0014`) |
+| Q13 | Which endpoint does the SDK drive? | ✅ **RESOLVED** — `/v1/chat/completions` (`0014`) |
+| Q5 | Trace-id forwarded? | ✅ **RESOLVED** — `x-litellm-session-id` (`0015`) |
+| Q14 | Can the gate inject a git trailer into an agent-authored commit? | ⏳ **OPEN** — §3.3 reconciliation depends on it. M4. |
+| Q16 | Does `block_action` behave as documented? | ⏳ **OPEN** — read from source, not executed. **M2a's first test.** |
+| Q18 | Does litellm price every free-tier endpoint? | ⏳ **OPEN** — an unpriced endpoint is invisible to `max_budget_per_run`. M1. |
 
-Q13 and Q14 are new and go into `0009`.
+Budget note: `max_budget_per_run` covers `per_task_usd` by configuration
+(`0015` §4), so the policy compiler in M7 only needs to build the per-day cap —
+subject to Q18.

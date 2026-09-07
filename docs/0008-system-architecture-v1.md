@@ -6,13 +6,15 @@ Status:        DRAFT
 Created:       2026-09-05
 Supersedes:    0002 (§2 architecture)
 Superseded-by: —
-Depends-on:    0006, 0007
+Depends-on:    0006, 0007, 0010, 0014, 0015
 ---
 
 # 0008 — System Architecture v1
 
-**Status: DRAFT.** Five open questions (§15) can still change the core verdict.
-Do not begin implementation until they are cleared.
+**Status: DRAFT.** Eight of the nine open questions are now resolved by `0014`
+(M0 execution) and `0015` (source reading). **Q4 is the last blocker.**
+Corrections from `0010` §11, `0014` §3, and `0015` are folded in below and
+marked inline.
 
 ---
 
@@ -68,6 +70,10 @@ maintenance death sentence for a solo developer.
 - A general session store (`0007` — CONFIGURE, the EventLog owns this)
 - Generic routing, load balancing, retries, cooldowns (LiteLLM owns these)
 - Multi-agent orchestration
+- **Skills, subagents, slash commands, command palettes** (`0010` §9.1) — these
+  are harness concerns, and OpenHands already has its own equivalents
+  (microagents, condensers, repo instructions). Building a second set would
+  create two competing systems with no clear owner.
 - ~~A user-facing dashboard~~ — **reversed by `0013` §3.** Restored as milestone M8;
   the blocked-effect resolution panel is required to make fail-closed usable.
 
@@ -96,11 +102,26 @@ There are exactly three seams available, and they have **different powers**.
 
 - **Sees:** every `ActionEvent` and `ObservationEvent`, turn structure, causal
   links, the full agent state machine.
-- **Can:** mirror, attribute, measure, detect drift.
-- **Cannot:** ~~prevent anything~~ — **corrected by `0015` §2.** Callbacks *can*
-  block, via the public `ConversationState.block_action(action_id, reason)`.
-  What Seam B cannot do is **substitute** a stored observation; the agent emits
-  a rejection instead. See the revised seam table in `0015` §6.
+- **Can:** mirror, attribute, measure, detect drift — **and block**, via the
+  public `ConversationState.block_action(action_id, reason)`. `PRE_TOOL_USE`
+  fires on `ActionEvent`, before execution (`0015` §2).
+- **Cannot:** **substitute** a stored observation. A blocked action makes the
+  agent emit a *rejection*, not the recorded result.
+
+> **Corrected 2026-09-08 (`0015` §2).** This section previously claimed Seam B
+> "cannot prevent anything; callbacks are notification, not interception."
+> That was wrong, and the correction improves the design — see §3.5.
+
+### Seam B′ — the published hook system
+
+**Mechanism:** `Conversation(hook_config=HookConfig(...))`, with
+`PRE_TOOL_USE` / `POST_TOOL_USE` matchers.
+
+Same powers as Seam B, but `HookType` is `AGENT | COMMAND | PROMPT` — all
+external — so every tool call would spawn a subprocess. **We call
+`block_action` directly instead.** Seam B′ stays interesting only as a future
+distribution channel: shipping `agentctl` as a `COMMAND` hook for users who
+don't want to embed the adapter.
 
 ### Seam C — At the tool boundary
 
@@ -119,11 +140,28 @@ Seam A cannot see effects. Seam B can see them but arrives too late — by the
 time the callback fires, the tool has run. Only a wrapper *around* the executor
 sits between the decision to act and the act itself.
 
-This produces the defining property of the architecture: **it is a three-seam
+This produces the defining property of the architecture: **it is a multi-seam
 integration with different portability characteristics per seam.** Seams A and
 B are stable, published, and harness-agnostic in spirit. Seam C is narrow,
 harness-specific, and must be kept as thin as humanly possible — because it is
 the one piece that must be re-implemented for every harness we support (R6).
+
+### 3.5 The revised seam table
+
+| Seam | Mechanism | Block | Substitute | Porting cost |
+|---|---|---|---|---|
+| **A** | LiteLLM `CustomLogger` | ✅ reject request | n/a | zero |
+| **B** | Event callback + `block_action` | ✅ | ❌ | low |
+| **B′** | `HookConfig` `PRE_TOOL_USE` | ✅ | ❌ | low, subprocess per call |
+| **C** | `ToolDefinition.executor` wrap | ✅ | ✅ | the real cost |
+
+**Split the gate across seams by verdict.** `BLOCK` and `ESCALATE` bind at
+Seam B; only `SUBSTITUTE` needs Seam C.
+
+The payoff is a failure mode this document originally did not have: **lose
+Seam C and the system still fails closed correctly.** It loses clean resume —
+the agent sees a rejection where it could have seen the recorded observation —
+but it never double-executes. Build it that way deliberately.
 
 ---
 
@@ -245,6 +283,7 @@ addition xDS does not need — an enforcement point at the effect boundary.
 | **Cache Intelligence** | control | Compute affinity decisions the v1 check cannot | CONFIGURE + BUILD |
 | **Capability Matrix** | control | Model equivalence, capability, effect classes | BUILD |
 | **Replay Evaluator** | control | Deterministic offline evaluation with stubbed effects | BUILD |
+| **Capability Broker** | control | MCP registry federation, capability gating, credential brokerage, provenance | BUILD — **Layer 2** (`0010` §8.3) |
 | Journal | *harness* | Append-only event history | CONFIGURE — subscribe |
 | Context builder | *harness* | Condensation and context construction | SKIP |
 | Routing, fallback, cooldown | *data plane* | Deployment selection and failover | CONFIGURE |
@@ -295,13 +334,19 @@ it is false this data model breaks.**
 
 ### 6.3 Effect classification
 
-| Class | Examples | Replay policy |
-|---|---|---|
-| `PURE_READ` | file read, grep, list | Re-execute freely |
-| `IDEMPOTENT_WRITE` | write full file content, `mkdir -p` | Re-execute freely |
-| `NON_IDEMPOTENT_WRITE` | append to file, `git commit` | Never re-execute on INTENT |
-| `EXTERNAL` | HTTP POST, email, webhook | Never re-execute; reconcile |
-| `DESTRUCTIVE` | `rm -rf`, force push, DROP | Never re-execute; escalate |
+| Class | Examples | Replay policy | Speculation |
+|---|---|---|---|
+| `PURE_READ` | file read, grep, list | Re-execute freely | ✅ safe |
+| `IDEMPOTENT_WRITE` | write full file content, `mkdir -p` | Re-execute freely | ❌ |
+| `NON_IDEMPOTENT_WRITE` | append to file, `git commit` | Never re-execute on INTENT | ❌ |
+| `EXTERNAL` | HTTP POST, email, webhook | Never re-execute; reconcile | ❌ |
+| `DESTRUCTIVE` | `rm -rf`, force push, DROP | Never re-execute; escalate | ❌ |
+
+**Speculation is strictly stricter than replay safety** (`0010` §6.4). An
+idempotent write is safe to *repeat* but not safe to perform *speculatively*,
+because a speculative write that is later discarded has still mutated the
+world. Same classifier, higher threshold — which is how this safety layer
+becomes the precondition for the project's largest latency win.
 
 Classification is a function of tool name plus argument inspection, declared in
 the capability matrix. **Unclassified tools default to `EXTERNAL`** — the safe
@@ -359,6 +404,17 @@ closed**: refuse to execute, mark the conversation blocked, surface the
 decision to a person. A stalled agent is a recoverable problem. A duplicated
 `git push` or a double payment is not.
 
+> **Design rule: the turn is the atomic unit of routing** (`0010` §7.3).
+> An endpoint may change between turns and never within one. A turn with
+> unresolved tool calls must complete against the endpoint that opened it, or
+> be abandoned and replanned as a whole.
+>
+> Why it matters here: model families mint `tool_call_id` differently, and the
+> ledger in §6.2 is keyed on that id. A mid-turn provider switch could make a
+> committed effect *invisible* and re-execute it — failover defeating the very
+> guard built to prevent double execution. Cheap to enforce at Seam A, which
+> already sees whether the outgoing message list ends in unresolved tool calls.
+
 > **Design rule: cost and routing decisions fail open. Effect decisions fail
 > closed.** If the cost ledger is unreachable, keep serving and reconcile the
 > books later. If the effect ledger is unreachable, stop — because an
@@ -385,6 +441,27 @@ prefix, so affinity should be keyed by that prefix too.** Hashing the full
 message list means the key changes on every turn — which is precisely why
 `0006` reports every request landing on a different deployment.
 
+**Use the key the SDK already sends** (`0015` §3). `LocalConversation` threads
+`prompt_cache_key` — defaulting to the conversation id — into every call as
+OpenAI's provider-side cache-shard hint. A stable per-conversation cache
+identity therefore already exists, is visible to the provider, and survives
+condensation. Key our affinity map on it rather than hashing prefixes
+ourselves: simpler, and consistent with what the provider sees.
+
+Cross-account routing — deciding *which* of our deployments holds the warm
+cache — remains entirely ours.
+
+**Justification is cost, not latency** (`0010` §6.3). This section originally
+leaned on vendor latency figures. Independent measurement in agentic settings
+(`0010:V1`) puts time-to-first-token improvement at **13–31%**, not 85%, while
+cost reduction holds at **41–80%**. The cost case is strong; the latency case
+is not. Sequence accordingly.
+
+**Try the free win first.** `0010:V1` found that placing volatile content at
+the *end* of the system prompt and keeping dynamic tool results out of the
+cached prefix beat naive full-context caching. That is a configuration change.
+Measure it before writing any cache-intelligence code.
+
 **Sequenced deliberately after the effect ledger.** This is an optimization;
 effect safety is a correctness property. Also `0006:U4` may resolve part of it
 for free — evaluate `deployment_affinity` before writing any of this.
@@ -403,12 +480,17 @@ LiteLLM_SpendLogs.session_id  ◀── from x-litellm-trace-id
 OpenHands ActionEvent.id / conversation_id
 ```
 
-The Request Hook stamps a trace id derived from `(conversation_id, turn_id)`
-on every outbound call. The control plane then joins spend rows to journal
-turns and produces the metric that actually matters: **cost per completed
-task**, not cost per token.
+**Half of this is already free** (`0015` §5). The SDK sends
+`x-litellm-session-id` set to the conversation id on every call, and LiteLLM
+populates `LiteLLM_SpendLogs.session_id` from that header (`0006:V10`). So
+**conversation-level cost attribution works today with zero code.**
 
-Blocked on `0006:U2` — whether OpenHands forwards a trace id by default.
+The remaining gap is granularity: the metric that matters is cost per
+*completed task*, which needs turn resolution. The Request Hook adds the turn
+component to the id the SDK already supplies — a smaller job than this section
+originally described.
+
+`0006:U2` / `0009` Q5 — **resolved**.
 
 ---
 
@@ -491,8 +573,13 @@ of portability explicit and *bounded*:
 | Seam | Coupling | Porting cost per new harness |
 |---|---|---|
 | A — Request Hook | LiteLLM `CustomLogger` | **Zero.** Harness-independent. |
-| B — Journal subscription | Harness event API | Low — a normalization adapter. |
-| C — Effect Gate | Harness tool interface | **The real cost.** A thin wrapper per harness. |
+| B — Journal + `block_action` | Harness event API | Low — a normalization adapter. Carries `BLOCK`/`ESCALATE`. |
+| C — Effect Gate | Harness tool interface | **The real cost.** Carries `SUBSTITUTE` only. |
+
+Because the verdict split (§3.5) puts only `SUBSTITUTE` behind Seam C, a new
+harness gets correct fail-closed behaviour from Seam B alone. Full resume
+quality then follows when its executor wrap is written. **Portability degrades
+gracefully rather than all-or-nothing.**
 
 So the portability strategy is: **keep Seam C minimal.** The gate should
 contain no policy, no classification logic, and no I/O beyond the ledger — a
@@ -514,7 +601,14 @@ Deliberately boring, and deferred where possible.
 | Control plane store | Postgres (shared with LiteLLM spend logs) | The join in §8 wants one database. |
 | Compiled policy transport | File on disk, watched | No network dependency on the hot path (R2). |
 | Kernel language | Python | Must run in-process with both LiteLLM hooks and the OpenHands executor. |
+| Kernel hot-path cost | **Negligible — measured concern closed** |
 | Redis | **Not in v1** | `0004` Phase 9 asks where it is justified. Nothing here needs cross-host live coordination yet, and adding it would put a network hop on the effect path — precisely wrong. |
+
+On kernel cost: `0010:V3` measures LLM generation at up to **96% of
+end-to-end agent-loop latency**, with tool execution roughly constant. A local
+SQLite read at Seam C is invisible against a multi-second generation, so
+**the in-band kernel is latency-safe by construction.** That was an open worry
+in the original draft; it is now closed.
 
 Note the Redis position, because it inverts a common instinct: **the effect
 ledger is the last thing that should live in a cache.**
@@ -544,15 +638,22 @@ successor.
 
 ## 15. Open decisions blocking ACCEPTED status
 
-| # | Question | Source | Impact if it resolves against us |
-|---|---|---|---|
-| 1 | Does an executor-level dedup guard already exist? | `0006:U1` | Core BUILD verdict collapses; project needs rethinking |
-| 2 | Does `deployment_affinity` supersede `prompt_caching`? | `0006:U4` | §7 shrinks to configuration |
-| 3 | Does OpenHands forward a trace id by default? | `0006:U2` | §8 gains or loses a build step |
-| 4 | Is `tool_call_id` genuinely stable across resume? | new | **§6 data model breaks.** Must verify. |
-| 5 | Can a tool executor be wrapped without forking? | new | Seam C unavailable; Option 3 fails; fall back to Option 1 with detection only |
+| # | Question | Status |
+|---|---|---|
+| 1 | Does an executor-level dedup guard already exist? | ✅ **No** — double execution reproduced (`0014`) |
+| 2 | Is `tool_call_id` stable across resume? | ✅ **Yes** — byte-identical (`0014`) |
+| 3 | Can a tool executor be wrapped without forking? | ✅ **Yes** — via `ToolDefinition.executor` (`0014`) |
+| 4 | Does OpenHands drive `/v1/chat/completions`? | ✅ **Yes** (`0014`) |
+| 5 | Does OpenHands forward a trace id? | ✅ **Yes** — `x-litellm-session-id` (`0015`) |
+| 6 | Does `prompt_cache_key` serve our affinity need? | ✅ **Partially** — reuse as the key (`0015`) |
+| 7 | Is `hook_config` a fourth seam? | ✅ **Partially** — corrects §3 (`0015`) |
+| 8 | Does `max_budget_per_run` cover the budget guard? | ✅ **Partially** — per-run yes, per-day no (`0015`) |
+| **9** | **Does `deployment_affinity` supersede `prompt_caching`?** | ⏳ **OPEN** (`0009` Q4) — §7 may shrink to configuration |
 
-**Questions 4 and 5 are new and are the most dangerous.** Both are load-bearing
-assumptions of this document that `0006` did not test. Verify both in step 0.
+**Q4 in `0009` is the last blocker.** It is a ~30-minute source read, and it can
+only *reduce* scope — so this document is safe to build against now, with §7
+provisional.
 
-Promote this document to ACCEPTED only when all five are closed.
+One caveat on confidence: everything from `0015` is read from source but **not
+executed**. `0014`'s findings were executed. Confirm the `block_action`
+behaviour empirically in M2 before relying on the §3.5 verdict split.
