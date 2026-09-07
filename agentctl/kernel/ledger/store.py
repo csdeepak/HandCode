@@ -161,7 +161,8 @@ class LedgerStore:
             )
 
     def write_intent(
-        self, call: ToolCall, cls: EffectClass, fence: int
+        self, call: ToolCall, cls: EffectClass, fence: int,
+        pre_state: str | None = None,
     ) -> EffectRecord:
         """Record intent *before* the tool runs. Durable on return."""
         prev = self.lookup(call.tool_call_id)
@@ -174,13 +175,15 @@ class LedgerStore:
         self._db.execute(
             "INSERT INTO effect_record(tool_call_id, conversation_id, turn_id, "
             "action_event_id, tool_name, intent_hash, effect_class, state, "
-            "fence_token, attempt, started_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) "
+            "fence_token, attempt, started_at, pre_state) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?) "
             "ON CONFLICT(tool_call_id) DO UPDATE SET state=excluded.state, "
             "attempt=excluded.attempt, started_at=excluded.started_at, "
-            "fence_token=excluded.fence_token, error=NULL",
+            "fence_token=excluded.fence_token, error=NULL, "
+            "pre_state=COALESCE(excluded.pre_state, effect_record.pre_state)",
             (call.tool_call_id, call.conversation_id, call.turn_id, None,
              call.tool_name, call.intent_hash(), cls.value,
-             EffectState.INTENT.value, fence, attempt, now),
+             EffectState.INTENT.value, fence, attempt, now, pre_state),
         )
         rec = self.lookup(call.tool_call_id)
         assert rec is not None
@@ -253,6 +256,7 @@ def _to_record(row: sqlite3.Row) -> EffectRecord:
         committed_at=row["committed_at"],
         observation=row["observation"],
         probe_verdict=row["probe_verdict"],
+        pre_state=row["pre_state"],
         error=row["error"],
         action_event_id=row["action_event_id"],
     )

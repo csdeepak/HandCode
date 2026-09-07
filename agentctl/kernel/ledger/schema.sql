@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS effect_record (
     committed_at     REAL,
     observation      BLOB,
     probe_verdict    TEXT,
+    -- World fingerprint captured BEFORE execution, so a probe can later ask
+    -- "did anything change?" without the tool having cooperated. docs/0016b
+    pre_state        TEXT,
     error            TEXT,
     CHECK (state IN ('INTENT','COMMITTED','OBSERVED','FAILED','BLOCKED')),
     CHECK (effect_class IN

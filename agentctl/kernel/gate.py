@@ -9,9 +9,11 @@ that crashes open is worse than no gate, because it creates false confidence.
 """
 from __future__ import annotations
 
+import json
 import logging
 
 from .classify import Classifier
+from .reconcile.base import DID_NOT_LAND, INCONCLUSIVE, LANDED, ProbeRegistry
 from .ledger.models import (
     EffectClass,
     EffectState,
@@ -36,12 +38,12 @@ class EffectGate:
         self,
         store: LedgerStore,
         classifier: Classifier | None = None,
-        probes: dict | None = None,
+        probes: ProbeRegistry | None = None,
         fence: int = 0,
     ):
         self.store = store
         self.classifier = classifier or Classifier()
-        self.probes = probes or {}
+        self.probes = probes if probes is not None else ProbeRegistry()
         self.fence = fence
 
     # ── the decision ───────────────────────────────────────────────────
@@ -62,7 +64,7 @@ class EffectGate:
 
         # First sighting — the common case.
         if rec is None:
-            self.store.write_intent(call, cls, self.fence)
+            self.store.write_intent(call, cls, self.fence, self._capture(call, cls))
             return GateDecision(Verdict.EXECUTE, cls)
 
         # Same id, different arguments. Substituting here would return the
@@ -77,7 +79,8 @@ class EffectGate:
             return GateDecision(Verdict.SUBSTITUTE, cls, observation=rec.observation)
 
         if rec.state is EffectState.FAILED:
-            self.store.write_intent(call, cls, self.fence)   # bumps attempt
+            # Re-capture: the world may have moved since the failed attempt.
+            self.store.write_intent(call, cls, self.fence, self._capture(call, cls))
             return GateDecision(Verdict.EXECUTE, cls)
 
         if rec.state is EffectState.BLOCKED:
@@ -103,28 +106,55 @@ class EffectGate:
             )
 
         # NON_IDEMPOTENT_WRITE / EXTERNAL: ask the world if it can answer.
-        probe_name = self.classifier.probe_for(call)
-        probe = self.probes.get(probe_name) if probe_name else None
+        probe = self.probes.for_call(call, self.classifier.probe_for(call))
+        verdict = INCONCLUSIVE
         if probe is not None:
-            verdict = probe.probe(call, rec)
-            if verdict == "LANDED":
+            try:
+                verdict = probe.probe(call, rec)
+            except Exception:                           # noqa: BLE001
+                log.exception("probe %s raised", getattr(probe, "name", "?"))
+                verdict = INCONCLUSIVE
+
+            if verdict == LANDED:
                 self.store.reconcile(call.tool_call_id, verdict, landed=True)
                 return GateDecision(
                     Verdict.SUBSTITUTE, cls, observation=rec.observation,
-                    reason="probe found the effect already landed",
+                    reason=f"{probe.name} probe: the effect already landed",
                 )
-            if verdict == "DID_NOT_LAND":
+            if verdict == DID_NOT_LAND:
                 self.store.reconcile(call.tool_call_id, verdict, landed=False)
-                self.store.write_intent(call, cls, self.fence)
-                return GateDecision(Verdict.EXECUTE, cls)
+                self.store.write_intent(call, cls, self.fence,
+                                        self._capture(call, cls))
+                return GateDecision(
+                    Verdict.EXECUTE, cls,
+                    reason=f"{probe.name} probe: the effect did not land",
+                )
 
         # No probe, or inconclusive. Fail closed.
-        reason = (
-            f"cannot determine whether {call.tool_name} already executed"
-            f"{' (no probe available)' if probe is None else ' (probe inconclusive)'}"
-        )
+        detail = ("no probe available" if probe is None
+                  else f"{probe.name} probe inconclusive")
+        reason = (f"cannot determine whether {call.tool_name} already "
+                  f"executed ({detail})")
         self.store.block(call.tool_call_id, reason)
         return GateDecision(Verdict.BLOCK, cls, reason=reason)
+
+    def _capture(self, call: ToolCall, cls: EffectClass) -> str | None:
+        """Fingerprint the world before acting, so a probe can compare later.
+
+        Only for classes that can reach the ambiguous branch -- there is no
+        point paying for it on a read.
+        """
+        if cls.replay_safe:
+            return None
+        probe = self.probes.for_call(call, self.classifier.probe_for(call))
+        if probe is None:
+            return None
+        try:
+            state = probe.capture(call)
+        except Exception:                               # noqa: BLE001
+            log.exception("probe %s capture raised", getattr(probe, "name", "?"))
+            return None
+        return json.dumps(state) if state else None
 
     # ── post-execution bookkeeping ─────────────────────────────────────
     def record_success(self, call: ToolCall, observation: bytes | None = None) -> None:

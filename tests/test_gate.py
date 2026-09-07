@@ -78,28 +78,33 @@ def test_ambiguous_destructive_escalates(gate):
     assert d.effect_class is EffectClass.DESTRUCTIVE
 
 
+def _stub(verdict):
+    from agentctl.kernel.reconcile.base import ProbeRegistry
+
+    class Stub:
+        name = "git"
+        def handles(self, call): return True
+        def capture(self, call): return {"probe": "git"}
+        def probe(self, call, rec): return verdict
+    return ProbeRegistry(Stub())
+
+
 def test_probe_landed_substitutes(gate):
-    class Probe:
-        def probe(self, call, rec): return "LANDED"
-    gate.probes = {"git": Probe()}
+    gate.probes = _stub("LANDED")
     c = bash("git commit -m x", cid="tc_p1")
     gate.guard(c)
     assert gate.guard(c).verdict is Verdict.SUBSTITUTE
 
 
 def test_probe_did_not_land_re_executes(gate):
-    class Probe:
-        def probe(self, call, rec): return "DID_NOT_LAND"
-    gate.probes = {"git": Probe()}
+    gate.probes = _stub("DID_NOT_LAND")
     c = bash("git commit -m x", cid="tc_p2")
     gate.guard(c)
     assert gate.guard(c).verdict is Verdict.EXECUTE
 
 
 def test_inconclusive_probe_fails_closed(gate):
-    class Probe:
-        def probe(self, call, rec): return "INCONCLUSIVE"
-    gate.probes = {"git": Probe()}
+    gate.probes = _stub("INCONCLUSIVE")
     c = bash("git commit -m x", cid="tc_p3")
     gate.guard(c)
     assert gate.guard(c).verdict is Verdict.BLOCK
@@ -123,3 +128,38 @@ def test_blocked_stays_blocked(gate):
     c = bash("git commit -m x", cid="tc_bb")
     gate.guard(c); gate.guard(c)                    # -> BLOCKED
     assert gate.guard(c).verdict is Verdict.BLOCK
+
+
+def test_a_probe_that_raises_fails_closed(gate):
+    """A broken probe must not become an unguarded effect."""
+    from agentctl.kernel.reconcile.base import ProbeRegistry
+
+    class Exploding:
+        name = "git"
+        def handles(self, call): return True
+        def capture(self, call): raise RuntimeError("capture is broken")
+        def probe(self, call, rec): raise RuntimeError("probe is broken")
+
+    gate.probes = ProbeRegistry(Exploding())
+    c = bash("git commit -m x", cid="tc_boom")
+    assert gate.guard(c).verdict is Verdict.EXECUTE     # capture failure is survivable
+    assert gate.guard(c).verdict is Verdict.BLOCK       # probe failure fails closed
+
+
+def test_pre_state_is_captured_for_dangerous_classes_only(gate):
+    from agentctl.kernel.reconcile.base import ProbeRegistry
+
+    class Stub:
+        name = "git"
+        def handles(self, call): return True
+        def capture(self, call): return {"probe": "git", "head": "abc"}
+        def probe(self, call, rec): return "INCONCLUSIVE"
+
+    gate.probes = ProbeRegistry(Stub())
+    dangerous = bash("git commit -m x", cid="tc_pre1")
+    gate.guard(dangerous)
+    assert gate.store.lookup("tc_pre1").pre_state is not None
+
+    safe = bash("ls -la", cid="tc_pre2")
+    gate.guard(safe)
+    assert gate.store.lookup("tc_pre2").pre_state is None,         "no point fingerprinting the world for a read"

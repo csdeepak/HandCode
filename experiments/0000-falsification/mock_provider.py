@@ -24,7 +24,27 @@ _LOCK = threading.Lock()
 TOOL_NAME = "side_effect_tool"
 
 
-def _tool_call_response(call_id: str, model: str, tool_name: str | None = None) -> dict:
+def _args_for(schema: dict | None) -> dict:
+    """Build arguments that satisfy the offered tool's schema.
+
+    Only required properties are filled, with a type-appropriate placeholder.
+    Anything with a default is left out so the tool's own defaults apply. This
+    keeps the mock usable for any tool without hard-coding its fields.
+    """
+    if not isinstance(schema, dict):
+        return {}
+    props = schema.get("properties") or {}
+    out: dict = {}
+    for name in (schema.get("required") or []):
+        spec = props.get(name) or {}
+        t = spec.get("type")
+        out[name] = {"string": "mock", "integer": 1, "number": 1.0,
+                     "boolean": True, "array": [], "object": {}}.get(t, "mock")
+    return out
+
+
+def _tool_call_response(call_id: str, model: str, tool_name: str | None = None,
+                        args: dict | None = None) -> dict:
     """Turn 1: the model asks for our side-effecting tool."""
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
@@ -42,7 +62,7 @@ def _tool_call_response(call_id: str, model: str, tool_name: str | None = None) 
                     "type": "function",
                     "function": {
                         "name": tool_name or TOOL_NAME,
-                        "arguments": json.dumps({"payload": "m0-spike"}),
+                        "arguments": json.dumps(args if args is not None else {}),
                     },
                 }],
             },
@@ -144,17 +164,19 @@ class Handler(BaseHTTPRequestHandler):
                  for c in m["content"]))
             for m in messages
         )
-        # Use the tool name the agent actually offered. The SDK normalises
-        # names (it strips a "_tool" suffix), so hard-coding one is fragile.
-        offered = None
+        # Use the tool name AND argument schema the agent actually offered.
+        # The SDK normalises names (it strips a "_tool" suffix) and every tool
+        # has its own action schema, so hard-coding either is fragile.
+        offered, schema = None, None
         for t in (body.get("tools") or []):
             fn = t.get("function") or {}
             if fn.get("name"):
-                offered = fn["name"]
+                offered, schema = fn["name"], fn.get("parameters")
                 break
 
         resp = (_final_response(model) if already_ran
-                else _tool_call_response(self.fixed_call_id, model, offered))
+                else _tool_call_response(self.fixed_call_id, model, offered,
+                                         _args_for(schema)))
 
         if body.get("stream"):
             self._sse(resp)

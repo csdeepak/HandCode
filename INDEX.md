@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0016**.
+**The highest number is the newest document.** Current head: **0017**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -22,6 +22,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0014](docs/0014-m0-results-decision-record.md) | M0 Results — Decision Record | DECISION | ACCEPTED | 2026-09-08 | All four hypotheses CONFIRMED. Double execution reproduced. Three corrections to 0012 |
 | [0015](docs/0015-sdk-capability-findings.md) | SDK Capability Findings | DECISION | ACCEPTED | 2026-09-08 | Q5/Q15/Q16/Q17 resolved. Seam B can block — corrects 0008 §3. Revised seam table |
 | [0016](docs/0016-m2a-results.md) | M2a Results — The Gate Works | DECISION | ACCEPTED | 2026-09-08 | Duplicate eliminated. Two design flaws found by tests: most-dangerous-match, and fence enforcement |
+| [0017](docs/0017-m4-results.md) | M4 Results — Reconciliation Probes | DECISION | ACCEPTED | 2026-09-08 | Git and filesystem probes. Ambiguity resolves with no human. Fingerprinting replaces trailer injection |
 
 ---
 
@@ -42,10 +43,10 @@ verdicts, current design, then the diagrams. About 40 minutes.
 
 | | |
 |---|---|
-| **Phase** | **M0 and M2a complete.** The gate prevents duplicate effects (`0016`). |
+| **Phase** | **M0, M2a, M4 complete.** Duplicates prevented, and ambiguity now resolves automatically (`0017`). |
 | **Architecture** | `0008` DRAFT — Q1/Q2/Q3/Q5/Q13/Q15/Q16/Q17 resolved. **Q4 is the last blocker.** §3 needs the `0015` correction. |
-| **Next action** | **M4** (git probe — turns blocks into automatic resolutions) or **M2b** (Seam C, clean resume). |
-| **Code written** | `agentctl/` — ledger, classifier, gate, Seam B. **49 tests green.** |
+| **Next action** | **M2b** (Seam C, so `SUBSTITUTE` actually substitutes) or **M5** (cost ledger). |
+| **Code written** | `agentctl/` — ledger, classifier, gate, Seam B, probes. **65 tests green.** |
 
 ---
 

@@ -160,7 +160,7 @@ These block `0008` from moving DRAFT → ACCEPTED.
 
 | | |
 |---|---|
-| **Status** | OPEN |
+| **Status** | **WONTFIX** — moot; `0017` replaced trailer injection with world fingerprinting |
 | **Source** | New — `0012` §3.3 |
 | **Blocks** | M4 git reconciliation probe. |
 | **Impact if no** | The git probe cannot identify its own effect, and `NON_IDEMPOTENT_WRITE` commits fall back to fail-closed on every ambiguous resume. Usable, but noisy. |
@@ -261,3 +261,4 @@ Part C, run before each build step.
 | 2026-09-08 | Q16 | **PARTIAL** — `block_action` makes Seam B able to BLOCK (corrects `0008` §3); cannot SUBSTITUTE | `0015` |
 | 2026-09-08 | Q17 | **PARTIAL** — per-run USD cap is free; per-day is not | `0015` |
 | 2026-09-08 | Q16 | **CONFIRMED empirically** — `block_action` prevents execution; duplicate eliminated | `0016` |
+| 2026-09-08 | Q14 | **WONTFIX** — trailer injection unnecessary; fingerprinting works at Seam B | `0017` |

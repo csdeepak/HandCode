@@ -132,6 +132,7 @@ class EffectRecord:
     committed_at: float | None = None
     observation: bytes | None = None
     probe_verdict: str | None = None
+    pre_state: str | None = None
     error: str | None = None
     action_event_id: str | None = None
 
