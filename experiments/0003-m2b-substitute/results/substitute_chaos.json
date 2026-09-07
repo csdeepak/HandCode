@@ -1,0 +1,47 @@
+{
+  "verdict": "PASS",
+  "evidence": {
+    "workspace": "C:\\Users\\csdee\\AppData\\Local\\Temp\\m2b_0jiwofio",
+    "commits_before": 1,
+    "commits_after_crash": 2,
+    "commits_after_resume": 2,
+    "ledger": [
+      {
+        "tool": "commit",
+        "state": "COMMITTED",
+        "probe": "LANDED",
+        "error": ""
+      }
+    ],
+    "blocked_count": 0,
+    "event_kinds": [
+      "SystemPromptEvent",
+      "MessageEvent",
+      "ActionEvent",
+      "ActionEvent",
+      "ObservationEvent",
+      "MessageEvent"
+    ],
+    "rejections": 0,
+    "conversation_errors": 0,
+    "observations": 1,
+    "decisions_fresh": [
+      {
+        "tool": "commit",
+        "verdict": "EXECUTE",
+        "reason": null
+      }
+    ],
+    "decisions_resume": [
+      {
+        "tool": "commit",
+        "verdict": "SUBSTITUTE",
+        "reason": "git probe: the effect already landed"
+      }
+    ]
+  },
+  "notes": [
+    "Seam C substituted the recorded observation. One commit, ledger COMMITTED, nothing blocked, and NO rejection reached the agent.",
+    "M2a blocked here; M4 reconciled but still rejected; M2b resumes cleanly. The correctness story is complete."
+  ]
+}

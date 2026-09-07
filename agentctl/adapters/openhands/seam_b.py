@@ -66,11 +66,17 @@ class OpenHandsContext:
         )
 
     @staticmethod
-    def serialize(observation: Any) -> bytes:
+    def serialize(event_or_observation: Any) -> bytes:
+        """Serialize the Observation, not the wrapping ObservationEvent.
+
+        Seam C revives this with `observation_type.model_validate_json`, so it
+        must be the observation's own shape.
+        """
+        obj = getattr(event_or_observation, "observation", None) or event_or_observation
         try:
-            return observation.model_dump_json().encode()
+            return obj.model_dump_json().encode()
         except Exception:                               # noqa: BLE001
-            return json.dumps(str(observation)).encode()
+            return json.dumps(str(obj)).encode()
 
 
 def is_action_event(event: Any) -> bool:
@@ -98,10 +104,15 @@ class SeamB:
         gate: EffectGate,
         ctx: OpenHandsContext | None = None,
         on_decision: Callable[[ToolCall, GateDecision], None] | None = None,
+        handoff: Any = None,
     ):
         self.gate = gate
         self.ctx = ctx
         self.on_decision = on_decision
+        # When Seam C is installed, SUBSTITUTE is handed to it instead of being
+        # downgraded to a block. Without it, behaviour degrades to M2a:
+        # still correct, just a rejection where a result was possible.
+        self.handoff = handoff
         self._state: Any = None
         self._pending: dict[str, str] = {}    # action_event_id -> tool_call_id
 
@@ -149,17 +160,22 @@ class SeamB:
                         call.tool_name, call.tool_call_id, reason)
 
         elif decision.verdict is Verdict.SUBSTITUTE:
-            # Seam B cannot hand back a stored observation. Block instead and
-            # say so honestly: correctness is preserved, resume quality is not.
-            # Seam C (M2b) fixes this.
-            reason = (
-                f"{call.tool_name} already ran and its result was recorded; "
-                f"agentctl blocked a repeat. Add the Seam C executor wrap to "
-                f"resume cleanly instead of blocking."
-            )
-            self._state.block_action(event.id, reason)
-            log.warning("SUBSTITUTE needed, Seam B can only block: %s",
-                        call.tool_call_id)
+            if self.handoff is not None:
+                # Seam C will return the recorded observation. Let the harness
+                # proceed to the executor -- it never reaches the real tool.
+                self.handoff.offer(event.action, call, decision.observation)
+                log.info("handing %s to Seam C for substitution", call.tool_call_id)
+            else:
+                # No Seam C: block instead. Correctness preserved, resume
+                # quality is not. docs/0008 §3.5 -- degrade, never fail open.
+                reason = (
+                    f"{call.tool_name} already ran and its result was recorded; "
+                    f"agentctl blocked a repeat. Install the Seam C executor "
+                    f"wrap to resume cleanly instead of blocking."
+                )
+                self._state.block_action(event.id, reason)
+                log.warning("SUBSTITUTE needed, Seam B can only block: %s",
+                            call.tool_call_id)
 
         if self.on_decision:
             self.on_decision(call, decision)
