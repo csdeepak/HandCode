@@ -1,600 +1,633 @@
-<mxfile host="app.diagrams.net" agent="Claude Code" version="24.7.17" type="device">
-
-  <!-- ══════════════════════════════════════════════════════════════════
-       PAGE 1 — Planes and ownership
-       ══════════════════════════════════════════════════════════════════ -->
-  <diagram id="planes" name="1 · Planes &amp; Ownership">
-    <mxGraphModel dx="1600" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-
-        <!-- title -->
-        <mxCell id="p1_title" value="Control Plane — Request Flow" style="text;html=1;align=left;verticalAlign=middle;fontSize=26;fontStyle=1;fontColor=#171C26;" vertex="1" parent="1">
-          <mxGeometry x="60" y="24" width="700" height="34" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_sub" value="Doc 0011 · DRAFT · one user request traced through every concept. Solid edges are the request path; dashed edges are the control plane and may all be cut." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#737F92;" vertex="1" parent="1">
-          <mxGeometry x="60" y="60" width="1100" height="20" as="geometry" />
-        </mxCell>
-
-        <!-- ── containers (drawn first = behind) ── -->
-        <mxCell id="p1_harness" value="AGENT HARNESS — OpenHands SDK, unmodified" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EEF4EE;strokeColor=#3F7A4A;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=12;fontStyle=1;fontColor=#1D3A23;" vertex="1" parent="1">
-          <mxGeometry x="60" y="180" width="640" height="310" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_kernel" value="ENFORCEMENT KERNEL — in-band · must not fail" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEEEA;strokeColor=#B4432C;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=12;fontStyle=1;fontColor=#3D1A10;" vertex="1" parent="1">
-          <mxGeometry x="760" y="180" width="460" height="310" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_dp" value="LLM DATA PLANE — LiteLLM" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F1F3F8;strokeColor=#6B7689;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=12;fontStyle=1;fontColor=#171C26;" vertex="1" parent="1">
-          <mxGeometry x="760" y="540" width="460" height="160" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_prov" value="PROVIDER POOLS" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9AA3B5;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=12;fontStyle=1;fontColor=#171C26;" vertex="1" parent="1">
-          <mxGeometry x="1280" y="540" width="300" height="240" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_mcp" value="MCP FLEET — third-party, remote, opaque" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F1F3F8;strokeColor=#6B7689;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=12;fontStyle=1;fontColor=#171C26;" vertex="1" parent="1">
-          <mxGeometry x="60" y="700" width="640" height="180" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_cp" value="CONTROL PLANE — out-of-band · may fail · never on the request path" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EAEFFC;strokeColor=#2F5FE0;dashed=1;dashPattern=8 4;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=12;fontStyle=1;fontColor=#152A5E;" vertex="1" parent="1">
-          <mxGeometry x="760" y="900" width="820" height="200" as="geometry" />
-        </mxCell>
-
-        <!-- ── user ── -->
-        <mxCell id="p1_user" value="USER&#10;&quot;add auth to the app&quot;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#171C26;strokeWidth=2;fontSize=12;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="270" y="100" width="220" height="52" as="geometry" />
-        </mxCell>
-
-        <!-- ── harness nodes ── -->
-        <mxCell id="p1_agent" value="Agent.step loop&#10;reason → act → observe" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3F7A4A;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="90" y="230" width="260" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_cond" value="Condenser&#10;context construction — SKIP verdict" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3F7A4A;fontSize=11;dashed=1;" vertex="1" parent="1">
-          <mxGeometry x="380" y="230" width="290" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_log" value="ConversationState&#10;append-only EventLog" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3F7A4A;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="90" y="330" width="260" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_te" value="Tool Executor" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3F7A4A;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="380" y="330" width="290" height="70" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_note1" value="write-ahead: ActionEvent is persisted BEFORE the tool runs" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#B4432C;fontStyle=2" vertex="1" parent="1">
-          <mxGeometry x="90" y="410" width="580" height="20" as="geometry" />
-        </mxCell>
-
-        <!-- ── kernel nodes ── -->
-        <mxCell id="p1_rh" value="Request Hook — SEAM A&#10;compiled policy · cache affinity · model tier · trace-id&#10;turn-atomic routing check" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;strokeWidth=2;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="790" y="225" width="400" height="72" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_eg" value="Effect Gate — SEAM C&#10;classify · ledger lookup · write-ahead&#10;the only point an effect can be stopped" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;strokeWidth=2;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="790" y="315" width="400" height="72" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_el" value="Effect Ledger&#10;SQLite · WAL · fsync" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=8;fillColor=#FFFFFF;strokeColor=#B4432C;strokeWidth=2;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="880" y="405" width="220" height="70" as="geometry" />
-        </mxCell>
-
-        <!-- ── data plane nodes ── -->
-        <mxCell id="p1_router" value="Router&#10;strategy · pre-call checks · prompt-cache affinity v1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B7689;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="790" y="580" width="400" height="55" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_cool" value="Cooldown · Fallbacks · Budgets · Retries" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B7689;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="790" y="645" width="400" height="40" as="geometry" />
-        </mxCell>
-
-        <!-- ── providers ── -->
-        <mxCell id="p1_pa" value="OpenRouter · acct A&#10;warm cache" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1305" y="585" width="250" height="50" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_pb" value="OpenRouter · acct B" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9AA3B5;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="1305" y="648" width="250" height="50" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_pc" value="Anthropic · org&#10;disabled by policy" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9AA3B5;fontSize=11;dashed=1;fontColor=#737F92;" vertex="1" parent="1">
-          <mxGeometry x="1305" y="711" width="250" height="50" as="geometry" />
-        </mxCell>
-
-        <!-- ── MCP ── -->
-        <mxCell id="p1_broker" value="Capability Broker&#10;registry · gating · credentials · audit&#10;(control-plane component, in the MCP path)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EAEFFC;strokeColor=#2F5FE0;strokeWidth=2;fontSize=11;fontColor=#152A5E;" vertex="1" parent="1">
-          <mxGeometry x="90" y="745" width="260" height="95" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_mcp1" value="fs server — stdio · env credentials" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B7689;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="390" y="748" width="280" height="42" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_mcp2" value="github server — HTTP · OAuth 2.1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B7689;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="390" y="798" width="280" height="42" as="geometry" />
-        </mxCell>
-
-        <!-- ── control plane nodes ── -->
-        <mxCell id="p1_pcomp" value="Policy Compiler" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2F5FE0;fontSize=11;fontColor=#152A5E;" vertex="1" parent="1">
-          <mxGeometry x="790" y="950" width="240" height="50" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_cost" value="Cost Ledger&#10;spend ↔ turn attribution" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2F5FE0;fontSize=11;fontColor=#152A5E;" vertex="1" parent="1">
-          <mxGeometry x="1055" y="950" width="240" height="50" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_ci" value="Cache Intelligence" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2F5FE0;fontSize=11;fontColor=#152A5E;" vertex="1" parent="1">
-          <mxGeometry x="1320" y="950" width="240" height="50" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_cm" value="Capability Matrix&#10;models · tools · effect classes" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2F5FE0;fontSize=11;fontColor=#152A5E;" vertex="1" parent="1">
-          <mxGeometry x="790" y="1020" width="240" height="55" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_re" value="Replay Evaluator&#10;offline, stubbed effects" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2F5FE0;fontSize=11;fontColor=#152A5E;" vertex="1" parent="1">
-          <mxGeometry x="1055" y="1020" width="240" height="55" as="geometry" />
-        </mxCell>
-
-        <!-- ── request-path edges (solid) ── -->
-        <mxCell id="p1_e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;strokeWidth=2;" edge="1" parent="1" source="p1_user" target="p1_log">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_e2" value="step()" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#3F7A4A;fontSize=10;labelBackgroundColor=#EEF4EE;" edge="1" parent="1" source="p1_log" target="p1_agent">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_e3" value="context" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#3F7A4A;fontSize=10;labelBackgroundColor=#EEF4EE;" edge="1" parent="1" source="p1_cond" target="p1_agent">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_e4" value="LLM request" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p1_agent" target="p1_rh">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;strokeWidth=2;" edge="1" parent="1" source="p1_rh" target="p1_router">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6B7689;" edge="1" parent="1" source="p1_router" target="p1_cool">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_e7" value="selected deployment" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p1_cool" target="p1_pa">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_e8" value="assistant + tool_calls&#10;usage.cache_read_input_tokens" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="p1_pa" target="p1_rh">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points"><mxPoint x="1430" y="520" /><mxPoint x="1250" y="520" /><mxPoint x="1250" y="261" /></Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="p1_e9" value="response" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.25;exitDx=0;exitDy=0;entryX=1;entryY=0.25;entryDx=0;entryDy=0;" edge="1" parent="1" source="p1_rh" target="p1_agent">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_e10" value="ActionEvent&#10;PERSISTED FIRST" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B4432C;strokeWidth=2;fontSize=10;fontStyle=1;fontColor=#B4432C;labelBackgroundColor=#EEF4EE;" edge="1" parent="1" source="p1_agent" target="p1_log">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_e11" value="tool call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B4432C;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="p1_agent" target="p1_eg">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points"><mxPoint x="730" y="275" /><mxPoint x="730" y="351" /></Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="p1_e12" value="lookup / write" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B4432C;strokeWidth=2;startArrow=classic;startFill=1;fontSize=10;labelBackgroundColor=#FBEEEA;" edge="1" parent="1" source="p1_eg" target="p1_el">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_e13" value="approved" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#15803D;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.75;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="p1_eg" target="p1_te">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_e14" value="MCP tools" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2F5FE0;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p1_te" target="p1_broker">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_e15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2F5FE0;" edge="1" parent="1" source="p1_broker" target="p1_mcp1">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_e16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2F5FE0;" edge="1" parent="1" source="p1_broker" target="p1_mcp2">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_e17" value="ObservationEvent" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#3F7A4A;strokeWidth=2;fontSize=10;labelBackgroundColor=#EEF4EE;" edge="1" parent="1" source="p1_te" target="p1_log">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- ── control-plane edges (all dashed) ── -->
-        <mxCell id="p1_c1" value="SEAM B — observe" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#2F5FE0;fontSize=10;fontColor=#152A5E;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="p1_log" target="p1_cost">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points"><mxPoint x="220" y="620" /><mxPoint x="740" y="620" /><mxPoint x="740" y="975" /></Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="p1_c2" value="telemetry" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#2F5FE0;fontSize=10;fontColor=#152A5E;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p1_router" target="p1_cost">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_c3" value="compiled policy" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#2F5FE0;fontSize=10;fontColor=#152A5E;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="p1_pcomp" target="p1_rh">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points"><mxPoint x="730" y="975" /><mxPoint x="730" y="261" /></Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="p1_c4" value="affinity hints" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#2F5FE0;fontSize=10;fontColor=#152A5E;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.75;entryDx=0;entryDy=0;" edge="1" parent="1" source="p1_ci" target="p1_rh">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points"><mxPoint x="1610" y="975" /><mxPoint x="1610" y="279" /></Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="p1_c5" value="effect classes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#2F5FE0;fontSize=10;fontColor=#152A5E;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" edge="1" parent="1" source="p1_cm" target="p1_eg">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points"><mxPoint x="700" y="1047" /><mxPoint x="700" y="369" /></Array>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="p1_c6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#2F5FE0;" edge="1" parent="1" source="p1_cm" target="p1_pcomp">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_c7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#2F5FE0;" edge="1" parent="1" source="p1_cost" target="p1_re">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
-        <!-- ── legend ── -->
-        <mxCell id="p1_leg" value="LEGEND" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD2E0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=11;fontStyle=1;fontColor=#737F92;" vertex="1" parent="1">
-          <mxGeometry x="60" y="920" width="640" height="180" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_lg1" value="in-band — must not fail" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEEEA;strokeColor=#B4432C;strokeWidth=2;fontSize=10;" vertex="1" parent="1">
-          <mxGeometry x="80" y="950" width="180" height="32" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_lg2" value="out-of-band — may fail" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EAEFFC;strokeColor=#2F5FE0;dashed=1;fontSize=10;fontColor=#152A5E;" vertex="1" parent="1">
-          <mxGeometry x="275" y="950" width="180" height="32" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_lg3" value="harness — not ours" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EEF4EE;strokeColor=#3F7A4A;fontSize=10;fontColor=#1D3A23;" vertex="1" parent="1">
-          <mxGeometry x="470" y="950" width="180" height="32" as="geometry" />
-        </mxCell>
-        <mxCell id="p1_lgt" value="Read three things off this diagram:&#10;&#10;1.  Every edge into the control plane is dashed. Cut them all and work continues on the last published artifacts — requirement R2.&#10;2.  The kernel is two boxes and a local database. Everything clever happens out-of-band.&#10;3.  Seam C sits between Agent and Tool Executor: the only point where an effect can be stopped before it lands." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontColor=#4A5464;" vertex="1" parent="1">
-          <mxGeometry x="80" y="995" width="600" height="95" as="geometry" />
-        </mxCell>
-
-      </root>
-    </mxGraphModel>
-  </diagram>
-
-  <!-- ══════════════════════════════════════════════════════════════════
-       PAGE 2 — One full turn
-       ══════════════════════════════════════════════════════════════════ -->
-  <diagram id="turn" name="2 · One Full Turn">
-    <mxGraphModel dx="1400" dy="1600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-
-        <mxCell id="p2_title" value="One Full Turn" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontStyle=1;fontColor=#171C26;" vertex="1" parent="1">
-          <mxGeometry x="60" y="30" width="500" height="32" as="geometry" />
-        </mxCell>
-        <mxCell id="p2_sub" value="User message to observation. Steps 8 and 9–11 are the entire project — everything else is existing software." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#737F92;" vertex="1" parent="1">
-          <mxGeometry x="60" y="62" width="900" height="20" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p2_s1" value="1 · USER sends &quot;add auth to the app&quot; → MessageEvent appended to the EventLog" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EEF4EE;strokeColor=#3F7A4A;align=left;spacingLeft=14;fontSize=12;fontColor=#1D3A23;" vertex="1" parent="1">
-          <mxGeometry x="60" y="120" width="820" height="46" as="geometry" />
-        </mxCell>
-        <mxCell id="p2_s2" value="2 · Agent.step() — get_unmatched_actions() returns none (normal path)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EEF4EE;strokeColor=#3F7A4A;align=left;spacingLeft=14;fontSize=12;fontColor=#1D3A23;" vertex="1" parent="1">
-          <mxGeometry x="60" y="186" width="820" height="46" as="geometry" />
-        </mxCell>
-        <mxCell id="p2_s3" value="3 · Condenser builds the model-visible view — harness-owned, SKIP verdict in doc 0007" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EEF4EE;strokeColor=#3F7A4A;dashed=1;align=left;spacingLeft=14;fontSize=12;fontColor=#1D3A23;" vertex="1" parent="1">
-          <mxGeometry x="60" y="252" width="820" height="46" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p2_bandA" value="SEAM A — Request Hook · in-band" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEEEA;strokeColor=#B4432C;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=11;fontStyle=1;fontColor=#3D1A10;" vertex="1" parent="1">
-          <mxGeometry x="40" y="320" width="860" height="230" as="geometry" />
-        </mxCell>
-        <mxCell id="p2_s4" value="4 · Read compiled policy from local file — no network call to the control plane" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;align=left;spacingLeft=14;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="60" y="352" width="820" height="40" as="geometry" />
-        </mxCell>
-        <mxCell id="p2_s5" value="5 · Turn-atomic check — does the message list end in unresolved tool_calls?" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;align=left;spacingLeft=14;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="60" y="398" width="820" height="40" as="geometry" />
-        </mxCell>
-        <mxCell id="p2_s6" value="6 · Cache affinity — prefix hash → deployment · model tier for task class" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;align=left;spacingLeft=14;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="60" y="444" width="820" height="40" as="geometry" />
-        </mxCell>
-        <mxCell id="p2_s7" value="7 · Stamp trace_id = (conversation_id, turn_id) — the join that makes spend attributable" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;align=left;spacingLeft=14;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="60" y="490" width="820" height="40" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p2_s8" value="8 · LiteLLM Router → Provider → assistant message + tool_calls (usage carries cache read / creation tokens)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F1F3F8;strokeColor=#6B7689;align=left;spacingLeft=14;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="60" y="576" width="820" height="46" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p2_s9" value="9 · ActionEvent persisted to the EventLog — BEFORE the tool runs&#10;Deliberate upstream ordering. This is what makes confirmation mode possible, and what makes double execution possible." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FDF1E0;strokeColor=#B45309;strokeWidth=2;align=left;spacingLeft=14;fontSize=12;fontColor=#4A3210;" vertex="1" parent="1">
-          <mxGeometry x="60" y="642" width="820" height="58" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p2_bandC" value="SEAM C — Effect Gate · the only enforcement point" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEEEA;strokeColor=#B4432C;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=11;fontStyle=1;fontColor=#3D1A10;" vertex="1" parent="1">
-          <mxGeometry x="40" y="722" width="860" height="232" as="geometry" />
-        </mxCell>
-        <mxCell id="p2_s10" value="10 · Classify tool → effect_class (from the Capability Matrix)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;align=left;spacingLeft=14;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="60" y="754" width="820" height="40" as="geometry" />
-        </mxCell>
-        <mxCell id="p2_s11" value="11 · ledger.lookup(tool_call_id) — see page 3 for the full decision" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;align=left;spacingLeft=14;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="60" y="800" width="820" height="40" as="geometry" />
-        </mxCell>
-        <mxCell id="p2_s12" value="12 · write INTENT + fsync   →   EXECUTE TOOL   →   write COMMITTED + observation + fsync" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEAEA;strokeColor=#B02A2A;strokeWidth=2;align=left;spacingLeft=14;fontSize=12;fontStyle=1;fontColor=#4A1212;" vertex="1" parent="1">
-          <mxGeometry x="60" y="846" width="820" height="44" as="geometry" />
-        </mxCell>
-        <mxCell id="p2_s12n" value="The gap between these two writes is the only place a duplicate effect can be born." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#B02A2A;" vertex="1" parent="1">
-          <mxGeometry x="60" y="896" width="820" height="20" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p2_s13" value="13 · ObservationEvent appended → Seam B observes and attributes the turn's cost" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EEF4EE;strokeColor=#3F7A4A;align=left;spacingLeft=14;fontSize=12;fontColor=#1D3A23;" vertex="1" parent="1">
-          <mxGeometry x="60" y="978" width="820" height="46" as="geometry" />
-        </mxCell>
-        <mxCell id="p2_loop" value="↺  loop to step 2 until the task completes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#737F92;dashed=1;align=center;fontSize=12;fontStyle=2;fontColor=#4A5464;" vertex="1" parent="1">
-          <mxGeometry x="330" y="1050" width="280" height="40" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p2_e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;" edge="1" parent="1" source="p2_s1" target="p2_s2"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p2_e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;" edge="1" parent="1" source="p2_s2" target="p2_s3"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p2_e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;" edge="1" parent="1" source="p2_s3" target="p2_s4"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p2_e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;" edge="1" parent="1" source="p2_s7" target="p2_s8"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p2_e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;" edge="1" parent="1" source="p2_s8" target="p2_s9"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p2_e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;" edge="1" parent="1" source="p2_s9" target="p2_s10"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p2_e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;" edge="1" parent="1" source="p2_s12" target="p2_s13"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p2_e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;dashed=1;" edge="1" parent="1" source="p2_s13" target="p2_loop"><mxGeometry relative="1" as="geometry" /></mxCell>
-
-      </root>
-    </mxGraphModel>
-  </diagram>
-
-  <!-- ══════════════════════════════════════════════════════════════════
-       PAGE 3 — Effect gate decision
-       ══════════════════════════════════════════════════════════════════ -->
-  <diagram id="gate" name="3 · Effect Gate Decision">
-    <mxGraphModel dx="1600" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-
-        <mxCell id="p3_title" value="Effect Gate Decision" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontStyle=1;fontColor=#171C26;" vertex="1" parent="1">
-          <mxGeometry x="60" y="30" width="600" height="32" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_sub" value="Five ledger states, five effect classes, one irreducible ambiguity. Three of the five classes escape the hard path cheaply — classification, not cleverness, is what makes this tractable." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#737F92;" vertex="1" parent="1">
-          <mxGeometry x="60" y="62" width="1100" height="20" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p3_start" value="Gate receives&#10;tool_call_id · name · args" style="rounded=1;arcSize=40;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#171C26;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="620" y="120" width="240" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_cls" value="classify via Capability Matrix" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EAEFFC;strokeColor=#2F5FE0;fontSize=12;fontColor=#152A5E;" vertex="1" parent="1">
-          <mxGeometry x="620" y="205" width="240" height="44" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_lk" value="ledger.lookup(tool_call_id)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="600" y="285" width="280" height="110" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p3_sub1" value="Return stored observation&#10;DO NOT EXECUTE" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;strokeWidth=2;fontSize=12;fontColor=#0F3D20;" vertex="1" parent="1">
-          <mxGeometry x="1180" y="310" width="240" height="60" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p3_amb" value="AMBIGUOUS&#10;did the effect land?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FDF1E0;strokeColor=#B45309;strokeWidth=3;fontSize=12;fontStyle=1;fontColor=#4A3210;" vertex="1" parent="1">
-          <mxGeometry x="600" y="450" width="280" height="110" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_ambn" value="Cannot be eliminated. The ledger and the world are two stores with no atomic commit between them." style="text;html=1;align=center;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#B45309;" vertex="1" parent="1">
-          <mxGeometry x="560" y="565" width="360" height="30" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p3_ck" value="effect_class?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B45309;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="630" y="620" width="220" height="90" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p3_wal" value="write INTENT + fsync" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEAEA;strokeColor=#B02A2A;strokeWidth=2;fontSize=12;fontColor=#4A1212;" vertex="1" parent="1">
-          <mxGeometry x="180" y="420" width="240" height="48" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_exe" value="EXECUTE TOOL" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#171C26;strokeWidth=3;fontSize=13;fontStyle=1;" vertex="1" parent="1">
-          <mxGeometry x="180" y="520" width="240" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_ok" value="success?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#171C26;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="210" y="620" width="180" height="80" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_cmt" value="write COMMITTED&#10;+ observation + fsync" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;strokeWidth=2;fontSize=12;fontColor=#0F3D20;" vertex="1" parent="1">
-          <mxGeometry x="80" y="750" width="200" height="56" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_fl" value="write FAILED&#10;(effect provably did not land)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F1F3F8;strokeColor=#6B7689;fontSize=11;" vertex="1" parent="1">
-          <mxGeometry x="320" y="750" width="200" height="56" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p3_rec" value="reconciliation probe&#10;git log · file hash · idempotency key" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FDF1E0;strokeColor=#B45309;strokeWidth=2;fontSize=12;fontColor=#4A3210;" vertex="1" parent="1">
-          <mxGeometry x="1000" y="625" width="260" height="60" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_rq" value="probe conclusive?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B45309;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1030" y="730" width="200" height="90" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_sub2" value="synthesize observation&#10;DO NOT EXECUTE" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;strokeWidth=2;fontSize=12;fontColor=#0F3D20;" vertex="1" parent="1">
-          <mxGeometry x="1330" y="740" width="230" height="56" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_blk" value="FAIL CLOSED&#10;block the conversation" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEAEA;strokeColor=#B02A2A;strokeWidth=3;fontSize=12;fontStyle=1;fontColor=#4A1212;" vertex="1" parent="1">
-          <mxGeometry x="1015" y="880" width="230" height="56" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_esc" value="ESCALATE&#10;human decision required" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEAEA;strokeColor=#B02A2A;strokeWidth=3;fontSize=12;fontStyle=1;fontColor=#4A1212;" vertex="1" parent="1">
-          <mxGeometry x="700" y="880" width="230" height="56" as="geometry" />
-        </mxCell>
-
-        <!-- edges -->
-        <mxCell id="p3_g1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p3_start" target="p3_cls"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p3_g2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p3_cls" target="p3_lk"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p3_g3" value="COMMITTED / OBSERVED" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#15803D;strokeWidth=2;fontSize=10;fontColor=#15803D;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_lk" target="p3_sub1"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p3_g4" value="absent" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;fontSize=10;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_lk" target="p3_wal"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p3_g5" value="INTENT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B45309;strokeWidth=3;fontSize=11;fontStyle=1;fontColor=#B45309;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_lk" target="p3_amb"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p3_g6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B45309;strokeWidth=2;" edge="1" parent="1" source="p3_amb" target="p3_ck"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p3_g7" value="PURE_READ&#10;IDEMPOTENT_WRITE" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#15803D;strokeWidth=2;fontSize=10;fontColor=#15803D;labelBackgroundColor=#FFFFFF;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="p3_ck" target="p3_exe">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="470" y="665" /><mxPoint x="470" y="596" /><mxPoint x="300" y="596" /></Array></mxGeometry>
-        </mxCell>
-        <mxCell id="p3_g8" value="NON_IDEMPOTENT&#10;EXTERNAL" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B45309;strokeWidth=2;fontSize=10;fontColor=#B45309;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_ck" target="p3_rec"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p3_g9" value="DESTRUCTIVE" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B02A2A;strokeWidth=2;fontSize=10;fontColor=#B02A2A;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_ck" target="p3_esc"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p3_g10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B45309;strokeWidth=2;" edge="1" parent="1" source="p3_rec" target="p3_rq"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p3_g11" value="yes — it landed" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#15803D;strokeWidth=2;fontSize=10;fontColor=#15803D;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_rq" target="p3_sub2"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p3_g12" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B02A2A;strokeWidth=3;fontSize=10;fontColor=#B02A2A;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_rq" target="p3_blk"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p3_g13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;strokeWidth=2;" edge="1" parent="1" source="p3_wal" target="p3_exe"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p3_g14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p3_exe" target="p3_ok"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p3_g15" value="yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#15803D;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_ok" target="p3_cmt"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p3_g16" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6B7689;fontSize=10;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_ok" target="p3_fl"><mxGeometry relative="1" as="geometry" /></mxCell>
-
-        <!-- effect class reference table -->
-        <mxCell id="p3_tbl" value="EFFECT CLASSES — replay safety is not speculation safety" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD2E0;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=11;fontStyle=1;fontColor=#737F92;" vertex="1" parent="1">
-          <mxGeometry x="80" y="880" width="560" height="200" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_th" value="class                                   example                          replay      speculate" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontStyle=1;fontFamily=Courier New;fontColor=#737F92;" vertex="1" parent="1">
-          <mxGeometry x="95" y="910" width="540" height="18" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_r1" value="PURE_READ                     read file, grep                    yes            yes" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontFamily=Courier New;fontColor=#15803D;" vertex="1" parent="1">
-          <mxGeometry x="95" y="936" width="540" height="18" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_r2" value="IDEMPOTENT_WRITE     write whole file                 yes            NO" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontFamily=Courier New;fontColor=#4A5464;" vertex="1" parent="1">
-          <mxGeometry x="95" y="960" width="540" height="18" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_r3" value="NON_IDEMPOTENT          append, git commit             no             no" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontFamily=Courier New;fontColor=#B45309;" vertex="1" parent="1">
-          <mxGeometry x="95" y="984" width="540" height="18" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_r4" value="EXTERNAL                       HTTP POST, email               no             no" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontFamily=Courier New;fontColor=#B45309;" vertex="1" parent="1">
-          <mxGeometry x="95" y="1008" width="540" height="18" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_r5" value="DESTRUCTIVE                 rm -rf, force push                no             no" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontFamily=Courier New;fontColor=#B02A2A;" vertex="1" parent="1">
-          <mxGeometry x="95" y="1032" width="540" height="18" as="geometry" />
-        </mxCell>
-        <mxCell id="p3_tn" value="Speculation is strictly stricter: a discarded speculative write has still mutated the world." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#737F92;" vertex="1" parent="1">
-          <mxGeometry x="95" y="1054" width="540" height="18" as="geometry" />
-        </mxCell>
-
-      </root>
-    </mxGraphModel>
-  </diagram>
-
-  <!-- ══════════════════════════════════════════════════════════════════
-       PAGE 4 — Crash and resume
-       ══════════════════════════════════════════════════════════════════ -->
-  <diagram id="resume" name="4 · Crash &amp; Resume">
-    <mxGraphModel dx="1400" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-
-        <mxCell id="p4_title" value="Crash &amp; Resume" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontStyle=1;fontColor=#171C26;" vertex="1" parent="1">
-          <mxGeometry x="60" y="30" width="600" height="32" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_sub" value="Where the ledger earns its existence. Without it, run 2 produces a second commit — confirmed upstream behaviour, not a hypothetical." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#737F92;" vertex="1" parent="1">
-          <mxGeometry x="60" y="62" width="1100" height="20" as="geometry" />
-        </mxCell>
-
-        <!-- RUN 1 -->
-        <mxCell id="p4_r1box" value="RUN 1 — crashes mid-tool" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEAEA;strokeColor=#B02A2A;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;fontSize=13;fontStyle=1;fontColor=#4A1212;" vertex="1" parent="1">
-          <mxGeometry x="60" y="120" width="700" height="430" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_a1" value="ActionEvent appended&#10;id = tc_7 · tool = git commit" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3F7A4A;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="100" y="165" width="290" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_a2" value="ledger: write INTENT tc_7" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="100" y="245" width="290" height="44" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_a3" value="git commit  →  abc123 lands in the world" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;strokeWidth=2;fontSize=12;fontColor=#0F3D20;" vertex="1" parent="1">
-          <mxGeometry x="100" y="317" width="290" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_kill" value="kill -9&#10;before COMMITTED is written" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#B02A2A;strokeColor=#B02A2A;strokeWidth=2;fontSize=13;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="1">
-          <mxGeometry x="100" y="397" width="290" height="56" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_state1" value="STATE LEFT BEHIND&#10;&#10;EventLog:   ActionEvent tc_7, no ObservationEvent&#10;Ledger:      tc_7 = INTENT&#10;World:        commit abc123 EXISTS" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B02A2A;dashed=1;align=left;spacingLeft=12;verticalAlign=middle;fontSize=11;fontFamily=Courier New;fontColor=#4A1212;" vertex="1" parent="1">
-          <mxGeometry x="430" y="245" width="300" height="130" as="geometry" />
-        </mxCell>
-
-        <!-- RUN 2 -->
-        <mxCell id="p4_r2box" value="RUN 2 — resume" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EAEFFC;strokeColor=#2F5FE0;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;fontSize=13;fontStyle=1;fontColor=#152A5E;" vertex="1" parent="1">
-          <mxGeometry x="840" y="120" width="740" height="600" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_b1" value="load base_state.json + events/" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3F7A4A;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="880" y="165" width="300" height="44" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_b2" value="get_unmatched_actions() → [tc_7]" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FDF1E0;strokeColor=#B45309;strokeWidth=2;fontSize=12;fontColor=#4A3210;" vertex="1" parent="1">
-          <mxGeometry x="880" y="235" width="300" height="44" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_warn" value="Without the gate, the harness&#10;re-executes here — second commit." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEAEA;strokeColor=#B02A2A;dashed=1;fontSize=11;fontStyle=2;fontColor=#4A1212;" vertex="1" parent="1">
-          <mxGeometry x="1220" y="235" width="320" height="44" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_b3" value="ledger.lookup(tc_7)  →  INTENT · ambiguous" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="880" y="305" width="300" height="44" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_b4" value="class = NON_IDEMPOTENT_WRITE&#10;→ never re-execute on INTENT" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FDF1E0;strokeColor=#B45309;strokeWidth=2;fontSize=12;fontColor=#4A3210;" vertex="1" parent="1">
-          <mxGeometry x="880" y="375" width="300" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_b5" value="reconciliation probe&#10;git log --grep=intent_hash" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B45309;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="880" y="453" width="300" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_b6" value="found abc123  →  reconcile tc_7 to COMMITTED" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;strokeWidth=2;fontSize=12;fontColor=#0F3D20;" vertex="1" parent="1">
-          <mxGeometry x="880" y="531" width="300" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="p4_b7" value="synthesize observation → agent continues&#10;NO SECOND COMMIT" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;strokeWidth=3;fontSize=12;fontStyle=1;fontColor=#0F3D20;" vertex="1" parent="1">
-          <mxGeometry x="880" y="609" width="300" height="56" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p4_e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p4_a1" target="p4_a2"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p4_e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p4_a2" target="p4_a3"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p4_e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B02A2A;strokeWidth=2;" edge="1" parent="1" source="p4_a3" target="p4_kill"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p4_e4" value="resume" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2F5FE0;strokeWidth=2;dashed=1;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p4_kill" target="p4_b1">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="245" y="500" /><mxPoint x="800" y="500" /><mxPoint x="800" y="187" /></Array></mxGeometry>
-        </mxCell>
-        <mxCell id="p4_e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p4_b1" target="p4_b2"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p4_e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p4_b2" target="p4_b3"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p4_e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p4_b3" target="p4_b4"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p4_e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p4_b4" target="p4_b5"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p4_e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p4_b5" target="p4_b6"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p4_e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#15803D;strokeWidth=2;" edge="1" parent="1" source="p4_b6" target="p4_b7"><mxGeometry relative="1" as="geometry" /></mxCell>
-
-        <mxCell id="p4_note" value="THE HONEST GUARANTEE&#10;&#10;This does not claim exactly-once. The window between writing INTENT and writing COMMITTED cannot be closed —&#10;the ledger and the world are two stores with no atomic commit between them.&#10;&#10;What it claims instead: an unbounded double-execution risk spanning every crash becomes a bounded one spanning&#10;a single tool call, with class-based and probe-based mitigation inside that window." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EAEFFC;strokeColor=#2F5FE0;align=left;spacingLeft=16;verticalAlign=middle;fontSize=11;fontColor=#152A5E;" vertex="1" parent="1">
-          <mxGeometry x="60" y="600" width="700" height="150" as="geometry" />
-        </mxCell>
-
-      </root>
-    </mxGraphModel>
-  </diagram>
-
-  <!-- ══════════════════════════════════════════════════════════════════
-       PAGE 5 — Failover and the mid-turn hazard
-       ══════════════════════════════════════════════════════════════════ -->
-  <diagram id="failover" name="5 · Failover Hazard">
-    <mxGraphModel dx="1400" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
-
-        <mxCell id="p5_title" value="Failover, and the Mid-Turn Hazard" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontStyle=1;fontColor=#171C26;" vertex="1" parent="1">
-          <mxGeometry x="60" y="30" width="700" height="32" as="geometry" />
-        </mxCell>
-        <mxCell id="p5_sub" value="Switching between turns is cheap and already handled by the data plane. Switching inside one can defeat the effect ledger's primary key." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#737F92;" vertex="1" parent="1">
-          <mxGeometry x="60" y="62" width="1100" height="20" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p5_safe" value="SAFE — failover between turns" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;fontSize=13;fontStyle=1;fontColor=#0F3D20;" vertex="1" parent="1">
-          <mxGeometry x="60" y="120" width="740" height="430" as="geometry" />
-        </mxCell>
-        <mxCell id="p5_1" value="turn N request  →  affinity pins acct A (warm cache)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#15803D;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="100" y="170" width="330" height="46" as="geometry" />
-        </mxCell>
-        <mxCell id="p5_2" value="acct A  →  429 rate limited" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FDF1E0;strokeColor=#B45309;strokeWidth=2;fontSize=12;fontColor=#4A3210;" vertex="1" parent="1">
-          <mxGeometry x="100" y="244" width="330" height="46" as="geometry" />
-        </mxCell>
-        <mxCell id="p5_3" value="router: cooldown acct A · fallback to acct B" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B7689;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="100" y="318" width="330" height="46" as="geometry" />
-        </mxCell>
-        <mxCell id="p5_4" value="acct B  →  200, but CACHE MISS&#10;full prefill · latency up · cost up" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B45309;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="100" y="392" width="330" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="p5_5" value="cost ledger records the switch cost&#10;affinity repoints to acct B" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EAEFFC;strokeColor=#2F5FE0;fontSize=12;fontColor=#152A5E;" vertex="1" parent="1">
-          <mxGeometry x="470" y="392" width="300" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="p5_safen" value="Chat completions are stateless, so the whole history is resent.&#10;The only real cost of the switch is the discarded warm cache —&#10;measured at 41–80% of input cost and 13–31% of time-to-first-token." style="text;html=1;align=left;verticalAlign=top;fontSize=11;fontColor=#0F3D20;" vertex="1" parent="1">
-          <mxGeometry x="470" y="180" width="310" height="80" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p5_haz" value="HAZARD — failover inside a turn" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEAEA;strokeColor=#B02A2A;strokeWidth=3;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;fontSize=13;fontStyle=1;fontColor=#4A1212;" vertex="1" parent="1">
-          <mxGeometry x="860" y="120" width="720" height="430" as="geometry" />
-        </mxCell>
-        <mxCell id="p5_h1" value="turn N left unresolved tool_calls&#10;the next message MUST carry matching results" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B02A2A;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="900" y="170" width="640" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="p5_h2" value="endpoint changes mid-turn" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FDF1E0;strokeColor=#B45309;strokeWidth=2;fontSize=12;fontColor=#4A3210;" vertex="1" parent="1">
-          <mxGeometry x="900" y="250" width="640" height="42" as="geometry" />
-        </mxCell>
-        <mxCell id="p5_h3" value="model families mint tool_call_id differently&#10;→ the id may be rejected, or simply not match" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B02A2A;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="900" y="320" width="640" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="p5_h4" value="THE LEDGER IS KEYED ON tool_call_id&#10;a committed effect becomes invisible — and is re-executed" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#B02A2A;strokeColor=#B02A2A;strokeWidth=2;fontSize=12;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="1">
-          <mxGeometry x="900" y="400" width="640" height="56" as="geometry" />
-        </mxCell>
-        <mxCell id="p5_h5" value="Failover would defeat the very guard built to prevent double execution." style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontStyle=2;fontColor=#B02A2A;" vertex="1" parent="1">
-          <mxGeometry x="900" y="465" width="640" height="24" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p5_rule" value="THE RULE — the turn is the atomic unit of routing&#10;&#10;An endpoint may change between turns and never within one. A turn with unresolved tool calls must complete against the&#10;endpoint that opened it, or be abandoned and replanned as a whole.&#10;&#10;Cheap to enforce at Seam A: the request hook already knows whether the outgoing message list ends in unresolved tool calls." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEEEA;strokeColor=#B4432C;strokeWidth=3;align=left;spacingLeft=18;verticalAlign=middle;fontSize=12;fontColor=#3D1A10;" vertex="1" parent="1">
-          <mxGeometry x="60" y="600" width="1520" height="140" as="geometry" />
-        </mxCell>
-        <mxCell id="p5_q" value="Open question Q10 — is tool_call_id stable across providers, not just across resume? A strict superset of Q2. Unresolved." style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontStyle=2;fontColor=#737F92;" vertex="1" parent="1">
-          <mxGeometry x="60" y="755" width="1000" height="20" as="geometry" />
-        </mxCell>
-
-        <mxCell id="p5_e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p5_1" target="p5_2"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p5_e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p5_2" target="p5_3"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p5_e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p5_3" target="p5_4"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p5_e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2F5FE0;dashed=1;" edge="1" parent="1" source="p5_4" target="p5_5"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p5_e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B02A2A;strokeWidth=2;" edge="1" parent="1" source="p5_h1" target="p5_h2"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p5_e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B02A2A;strokeWidth=2;" edge="1" parent="1" source="p5_h2" target="p5_h3"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="p5_e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B02A2A;strokeWidth=3;" edge="1" parent="1" source="p5_h3" target="p5_h4"><mxGeometry relative="1" as="geometry" /></mxCell>
-
-      </root>
-    </mxGraphModel>
-  </diagram>
-
+<mxfile host="65bd71144e">
+    <diagram id="planes" name="1 · Planes &amp; Ownership">
+        <mxGraphModel dx="2671" dy="514" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="p1_title" value="Control Plane — Request Flow" style="text;html=1;align=left;verticalAlign=middle;fontSize=26;fontStyle=1;fontColor=#171C26;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="24" width="700" height="34" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_sub" value="Doc 0011 · DRAFT · one user request traced through every concept. Solid edges are the request path; dashed edges are the control plane and may all be cut." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#737F92;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="60" width="1100" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_harness" value="AGENT HARNESS — OpenHands SDK, unmodified" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EEF4EE;strokeColor=#3F7A4A;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=12;fontStyle=1;fontColor=#1D3A23;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="180" width="640" height="310" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_kernel" value="ENFORCEMENT KERNEL — in-band · must not fail" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEEEA;strokeColor=#B4432C;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=12;fontStyle=1;fontColor=#3D1A10;" parent="1" vertex="1">
+                    <mxGeometry x="760" y="180" width="460" height="310" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_dp" value="LLM DATA PLANE — LiteLLM" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F1F3F8;strokeColor=#6B7689;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=12;fontStyle=1;fontColor=#171C26;" parent="1" vertex="1">
+                    <mxGeometry x="760" y="540" width="460" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_prov" value="PROVIDER POOLS" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9AA3B5;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=12;fontStyle=1;fontColor=#171C26;" parent="1" vertex="1">
+                    <mxGeometry x="1280" y="540" width="300" height="240" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_mcp" value="MCP FLEET — third-party, remote, opaque" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F1F3F8;strokeColor=#6B7689;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=12;fontStyle=1;fontColor=#171C26;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="700" width="640" height="180" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_cp" value="CONTROL PLANE — out-of-band · may fail · never on the request path" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EAEFFC;strokeColor=#2F5FE0;dashed=1;dashPattern=8 4;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=12;fontStyle=1;fontColor=#152A5E;" parent="1" vertex="1">
+                    <mxGeometry x="760" y="900" width="820" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="3" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="p1_user" target="p1_agent">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_user" value="USER&#xa;&quot;add auth to the app&quot;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#171C26;strokeWidth=2;fontSize=12;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="-210" y="178" width="220" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_agent" value="Agent.step loop&#xa;reason → act → observe" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3F7A4A;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="90" y="230" width="260" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_cond" value="Condenser&#xa;context construction — SKIP verdict" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3F7A4A;fontSize=11;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="380" y="230" width="290" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_log" value="ConversationState&#xa;append-only EventLog" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3F7A4A;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="90" y="330" width="260" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_te" value="Tool Executor" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3F7A4A;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="380" y="330" width="290" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_note1" value="write-ahead: ActionEvent is persisted BEFORE the tool runs" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontColor=#B4432C;fontStyle=2" parent="1" vertex="1">
+                    <mxGeometry x="90" y="410" width="580" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_rh" value="Request Hook — SEAM A&#xa;compiled policy · cache affinity · model tier · trace-id&#xa;turn-atomic routing check" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="790" y="225" width="400" height="72" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_eg" value="Effect Gate — SEAM C&#xa;classify · ledger lookup · write-ahead&#xa;the only point an effect can be stopped" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="790" y="315" width="400" height="72" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_el" value="Effect Ledger&#xa;SQLite · WAL · fsync" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=8;fillColor=#FFFFFF;strokeColor=#B4432C;strokeWidth=2;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="405" width="220" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_router" value="Router&#xa;strategy · pre-call checks · prompt-cache affinity v1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B7689;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="790" y="580" width="400" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_cool" value="Cooldown · Fallbacks · Budgets · Retries" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B7689;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="790" y="645" width="400" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_pa" value="OpenRouter · acct A&#xa;warm cache" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1305" y="585" width="250" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_pb" value="OpenRouter · acct B" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9AA3B5;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1305" y="648" width="250" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_pc" value="Anthropic · org&#xa;disabled by policy" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9AA3B5;fontSize=11;dashed=1;fontColor=#737F92;" parent="1" vertex="1">
+                    <mxGeometry x="1305" y="711" width="250" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_broker" value="Capability Broker&#xa;registry · gating · credentials · audit&#xa;(control-plane component, in the MCP path)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EAEFFC;strokeColor=#2F5FE0;strokeWidth=2;fontSize=11;fontColor=#152A5E;" parent="1" vertex="1">
+                    <mxGeometry x="90" y="745" width="260" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_mcp1" value="fs server — stdio · env credentials" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B7689;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="390" y="748" width="280" height="42" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_mcp2" value="github server — HTTP · OAuth 2.1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B7689;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="390" y="798" width="280" height="42" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_pcomp" value="Policy Compiler" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2F5FE0;fontSize=11;fontColor=#152A5E;" parent="1" vertex="1">
+                    <mxGeometry x="790" y="950" width="240" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_cost" value="Cost Ledger&#xa;spend ↔ turn attribution" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2F5FE0;fontSize=11;fontColor=#152A5E;" parent="1" vertex="1">
+                    <mxGeometry x="1055" y="950" width="240" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_ci" value="Cache Intelligence" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2F5FE0;fontSize=11;fontColor=#152A5E;" parent="1" vertex="1">
+                    <mxGeometry x="1320" y="950" width="240" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_cm" value="Capability Matrix&#xa;models · tools · effect classes" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2F5FE0;fontSize=11;fontColor=#152A5E;" parent="1" vertex="1">
+                    <mxGeometry x="790" y="1020" width="240" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_re" value="Replay Evaluator&#xa;offline, stubbed effects" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2F5FE0;fontSize=11;fontColor=#152A5E;" parent="1" vertex="1">
+                    <mxGeometry x="1055" y="1020" width="240" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_e2" value="step()" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#3F7A4A;fontSize=10;labelBackgroundColor=#EEF4EE;" parent="1" source="p1_log" target="p1_agent" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_e3" value="context" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#3F7A4A;fontSize=10;labelBackgroundColor=#EEF4EE;" parent="1" source="p1_cond" target="p1_agent" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_e4" value="LLM request" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;" parent="1" source="p1_agent" target="p1_rh" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;strokeWidth=2;" parent="1" source="p1_rh" target="p1_router" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6B7689;" parent="1" source="p1_router" target="p1_cool" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_e7" value="selected deployment" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;" parent="1" source="p1_cool" target="p1_pa" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_e8" value="assistant + tool_calls&#xa;usage.cache_read_input_tokens" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="p1_pa" target="p1_rh" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1430" y="520"/>
+                            <mxPoint x="1250" y="520"/>
+                            <mxPoint x="1250" y="261"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="p1_e9" value="response" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.25;exitDx=0;exitDy=0;entryX=1;entryY=0.25;entryDx=0;entryDy=0;" parent="1" source="p1_rh" target="p1_agent" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_e10" value="ActionEvent&#xa;PERSISTED FIRST" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B4432C;strokeWidth=2;fontSize=10;fontStyle=1;fontColor=#B4432C;labelBackgroundColor=#EEF4EE;" parent="1" source="p1_agent" target="p1_log" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_e11" value="tool call" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B4432C;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="p1_agent" target="p1_eg" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="730" y="275"/>
+                            <mxPoint x="730" y="351"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="p1_e12" value="lookup / write" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B4432C;strokeWidth=2;startArrow=classic;startFill=1;fontSize=10;labelBackgroundColor=#FBEEEA;" parent="1" source="p1_eg" target="p1_el" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_e13" value="approved" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#15803D;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.75;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="p1_eg" target="p1_te" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_e14" value="MCP tools" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2F5FE0;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;" parent="1" source="p1_te" target="p1_broker" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_e15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2F5FE0;" parent="1" source="p1_broker" target="p1_mcp1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_e16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2F5FE0;" parent="1" source="p1_broker" target="p1_mcp2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_e17" value="ObservationEvent" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#3F7A4A;strokeWidth=2;fontSize=10;labelBackgroundColor=#EEF4EE;" parent="1" source="p1_te" target="p1_log" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_c1" value="SEAM B — observe" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#2F5FE0;fontSize=10;fontColor=#152A5E;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" parent="1" source="p1_log" target="p1_cost" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="220" y="620"/>
+                            <mxPoint x="740" y="620"/>
+                            <mxPoint x="740" y="975"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="p1_c2" value="telemetry" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#2F5FE0;fontSize=10;fontColor=#152A5E;labelBackgroundColor=#FFFFFF;" parent="1" source="p1_router" target="p1_cost" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_c3" value="compiled policy" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#2F5FE0;fontSize=10;fontColor=#152A5E;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="p1_pcomp" target="p1_rh" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="730" y="975"/>
+                            <mxPoint x="730" y="261"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="p1_c4" value="affinity hints" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#2F5FE0;fontSize=10;fontColor=#152A5E;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.75;entryDx=0;entryDy=0;" parent="1" source="p1_ci" target="p1_rh" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1610" y="975"/>
+                            <mxPoint x="1610" y="279"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="p1_c5" value="effect classes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#2F5FE0;fontSize=10;fontColor=#152A5E;labelBackgroundColor=#FFFFFF;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" parent="1" source="p1_cm" target="p1_eg" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="700" y="1047"/>
+                            <mxPoint x="700" y="369"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="p1_c6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#2F5FE0;" parent="1" source="p1_cm" target="p1_pcomp" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_c7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;strokeColor=#2F5FE0;" parent="1" source="p1_cost" target="p1_re" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_leg" value="LEGEND" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD2E0;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontSize=11;fontStyle=1;fontColor=#737F92;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="920" width="640" height="180" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_lg1" value="in-band — must not fail" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEEEA;strokeColor=#B4432C;strokeWidth=2;fontSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="950" width="180" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_lg2" value="out-of-band — may fail" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EAEFFC;strokeColor=#2F5FE0;dashed=1;fontSize=10;fontColor=#152A5E;" parent="1" vertex="1">
+                    <mxGeometry x="275" y="950" width="180" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_lg3" value="harness — not ours" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EEF4EE;strokeColor=#3F7A4A;fontSize=10;fontColor=#1D3A23;" parent="1" vertex="1">
+                    <mxGeometry x="470" y="950" width="180" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1_lgt" value="Read three things off this diagram:&#xa;&#xa;1.  Every edge into the control plane is dashed. Cut them all and work continues on the last published artifacts — requirement R2.&#xa;2.  The kernel is two boxes and a local database. Everything clever happens out-of-band.&#xa;3.  Seam C sits between Agent and Tool Executor: the only point where an effect can be stopped before it lands." style="text;html=1;align=left;verticalAlign=top;fontSize=10;fontColor=#4A5464;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="995" width="600" height="95" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="turn" name="2 · One Full Turn">
+        <mxGraphModel dx="1400" dy="1600" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="p2_title" value="One Full Turn" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontStyle=1;fontColor=#171C26;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="30" width="500" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_sub" value="User message to observation. Steps 8 and 9–11 are the entire project — everything else is existing software." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#737F92;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="62" width="900" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_s1" value="1 · USER sends &quot;add auth to the app&quot; → MessageEvent appended to the EventLog" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EEF4EE;strokeColor=#3F7A4A;align=left;spacingLeft=14;fontSize=12;fontColor=#1D3A23;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="120" width="820" height="46" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_s2" value="2 · Agent.step() — get_unmatched_actions() returns none (normal path)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EEF4EE;strokeColor=#3F7A4A;align=left;spacingLeft=14;fontSize=12;fontColor=#1D3A23;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="186" width="820" height="46" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_s3" value="3 · Condenser builds the model-visible view — harness-owned, SKIP verdict in doc 0007" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EEF4EE;strokeColor=#3F7A4A;dashed=1;align=left;spacingLeft=14;fontSize=12;fontColor=#1D3A23;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="252" width="820" height="46" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_bandA" value="SEAM A — Request Hook · in-band" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEEEA;strokeColor=#B4432C;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=11;fontStyle=1;fontColor=#3D1A10;" vertex="1" parent="1">
+                    <mxGeometry x="40" y="320" width="860" height="230" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_s4" value="4 · Read compiled policy from local file — no network call to the control plane" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;align=left;spacingLeft=14;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="352" width="820" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_s5" value="5 · Turn-atomic check — does the message list end in unresolved tool_calls?" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;align=left;spacingLeft=14;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="398" width="820" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_s6" value="6 · Cache affinity — prefix hash → deployment · model tier for task class" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;align=left;spacingLeft=14;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="444" width="820" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_s7" value="7 · Stamp trace_id = (conversation_id, turn_id) — the join that makes spend attributable" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;align=left;spacingLeft=14;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="490" width="820" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_s8" value="8 · LiteLLM Router → Provider → assistant message + tool_calls (usage carries cache read / creation tokens)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F1F3F8;strokeColor=#6B7689;align=left;spacingLeft=14;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="576" width="820" height="46" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_s9" value="9 · ActionEvent persisted to the EventLog — BEFORE the tool runs&#xa;Deliberate upstream ordering. This is what makes confirmation mode possible, and what makes double execution possible." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FDF1E0;strokeColor=#B45309;strokeWidth=2;align=left;spacingLeft=14;fontSize=12;fontColor=#4A3210;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="642" width="820" height="58" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_bandC" value="SEAM C — Effect Gate · the only enforcement point" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEEEA;strokeColor=#B4432C;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=11;fontStyle=1;fontColor=#3D1A10;" vertex="1" parent="1">
+                    <mxGeometry x="40" y="722" width="860" height="232" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_s10" value="10 · Classify tool → effect_class (from the Capability Matrix)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;align=left;spacingLeft=14;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="754" width="820" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_s11" value="11 · ledger.lookup(tool_call_id) — see page 3 for the full decision" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;align=left;spacingLeft=14;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="800" width="820" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_s12" value="12 · write INTENT + fsync   →   EXECUTE TOOL   →   write COMMITTED + observation + fsync" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEAEA;strokeColor=#B02A2A;strokeWidth=2;align=left;spacingLeft=14;fontSize=12;fontStyle=1;fontColor=#4A1212;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="846" width="820" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_s12n" value="The gap between these two writes is the only place a duplicate effect can be born." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#B02A2A;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="896" width="820" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_s13" value="13 · ObservationEvent appended → Seam B observes and attributes the turn&#39;s cost" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EEF4EE;strokeColor=#3F7A4A;align=left;spacingLeft=14;fontSize=12;fontColor=#1D3A23;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="978" width="820" height="46" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_loop" value="↺  loop to step 2 until the task completes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#737F92;dashed=1;align=center;fontSize=12;fontStyle=2;fontColor=#4A5464;" vertex="1" parent="1">
+                    <mxGeometry x="330" y="1050" width="280" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;" edge="1" parent="1" source="p2_s1" target="p2_s2">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;" edge="1" parent="1" source="p2_s2" target="p2_s3">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;" edge="1" parent="1" source="p2_s3" target="p2_s4">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;" edge="1" parent="1" source="p2_s7" target="p2_s8">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;" edge="1" parent="1" source="p2_s8" target="p2_s9">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;" edge="1" parent="1" source="p2_s9" target="p2_s10">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;" edge="1" parent="1" source="p2_s12" target="p2_s13">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2_e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#737F92;dashed=1;" edge="1" parent="1" source="p2_s13" target="p2_loop">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="gate" name="3 · Effect Gate Decision">
+        <mxGraphModel dx="1600" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="p3_title" value="Effect Gate Decision" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontStyle=1;fontColor=#171C26;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="30" width="600" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_sub" value="Five ledger states, five effect classes, one irreducible ambiguity. Three of the five classes escape the hard path cheaply — classification, not cleverness, is what makes this tractable." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#737F92;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="62" width="1100" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_start" value="Gate receives&#xa;tool_call_id · name · args" style="rounded=1;arcSize=40;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#171C26;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="620" y="120" width="240" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_cls" value="classify via Capability Matrix" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EAEFFC;strokeColor=#2F5FE0;fontSize=12;fontColor=#152A5E;" vertex="1" parent="1">
+                    <mxGeometry x="620" y="205" width="240" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_lk" value="ledger.lookup(tool_call_id)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="600" y="285" width="280" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_sub1" value="Return stored observation&#xa;DO NOT EXECUTE" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;strokeWidth=2;fontSize=12;fontColor=#0F3D20;" vertex="1" parent="1">
+                    <mxGeometry x="1180" y="310" width="240" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_amb" value="AMBIGUOUS&#xa;did the effect land?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FDF1E0;strokeColor=#B45309;strokeWidth=3;fontSize=12;fontStyle=1;fontColor=#4A3210;" vertex="1" parent="1">
+                    <mxGeometry x="600" y="450" width="280" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_ambn" value="Cannot be eliminated. The ledger and the world are two stores with no atomic commit between them." style="text;html=1;align=center;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#B45309;" vertex="1" parent="1">
+                    <mxGeometry x="560" y="565" width="360" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_ck" value="effect_class?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B45309;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="630" y="620" width="220" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_wal" value="write INTENT + fsync" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEAEA;strokeColor=#B02A2A;strokeWidth=2;fontSize=12;fontColor=#4A1212;" vertex="1" parent="1">
+                    <mxGeometry x="180" y="420" width="240" height="48" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_exe" value="EXECUTE TOOL" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#171C26;strokeWidth=3;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+                    <mxGeometry x="180" y="520" width="240" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_ok" value="success?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#171C26;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="210" y="620" width="180" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_cmt" value="write COMMITTED&#xa;+ observation + fsync" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;strokeWidth=2;fontSize=12;fontColor=#0F3D20;" vertex="1" parent="1">
+                    <mxGeometry x="80" y="750" width="200" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_fl" value="write FAILED&#xa;(effect provably did not land)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F1F3F8;strokeColor=#6B7689;fontSize=11;" vertex="1" parent="1">
+                    <mxGeometry x="320" y="750" width="200" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_rec" value="reconciliation probe&#xa;git log · file hash · idempotency key" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FDF1E0;strokeColor=#B45309;strokeWidth=2;fontSize=12;fontColor=#4A3210;" vertex="1" parent="1">
+                    <mxGeometry x="1000" y="625" width="260" height="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_rq" value="probe conclusive?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B45309;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="1030" y="730" width="200" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_sub2" value="synthesize observation&#xa;DO NOT EXECUTE" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;strokeWidth=2;fontSize=12;fontColor=#0F3D20;" vertex="1" parent="1">
+                    <mxGeometry x="1330" y="740" width="230" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_blk" value="FAIL CLOSED&#xa;block the conversation" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEAEA;strokeColor=#B02A2A;strokeWidth=3;fontSize=12;fontStyle=1;fontColor=#4A1212;" vertex="1" parent="1">
+                    <mxGeometry x="1015" y="880" width="230" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_esc" value="ESCALATE&#xa;human decision required" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEAEA;strokeColor=#B02A2A;strokeWidth=3;fontSize=12;fontStyle=1;fontColor=#4A1212;" vertex="1" parent="1">
+                    <mxGeometry x="700" y="880" width="230" height="56" as="geometry"/>
+                </mxCell>
+                <!-- edges -->
+                <mxCell id="p3_g1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p3_start" target="p3_cls">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_g2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p3_cls" target="p3_lk">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_g3" value="COMMITTED / OBSERVED" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#15803D;strokeWidth=2;fontSize=10;fontColor=#15803D;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_lk" target="p3_sub1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_g4" value="absent" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;fontSize=10;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_lk" target="p3_wal">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_g5" value="INTENT" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B45309;strokeWidth=3;fontSize=11;fontStyle=1;fontColor=#B45309;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_lk" target="p3_amb">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_g6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B45309;strokeWidth=2;" edge="1" parent="1" source="p3_amb" target="p3_ck">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_g7" value="PURE_READ&#xa;IDEMPOTENT_WRITE" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#15803D;strokeWidth=2;fontSize=10;fontColor=#15803D;labelBackgroundColor=#FFFFFF;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="p3_ck" target="p3_exe">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="470" y="665"/>
+                            <mxPoint x="470" y="596"/>
+                            <mxPoint x="300" y="596"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="p3_g8" value="NON_IDEMPOTENT&#xa;EXTERNAL" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B45309;strokeWidth=2;fontSize=10;fontColor=#B45309;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_ck" target="p3_rec">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_g9" value="DESTRUCTIVE" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B02A2A;strokeWidth=2;fontSize=10;fontColor=#B02A2A;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_ck" target="p3_esc">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_g10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B45309;strokeWidth=2;" edge="1" parent="1" source="p3_rec" target="p3_rq">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_g11" value="yes — it landed" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#15803D;strokeWidth=2;fontSize=10;fontColor=#15803D;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_rq" target="p3_sub2">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_g12" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B02A2A;strokeWidth=3;fontSize=10;fontColor=#B02A2A;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_rq" target="p3_blk">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_g13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;strokeWidth=2;" edge="1" parent="1" source="p3_wal" target="p3_exe">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_g14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p3_exe" target="p3_ok">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_g15" value="yes" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#15803D;strokeWidth=2;fontSize=10;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_ok" target="p3_cmt">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_g16" value="no" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#6B7689;fontSize=10;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p3_ok" target="p3_fl">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <!-- effect class reference table -->
+                <mxCell id="p3_tbl" value="EFFECT CLASSES — replay safety is not speculation safety" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD2E0;verticalAlign=top;align=left;spacingLeft=12;spacingTop=6;fontSize=11;fontStyle=1;fontColor=#737F92;" vertex="1" parent="1">
+                    <mxGeometry x="80" y="880" width="560" height="200" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_th" value="class                                   example                          replay      speculate" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontStyle=1;fontFamily=Courier New;fontColor=#737F92;" vertex="1" parent="1">
+                    <mxGeometry x="95" y="910" width="540" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_r1" value="PURE_READ                     read file, grep                    yes            yes" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontFamily=Courier New;fontColor=#15803D;" vertex="1" parent="1">
+                    <mxGeometry x="95" y="936" width="540" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_r2" value="IDEMPOTENT_WRITE     write whole file                 yes            NO" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontFamily=Courier New;fontColor=#4A5464;" vertex="1" parent="1">
+                    <mxGeometry x="95" y="960" width="540" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_r3" value="NON_IDEMPOTENT          append, git commit             no             no" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontFamily=Courier New;fontColor=#B45309;" vertex="1" parent="1">
+                    <mxGeometry x="95" y="984" width="540" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_r4" value="EXTERNAL                       HTTP POST, email               no             no" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontFamily=Courier New;fontColor=#B45309;" vertex="1" parent="1">
+                    <mxGeometry x="95" y="1008" width="540" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_r5" value="DESTRUCTIVE                 rm -rf, force push                no             no" style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontFamily=Courier New;fontColor=#B02A2A;" vertex="1" parent="1">
+                    <mxGeometry x="95" y="1032" width="540" height="18" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3_tn" value="Speculation is strictly stricter: a discarded speculative write has still mutated the world." style="text;html=1;align=left;verticalAlign=middle;fontSize=10;fontStyle=2;fontColor=#737F92;" vertex="1" parent="1">
+                    <mxGeometry x="95" y="1054" width="540" height="18" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="resume" name="4 · Crash &amp; Resume">
+        <mxGraphModel dx="1400" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="p4_title" value="Crash &amp; Resume" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontStyle=1;fontColor=#171C26;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="30" width="600" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_sub" value="Where the ledger earns its existence. Without it, run 2 produces a second commit — confirmed upstream behaviour, not a hypothetical." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#737F92;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="62" width="1100" height="20" as="geometry"/>
+                </mxCell>
+                <!-- RUN 1 -->
+                <mxCell id="p4_r1box" value="RUN 1 — crashes mid-tool" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEAEA;strokeColor=#B02A2A;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;fontSize=13;fontStyle=1;fontColor=#4A1212;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="120" width="700" height="430" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_a1" value="ActionEvent appended&#xa;id = tc_7 · tool = git commit" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3F7A4A;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="100" y="165" width="290" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_a2" value="ledger: write INTENT tc_7" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="100" y="245" width="290" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_a3" value="git commit  →  abc123 lands in the world" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;strokeWidth=2;fontSize=12;fontColor=#0F3D20;" vertex="1" parent="1">
+                    <mxGeometry x="100" y="317" width="290" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_kill" value="kill -9&#xa;before COMMITTED is written" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#B02A2A;strokeColor=#B02A2A;strokeWidth=2;fontSize=13;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="1">
+                    <mxGeometry x="100" y="397" width="290" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_state1" value="STATE LEFT BEHIND&#xa;&#xa;EventLog:   ActionEvent tc_7, no ObservationEvent&#xa;Ledger:      tc_7 = INTENT&#xa;World:        commit abc123 EXISTS" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B02A2A;dashed=1;align=left;spacingLeft=12;verticalAlign=middle;fontSize=11;fontFamily=Courier New;fontColor=#4A1212;" vertex="1" parent="1">
+                    <mxGeometry x="430" y="245" width="300" height="130" as="geometry"/>
+                </mxCell>
+                <!-- RUN 2 -->
+                <mxCell id="p4_r2box" value="RUN 2 — resume" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EAEFFC;strokeColor=#2F5FE0;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;fontSize=13;fontStyle=1;fontColor=#152A5E;" vertex="1" parent="1">
+                    <mxGeometry x="840" y="120" width="740" height="600" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_b1" value="load base_state.json + events/" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3F7A4A;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="880" y="165" width="300" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_b2" value="get_unmatched_actions() → [tc_7]" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FDF1E0;strokeColor=#B45309;strokeWidth=2;fontSize=12;fontColor=#4A3210;" vertex="1" parent="1">
+                    <mxGeometry x="880" y="235" width="300" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_warn" value="Without the gate, the harness&#xa;re-executes here — second commit." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEAEA;strokeColor=#B02A2A;dashed=1;fontSize=11;fontStyle=2;fontColor=#4A1212;" vertex="1" parent="1">
+                    <mxGeometry x="1220" y="235" width="320" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_b3" value="ledger.lookup(tc_7)  →  INTENT · ambiguous" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B4432C;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="880" y="305" width="300" height="44" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_b4" value="class = NON_IDEMPOTENT_WRITE&#xa;→ never re-execute on INTENT" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FDF1E0;strokeColor=#B45309;strokeWidth=2;fontSize=12;fontColor=#4A3210;" vertex="1" parent="1">
+                    <mxGeometry x="880" y="375" width="300" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_b5" value="reconciliation probe&#xa;git log --grep=intent_hash" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B45309;strokeWidth=2;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="880" y="453" width="300" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_b6" value="found abc123  →  reconcile tc_7 to COMMITTED" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;strokeWidth=2;fontSize=12;fontColor=#0F3D20;" vertex="1" parent="1">
+                    <mxGeometry x="880" y="531" width="300" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_b7" value="synthesize observation → agent continues&#xa;NO SECOND COMMIT" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;strokeWidth=3;fontSize=12;fontStyle=1;fontColor=#0F3D20;" vertex="1" parent="1">
+                    <mxGeometry x="880" y="609" width="300" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p4_a1" target="p4_a2">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p4_a2" target="p4_a3">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B02A2A;strokeWidth=2;" edge="1" parent="1" source="p4_a3" target="p4_kill">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_e4" value="resume" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2F5FE0;strokeWidth=2;dashed=1;fontSize=11;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="p4_kill" target="p4_b1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="245" y="500"/>
+                            <mxPoint x="800" y="500"/>
+                            <mxPoint x="800" y="187"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="p4_e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p4_b1" target="p4_b2">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p4_b2" target="p4_b3">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p4_b3" target="p4_b4">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p4_b4" target="p4_b5">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p4_b5" target="p4_b6">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_e10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#15803D;strokeWidth=2;" edge="1" parent="1" source="p4_b6" target="p4_b7">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4_note" value="THE HONEST GUARANTEE&#xa;&#xa;This does not claim exactly-once. The window between writing INTENT and writing COMMITTED cannot be closed —&#xa;the ledger and the world are two stores with no atomic commit between them.&#xa;&#xa;What it claims instead: an unbounded double-execution risk spanning every crash becomes a bounded one spanning&#xa;a single tool call, with class-based and probe-based mitigation inside that window." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EAEFFC;strokeColor=#2F5FE0;align=left;spacingLeft=16;verticalAlign=middle;fontSize=11;fontColor=#152A5E;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="600" width="700" height="150" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+    <diagram id="failover" name="5 · Failover Hazard">
+        <mxGraphModel dx="1400" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="p5_title" value="Failover, and the Mid-Turn Hazard" style="text;html=1;align=left;verticalAlign=middle;fontSize=24;fontStyle=1;fontColor=#171C26;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="30" width="700" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_sub" value="Switching between turns is cheap and already handled by the data plane. Switching inside one can defeat the effect ledger&#39;s primary key." style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#737F92;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="62" width="1100" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_safe" value="SAFE — failover between turns" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#E7F5EC;strokeColor=#15803D;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;fontSize=13;fontStyle=1;fontColor=#0F3D20;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="120" width="740" height="430" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_1" value="turn N request  →  affinity pins acct A (warm cache)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#15803D;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="100" y="170" width="330" height="46" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_2" value="acct A  →  429 rate limited" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FDF1E0;strokeColor=#B45309;strokeWidth=2;fontSize=12;fontColor=#4A3210;" vertex="1" parent="1">
+                    <mxGeometry x="100" y="244" width="330" height="46" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_3" value="router: cooldown acct A · fallback to acct B" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6B7689;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="100" y="318" width="330" height="46" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_4" value="acct B  →  200, but CACHE MISS&#xa;full prefill · latency up · cost up" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B45309;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="100" y="392" width="330" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_5" value="cost ledger records the switch cost&#xa;affinity repoints to acct B" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#EAEFFC;strokeColor=#2F5FE0;fontSize=12;fontColor=#152A5E;" vertex="1" parent="1">
+                    <mxGeometry x="470" y="392" width="300" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_safen" value="Chat completions are stateless, so the whole history is resent.&#xa;The only real cost of the switch is the discarded warm cache —&#xa;measured at 41–80% of input cost and 13–31% of time-to-first-token." style="text;html=1;align=left;verticalAlign=top;fontSize=11;fontColor=#0F3D20;" vertex="1" parent="1">
+                    <mxGeometry x="470" y="180" width="310" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_haz" value="HAZARD — failover inside a turn" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEAEA;strokeColor=#B02A2A;strokeWidth=3;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;fontSize=13;fontStyle=1;fontColor=#4A1212;" vertex="1" parent="1">
+                    <mxGeometry x="860" y="120" width="720" height="430" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_h1" value="turn N left unresolved tool_calls&#xa;the next message MUST carry matching results" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B02A2A;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="900" y="170" width="640" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_h2" value="endpoint changes mid-turn" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FDF1E0;strokeColor=#B45309;strokeWidth=2;fontSize=12;fontColor=#4A3210;" vertex="1" parent="1">
+                    <mxGeometry x="900" y="250" width="640" height="42" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_h3" value="model families mint tool_call_id differently&#xa;→ the id may be rejected, or simply not match" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B02A2A;fontSize=12;" vertex="1" parent="1">
+                    <mxGeometry x="900" y="320" width="640" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_h4" value="THE LEDGER IS KEYED ON tool_call_id&#xa;a committed effect becomes invisible — and is re-executed" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#B02A2A;strokeColor=#B02A2A;strokeWidth=2;fontSize=12;fontStyle=1;fontColor=#FFFFFF;" vertex="1" parent="1">
+                    <mxGeometry x="900" y="400" width="640" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_h5" value="Failover would defeat the very guard built to prevent double execution." style="text;html=1;align=center;verticalAlign=middle;fontSize=11;fontStyle=2;fontColor=#B02A2A;" vertex="1" parent="1">
+                    <mxGeometry x="900" y="465" width="640" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_rule" value="THE RULE — the turn is the atomic unit of routing&#xa;&#xa;An endpoint may change between turns and never within one. A turn with unresolved tool calls must complete against the&#xa;endpoint that opened it, or be abandoned and replanned as a whole.&#xa;&#xa;Cheap to enforce at Seam A: the request hook already knows whether the outgoing message list ends in unresolved tool calls." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FBEEEA;strokeColor=#B4432C;strokeWidth=3;align=left;spacingLeft=18;verticalAlign=middle;fontSize=12;fontColor=#3D1A10;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="600" width="1520" height="140" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_q" value="Open question Q10 — is tool_call_id stable across providers, not just across resume? A strict superset of Q2. Unresolved." style="text;html=1;align=left;verticalAlign=middle;fontSize=11;fontStyle=2;fontColor=#737F92;" vertex="1" parent="1">
+                    <mxGeometry x="60" y="755" width="1000" height="20" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p5_1" target="p5_2">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p5_2" target="p5_3">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#171C26;" edge="1" parent="1" source="p5_3" target="p5_4">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2F5FE0;dashed=1;" edge="1" parent="1" source="p5_4" target="p5_5">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B02A2A;strokeWidth=2;" edge="1" parent="1" source="p5_h1" target="p5_h2">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B02A2A;strokeWidth=2;" edge="1" parent="1" source="p5_h2" target="p5_h3">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5_e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#B02A2A;strokeWidth=3;" edge="1" parent="1" source="p5_h3" target="p5_h4">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
 </mxfile>

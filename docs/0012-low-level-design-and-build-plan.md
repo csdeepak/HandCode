@@ -1,0 +1,601 @@
+---
+Number:        0012
+Title:         Low-Level Design & Build Plan
+Type:          ARCHITECTURE
+Status:        DRAFT
+Created:       2026-09-05
+Supersedes:    —
+Superseded-by: —
+Depends-on:    0008, 0010, 0011
+---
+
+# 0012 — Low-Level Design & Build Plan
+
+`0008` decided the shape. This decides the code: modules, interfaces, schemas,
+file formats, tests, and the order to build them in.
+
+Written for long-term single-developer use. Every choice optimises for
+*surviving contact with a moving upstream* over elegance.
+
+---
+
+## 0. Two findings that change the LLD
+
+**Seam C is confirmed reachable without a fork.** The OpenHands SDK separates
+`Tool` (schema) from `ToolExecutor` (implementation), and tools are registered
+with `register_tool(name, cls)`. An executor can therefore be wrapped by
+**composition** — a `GatedExecutor` holding the real executor — and registered
+in its place. `0009` Q3 moves to **likely-resolved**; confirm by running M0.
+
+**Two LiteLLM hook gaps constrain Seam A.** Both are open issues:
+
+| Issue | Effect on us |
+|---|---|
+| `async_pre_call_hook` bypassed on the Anthropic `/v1/messages` endpoint (#27518) | **We must drive the OpenAI-format endpoint.** Configure OpenHands to talk `/v1/chat/completions` to the proxy, or Seam A silently does nothing. |
+| `async_pre_call_hook` never fires for `/mcp/` tool calls — local registry dispatch bypasses hooks (#25011) | **MCP cannot be governed at Seam A.** Confirms the Capability Broker must bind at Seam C, where we control dispatch ourselves. |
+
+The second one is a genuine architectural confirmation: it independently proves
+the seam analysis in `0008` §3 — the tool boundary is the only place tool
+governance can live.
+
+> **Design rule added:** Seam A is best-effort and must be *verified live*, not
+> assumed. M1's acceptance test asserts the hook actually fires.
+
+---
+
+## 1. Package layout
+
+The directory structure encodes the seam boundaries, so a violation is visible
+in an import statement.
+
+```
+agentctl/
+├── kernel/                  ▓ IN-BAND — must not fail. No network. No control-plane imports.
+│   ├── ledger/
+│   │   ├── schema.sql
+│   │   ├── models.py        EffectRecord, EffectState, EffectClass, GateDecision
+│   │   └── store.py         LedgerStore — SQLite, WAL, fsync, fencing
+│   ├── gate.py              EffectGate — the decision in 0011 §3
+│   ├── classify.py          Classifier — tool → EffectClass
+│   ├── reconcile/
+│   │   ├── base.py          ReconciliationProbe protocol
+│   │   ├── git.py           trailer search
+│   │   ├── filesystem.py    content hash compare
+│   │   └── http.py          idempotency-key replay
+│   └── hook.py              RequestHook — LiteLLM CustomLogger subclass
+│
+├── control/                 ░ OUT-OF-BAND — may fail. Never imported by kernel.
+│   ├── policy/
+│   │   ├── models.py        Policy DSL (pydantic)
+│   │   └── compiler.py      Policy → CompiledPolicy artifact
+│   ├── matrix/
+│   │   ├── models.py
+│   │   └── data/
+│   │       ├── models.yaml  per-model capabilities
+│   │       └── tools.yaml   per-tool effect classes
+│   ├── cost/
+│   │   ├── ingest.py        read LiteLLM_SpendLogs
+│   │   └── attribute.py     join spend → turn
+│   ├── cache/affinity.py    prefix-keyed affinity map
+│   └── broker/              Capability Broker (MCP) — Layer 2
+│
+├── adapters/                THE PORTING COST. One package per harness.
+│   └── openhands/
+│       ├── executor.py      GatedExecutor — Seam C binding
+│       ├── register.py      wrap + register_tool
+│       └── events.py        Seam B subscription
+│
+├── replay/
+│   ├── cassette.py          record/replay provider traffic
+│   ├── inject.py            crash & failure injection
+│   └── bench.py             policy comparison over traces
+│
+├── config.py                one settings object, env + file
+└── cli.py                   agentctl <verb>
+```
+
+**One enforced rule, checked in CI:**
+
+```python
+# tests/test_boundaries.py
+def test_kernel_never_imports_control():
+    """R2: the kernel must run when the control plane is dead."""
+    for mod in walk("agentctl/kernel"):
+        assert "agentctl.control" not in imports_of(mod)
+```
+
+That single test is what keeps the architecture from rotting.
+
+---
+
+## 2. Data model
+
+### 2.1 Ledger schema
+
+```sql
+-- agentctl/kernel/ledger/schema.sql
+PRAGMA journal_mode = WAL;
+PRAGMA synchronous  = FULL;   -- durability over speed; this is the whole point
+
+CREATE TABLE IF NOT EXISTS effect_record (
+    tool_call_id     TEXT    PRIMARY KEY,
+    conversation_id  TEXT    NOT NULL,
+    turn_id          TEXT    NOT NULL,
+    action_event_id  TEXT,
+    tool_name        TEXT    NOT NULL,
+    intent_hash      TEXT    NOT NULL,
+    effect_class     TEXT    NOT NULL,
+    state            TEXT    NOT NULL,
+    fence_token      INTEGER NOT NULL,
+    attempt          INTEGER NOT NULL DEFAULT 1,
+    started_at       REAL    NOT NULL,
+    committed_at     REAL,
+    observation      BLOB,
+    probe_verdict    TEXT,
+    error            TEXT,
+    CHECK (state IN ('INTENT','COMMITTED','OBSERVED','FAILED','BLOCKED')),
+    CHECK (effect_class IN
+        ('PURE_READ','IDEMPOTENT_WRITE','NON_IDEMPOTENT_WRITE','EXTERNAL','DESTRUCTIVE'))
+);
+
+CREATE INDEX IF NOT EXISTS ix_effect_conv  ON effect_record(conversation_id, turn_id);
+CREATE INDEX IF NOT EXISTS ix_effect_state ON effect_record(state)
+    WHERE state IN ('INTENT','BLOCKED');           -- the recovery scan
+
+-- Fencing: one live writer per conversation.
+CREATE TABLE IF NOT EXISTS lease (
+    conversation_id TEXT PRIMARY KEY,
+    holder          TEXT NOT NULL,
+    fence_token     INTEGER NOT NULL,
+    expires_at      REAL NOT NULL
+);
+```
+
+`PRAGMA synchronous = FULL` is deliberate and non-negotiable. `NORMAL` can lose
+the last commit on power failure — which is precisely the record whose absence
+causes a double effect.
+
+### 2.2 State machine
+
+Legal transitions only. Anything else raises.
+
+```
+            ┌──────────┐
+   (new) ──▶│  INTENT  │
+            └────┬─────┘
+      ┌──────────┼──────────┬─────────────┐
+      ▼          ▼          ▼             ▼
+ ┌─────────┐ ┌────────┐ ┌────────┐  ┌──────────┐
+ │COMMITTED│ │ FAILED │ │BLOCKED │  │ (reconciled
+ └────┬────┘ └────────┘ └───┬────┘   → COMMITTED)
+      ▼                     ▼
+ ┌──────────┐          human decision
+ │ OBSERVED │
+ └──────────┘
+```
+
+| From | To | Trigger |
+|---|---|---|
+| — | `INTENT` | gate admits, write-ahead |
+| `INTENT` | `COMMITTED` | tool returned successfully |
+| `INTENT` | `FAILED` | tool raised before any effect |
+| `INTENT` | `COMMITTED` | probe found the effect on resume |
+| `INTENT` | `FAILED` | probe proved the effect did not land |
+| `INTENT` | `BLOCKED` | probe inconclusive → fail closed |
+| `COMMITTED` | `OBSERVED` | observation returned to the harness |
+| `BLOCKED` | any | human resolution only |
+
+### 2.3 Core types
+
+```python
+# agentctl/kernel/ledger/models.py
+from enum import Enum
+from dataclasses import dataclass
+
+class EffectClass(str, Enum):
+    PURE_READ            = "PURE_READ"
+    IDEMPOTENT_WRITE     = "IDEMPOTENT_WRITE"
+    NON_IDEMPOTENT_WRITE = "NON_IDEMPOTENT_WRITE"
+    EXTERNAL             = "EXTERNAL"
+    DESTRUCTIVE          = "DESTRUCTIVE"
+
+    @property
+    def replay_safe(self) -> bool:
+        return self in (EffectClass.PURE_READ, EffectClass.IDEMPOTENT_WRITE)
+
+    @property
+    def speculation_safe(self) -> bool:
+        return self is EffectClass.PURE_READ      # strictly stricter — 0010 §6.4
+
+class EffectState(str, Enum):
+    INTENT = "INTENT"; COMMITTED = "COMMITTED"; OBSERVED = "OBSERVED"
+    FAILED = "FAILED"; BLOCKED = "BLOCKED"
+
+@dataclass(frozen=True)
+class ToolCall:
+    tool_call_id: str
+    conversation_id: str
+    turn_id: str
+    tool_name: str
+    args: dict
+
+    def intent_hash(self) -> str:
+        import hashlib, json
+        canonical = json.dumps({"t": self.tool_name, "a": self.args},
+                               sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(canonical.encode()).hexdigest()
+
+@dataclass(frozen=True)
+class GateDecision:
+    verdict: str                    # EXECUTE | SUBSTITUTE | BLOCK | ESCALATE
+    observation: bytes | None = None
+    reason: str | None = None
+```
+
+---
+
+## 3. Kernel interfaces
+
+### 3.1 LedgerStore
+
+```python
+# agentctl/kernel/ledger/store.py
+class LedgerStore:
+    """Single-writer, local, durable. No network. Never raises past `guard`."""
+
+    def __init__(self, path: Path, holder: str): ...
+
+    # --- lease / fencing -------------------------------------------------
+    def acquire(self, conversation_id: str, ttl_s: float = 300) -> int:
+        """Return a fence token. Raises LeaseHeld if another live holder exists."""
+
+    # --- the write-ahead protocol ---------------------------------------
+    def lookup(self, tool_call_id: str) -> EffectRecord | None: ...
+
+    def write_intent(self, call: ToolCall, cls: EffectClass, fence: int) -> None:
+        """INSERT + fsync. Must return only when durable."""
+
+    def commit(self, tool_call_id: str, observation: bytes) -> None:
+        """INTENT → COMMITTED + fsync."""
+
+    def fail(self, tool_call_id: str, error: str) -> None: ...
+    def block(self, tool_call_id: str, reason: str) -> None: ...
+    def observed(self, tool_call_id: str) -> None: ...
+
+    # --- recovery --------------------------------------------------------
+    def pending(self, conversation_id: str) -> list[EffectRecord]:
+        """Records in INTENT — the ambiguous set."""
+```
+
+### 3.2 EffectGate
+
+The whole correctness core, and deliberately small.
+
+```python
+# agentctl/kernel/gate.py
+class EffectGate:
+    def __init__(self, store, classifier, probes, fence): ...
+
+    def guard(self, call: ToolCall) -> GateDecision:
+        cls = self.classifier.classify(call)
+        rec = self.store.lookup(call.tool_call_id)
+
+        if rec is None:
+            self.store.write_intent(call, cls, self.fence)
+            return GateDecision("EXECUTE")
+
+        if rec.intent_hash != call.intent_hash():
+            return GateDecision("BLOCK", reason="tool_call_id reused with different args")
+
+        if rec.state in (EffectState.COMMITTED, EffectState.OBSERVED):
+            return GateDecision("SUBSTITUTE", observation=rec.observation)
+
+        if rec.state is EffectState.FAILED:
+            self.store.write_intent(call, cls, self.fence)   # bumps attempt
+            return GateDecision("EXECUTE")
+
+        if rec.state is EffectState.BLOCKED:
+            return GateDecision("BLOCK", reason=rec.error)
+
+        # rec.state is INTENT — the ambiguous case (0008 §6.5)
+        if cls.replay_safe:
+            return GateDecision("EXECUTE")
+        if cls is EffectClass.DESTRUCTIVE:
+            return GateDecision("ESCALATE", reason="destructive effect, unknown outcome")
+
+        verdict = self._probe(call, rec)
+        if verdict == "LANDED":
+            self.store.commit(call.tool_call_id, rec.observation or b"")
+            return GateDecision("SUBSTITUTE", observation=rec.observation or b"")
+        if verdict == "DID_NOT_LAND":
+            return GateDecision("EXECUTE")
+
+        self.store.block(call.tool_call_id, "probe inconclusive")
+        return GateDecision("BLOCK", reason="cannot determine whether effect landed")
+```
+
+**`guard()` must never raise.** Any internal exception becomes
+`BLOCK` — fail closed, per `0008` §6.5. A gate that crashes open is worse than
+no gate, because it creates false confidence.
+
+### 3.3 Reconciliation probes
+
+```python
+# agentctl/kernel/reconcile/base.py
+class ReconciliationProbe(Protocol):
+    def handles(self, call: ToolCall) -> bool: ...
+    def probe(self, call: ToolCall, rec: EffectRecord) -> str:
+        """LANDED | DID_NOT_LAND | INCONCLUSIVE"""
+```
+
+The git probe is the highest-value one and works by writing the intent hash into
+the commit as a trailer, making the effect self-identifying:
+
+```python
+# agentctl/kernel/reconcile/git.py
+TRAILER = "X-Agentctl-Intent"
+
+class GitCommitProbe:
+    def handles(self, call): return call.tool_name in {"git_commit", "execute_bash"} \
+                                    and "git commit" in str(call.args)
+
+    def probe(self, call, rec):
+        out = run(["git", "log", "--all", f"--grep={TRAILER}: {rec.intent_hash}",
+                   "--format=%H"], cwd=self.repo)
+        if out.returncode != 0:      return "INCONCLUSIVE"
+        return "LANDED" if out.stdout.strip() else "DID_NOT_LAND"
+```
+
+> **Design note.** The probe only works if the *write path* cooperates — the
+> gate must inject the trailer when it admits the call. Reconciliation is not
+> something bolted on afterwards; it is a contract between write and recovery.
+> Every probe needs this pairing designed together.
+
+### 3.4 RequestHook — Seam A
+
+```python
+# agentctl/kernel/hook.py
+from litellm.integrations.custom_logger import CustomLogger
+
+class RequestHook(CustomLogger):
+    async def async_pre_call_hook(self, user_api_key_dict, cache, data, call_type, **kw):
+        meta = data.setdefault("metadata", {})
+        conv, turn = meta.get("conversation_id"), meta.get("turn_id")
+
+        # 1. turn-atomic routing (0010 §7.3) — never switch mid-turn
+        if _ends_with_unresolved_tool_calls(data.get("messages", [])):
+            pin = self.affinity.pinned_deployment(conv, turn)
+            if pin: data["model"] = pin
+
+        # 2. cache affinity on the cache_control prefix, not the whole list
+        elif (dep := self.affinity.lookup(_prefix_hash(data))):
+            data["model"] = dep
+
+        # 3. compiled policy — local file, no network
+        if (deny := self.policy.check(data, user_api_key_dict)):
+            raise HTTPException(status_code=403, detail=deny)
+
+        # 4. attribution
+        meta["trace_id"] = f"{conv}:{turn}"
+        return data
+
+    async def async_log_success_event(self, kwargs, response_obj, start_time, end_time):
+        self.telemetry.record(kwargs, response_obj, start_time, end_time)
+```
+
+**Live-fire acceptance test required** (see §0): assert the hook actually fires
+on your configured endpoint before trusting any of it.
+
+---
+
+## 4. Adapter — the Seam C binding
+
+The only harness-specific code. Keep it under ~150 lines (`0008` §12).
+
+```python
+# agentctl/adapters/openhands/executor.py
+from openhands.sdk.tool import ToolExecutor
+
+class GatedExecutor(ToolExecutor):
+    """Wraps a real executor with the effect gate. Composition, not a fork."""
+
+    def __init__(self, inner: ToolExecutor, gate: EffectGate, ctx):
+        self._inner, self._gate, self._ctx = inner, gate, ctx
+
+    def __call__(self, action):
+        call = self._ctx.to_tool_call(action)
+        d = self._gate.guard(call)
+
+        if d.verdict == "SUBSTITUTE":
+            return self._ctx.deserialize(d.observation)
+        if d.verdict in ("BLOCK", "ESCALATE"):
+            return self._ctx.blocked_observation(d.reason)
+
+        try:
+            obs = self._inner(action)
+        except Exception as e:
+            self._gate.store.fail(call.tool_call_id, repr(e))
+            raise
+        self._gate.store.commit(call.tool_call_id, self._ctx.serialize(obs))
+        return obs
+```
+
+```python
+# agentctl/adapters/openhands/register.py
+def install(gate, ctx, tools: dict[str, type]) -> None:
+    """Register gated versions in place of the originals."""
+    from openhands.sdk.tool import register_tool
+    for name, tool_cls in tools.items():
+        register_tool(name, _gated(tool_cls, gate, ctx))
+```
+
+**Everything harness-specific lives in `ctx`** — how to read a tool call id off
+an action, how to serialise an observation, how to build a blocked observation.
+Porting to another harness means writing a new `ctx` and nothing else.
+
+---
+
+## 5. File formats
+
+### 5.1 Capability matrix — `control/matrix/data/tools.yaml`
+
+```yaml
+version: 1
+defaults:
+  unknown_tool: EXTERNAL          # safe direction — 0008 §6.3
+
+tools:
+  read_file:      { class: PURE_READ }
+  grep:           { class: PURE_READ }
+  glob:           { class: PURE_READ }
+  write_file:     { class: IDEMPOTENT_WRITE }
+  str_replace:    { class: NON_IDEMPOTENT_WRITE, probe: filesystem }
+
+  execute_bash:                   # classify by argument, not by name
+    class: EXTERNAL
+    rules:
+      - match: "^(ls|cat|grep|rg|find|git (log|status|diff|show))\\b"
+        class: PURE_READ
+      - match: "^git commit\\b"
+        class: NON_IDEMPOTENT_WRITE
+        probe: git
+      - match: "\\b(rm -rf|git push --force|DROP )"
+        class: DESTRUCTIVE
+
+mcp:
+  default: EXTERNAL               # 0010 §8.2 — remote and opaque
+  servers:
+    filesystem:
+      tools: { read_file: PURE_READ, list_directory: PURE_READ }
+```
+
+`execute_bash` is the hard case and the reason classification is
+argument-aware rather than name-based. Get this table wrong and the whole
+system is wrong — so it is data, reviewable and testable, not code.
+
+### 5.2 Policy — `policy.yaml`
+
+```yaml
+version: 1
+
+pools:
+  free_tier:                       # the real daily driver — 0013
+    - openrouter/free
+    - google-ai-studio/flash
+    - cerebras/llama
+    - mistral/free
+  paid:
+    - anthropic/sonnet
+
+routing:
+  default_pool: free_tier
+  escalate_to:
+    pool: paid
+    when: { requires_capability: [long_context], or_after_failures: 3 }
+    require_confirmation: true     # 0002 §5 — never silently spend
+
+budget:
+  daily_usd: 2.00
+  per_task_usd: 0.50
+  on_exceeded: block
+
+tiering:
+  planning:  { min_tier: strong }
+  edit:      { min_tier: mid }
+  read:      { min_tier: cheap }
+
+effects:
+  destructive: require_human_approval
+  external:    reconcile_or_block
+```
+
+Compiles to a flat lookup artifact the kernel reads from disk — no evaluation
+logic in-band.
+
+---
+
+## 6. Test strategy
+
+Three layers, and one of them is unusual.
+
+| Layer | What runs | Speed | Covers |
+|---|---|---|---|
+| **Unit** | Ledger + gate against a temp SQLite | ms | State machine, every transition |
+| **Cassette** | Recorded provider traffic replayed | seconds | Hook, routing, cost attribution |
+| **Chaos** | Real subprocess, killed at chosen points | seconds | **The actual guarantee** |
+
+### The chaos harness is the product's real test suite
+
+```python
+# replay/inject.py
+CRASH_POINTS = [
+    "before_action_event", "after_action_event", "before_intent",
+    "after_intent", "mid_tool", "after_tool", "before_commit",
+    "after_commit", "before_observation",
+]
+
+@pytest.mark.parametrize("point", CRASH_POINTS)
+def test_no_duplicate_effect(point, tmp_repo):
+    """0011 §10 — every crash point, exactly one effect."""
+    run_agent_until(point, task="commit a file", repo=tmp_repo)
+    kill_hard()
+    resume_agent(repo=tmp_repo)
+    assert count_commits(tmp_repo, marker=INTENT_HASH) == 1
+```
+
+That parametrised test *is* the specification. If it passes at all nine points,
+the guarantee in `0008` §10 holds. If you write nothing else, write this.
+
+---
+
+## 7. Milestones
+
+Each milestone is small enough to finish in a sitting or two, ends in something
+demonstrable, and teaches one thing.
+
+| M | Deliverable | Acceptance test | What it teaches |
+|---|---|---|---|
+| **M0** | Falsification spike | Reproduce a double commit; confirm `tool_call_id` stability; wrap one executor | Whether the project is real |
+| **M1** | LiteLLM wiring + live hook proof | `async_pre_call_hook` provably fires; two accounts fail over | Proxy architecture, the endpoint trap |
+| **M2** | Ledger + gate, read/write classes only | Chaos suite green at all 9 points for `PURE_READ`/`IDEMPOTENT_WRITE` | Write-ahead logging, durability, SQLite |
+| **M3** | Classifier + capability matrix | `execute_bash` classified correctly across a 50-command corpus | Why data beats code for policy |
+| **M4** | Git + filesystem probes | Chaos green for `NON_IDEMPOTENT_WRITE` | Reconciliation, idempotency |
+| **M5** | Cost ledger + attribution | `agentctl cost --today` shows spend per task | Telemetry joins, observability |
+| **M6** | Record/replay evaluator | Re-run a real session offline at zero cost | Deterministic testing of nondeterministic systems |
+| **M7** | Policy compiler | Budget cap actually blocks; escalation asks first | Control/data plane separation, DSL design |
+
+**M0 through M2 is the whole thesis.** Everything after is leverage.
+
+Nothing here requires more than a laptop, a free-tier key or two, and a scratch
+git repo.
+
+---
+
+## 8. Operating principles for a long-lived solo project
+
+Written down because these are what usually kill personal infrastructure.
+
+1. **Pin everything.** One `constraints.txt` with exact SDK and LiteLLM
+   versions. Upgrade deliberately, never incidentally (`0009` R1).
+2. **Re-verify before building on a source claim.** Every milestone starts by
+   re-running the relevant assertion against the pinned version.
+3. **The chaos suite runs on every commit.** It is the only thing standing
+   between you and a silent regression of the core guarantee.
+4. **The boundary test runs on every commit.** Kernel must never import control.
+5. **Never let the kernel grow.** If `gate.py` exceeds ~200 lines, something
+   belongs in the control plane.
+6. **Ship a usable slice at every milestone.** M2 alone is already worth
+   running daily — it makes your agent crash-safe. Do not wait for M7.
+
+---
+
+## 9. Open items
+
+| # | Question | Now |
+|---|---|---|
+| Q3 | Executor wrappable without forking? | **Likely resolved** — composition via `register_tool`. Confirm in M0. |
+| Q2 | `tool_call_id` stable across resume? | Still open. **Blocks §2.1.** M0. |
+| Q13 | Does OpenHands use `/v1/messages` or `/v1/chat/completions` upstream? | **New, blocking M1** — issue #27518 means Seam A silently dies on the former. |
+| Q14 | Can the gate inject a git trailer into an agent-authored commit? | **New** — §3.3 reconciliation depends on it. |
+
+Q13 and Q14 are new and go into `0009`.

@@ -68,7 +68,8 @@ maintenance death sentence for a solo developer.
 - A general session store (`0007` — CONFIGURE, the EventLog owns this)
 - Generic routing, load balancing, retries, cooldowns (LiteLLM owns these)
 - Multi-agent orchestration
-- A user-facing dashboard (a read view over the ledger, much later)
+- ~~A user-facing dashboard~~ — **reversed by `0013` §3.** Restored as milestone M8;
+  the blocked-effect resolution panel is required to make fail-closed usable.
 
 ---
 

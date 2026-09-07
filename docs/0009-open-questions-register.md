@@ -146,6 +146,26 @@ These block `0008` from moving DRAFT → ACCEPTED.
 | **Impact** | Capability gating (`0010` §8.3) needs declared scopes, auth model, and side-effect hints. |
 | **Method** | Read the registry OpenAPI spec at `registry.modelcontextprotocol.io`. |
 
+### Q13 — Does OpenHands drive `/v1/chat/completions` or `/v1/messages`?
+
+| | |
+|---|---|
+| **Status** | OPEN |
+| **Source** | New — `0012` §0 |
+| **Blocks** | **M1.** LiteLLM issue #27518: proxy-level `async_pre_call_hook` is bypassed on the Anthropic `/v1/messages` endpoint. |
+| **Impact if `/v1/messages`** | Seam A silently does nothing — no policy, no affinity, no trace-id. The failure is invisible, which makes it worse than an error. |
+| **Method** | Inspect the completion call assembled in `llm.py`; then assert live that the hook fires. |
+
+### Q14 — Can the gate inject a git trailer into an agent-authored commit?
+
+| | |
+|---|---|
+| **Status** | OPEN |
+| **Source** | New — `0012` §3.3 |
+| **Blocks** | M4 git reconciliation probe. |
+| **Impact if no** | The git probe cannot identify its own effect, and `NON_IDEMPOTENT_WRITE` commits fall back to fail-closed on every ambiguous resume. Usable, but noisy. |
+| **Method** | Attempt trailer injection by rewriting the bash command in the gate before execution; verify `git log --grep` finds it. |
+
 ---
 
 ## Risks

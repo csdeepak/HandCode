@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0011**.
+**The highest number is the newest document.** Current head: **0013**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -17,6 +17,8 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0009](docs/0009-open-questions-register.md) | Open Questions & Risk Register | REGISTER | LIVING | 2026-09-05 | 7 open questions, 5 risks. Q1–Q5 block 0008 |
 | [0010](docs/0010-latency-switching-mcp-integration.md) | Latency, Model Switching, and MCP/Plugin Integration | RESEARCH | ACCEPTED (frozen) | 2026-09-05 | Feature research. Cache latency claim corrected; MCP now stateless; Capability Broker proposed |
 | [0011](docs/0011-request-flow-architecture.md) | Request Flow — End-to-End Diagrams | ARCHITECTURE | DRAFT | 2026-09-05 | Five Mermaid diagrams tracing one user request through every concept; concept coverage map |
+| [0012](docs/0012-low-level-design-and-build-plan.md) | Low-Level Design &amp; Build Plan | ARCHITECTURE | DRAFT | 2026-09-05 | Package layout, ledger schema, gate/hook/adapter interfaces, chaos test suite, milestones M0–M7 |
+| [0013](docs/0013-personal-use-and-future-scope.md) | Personal Use &amp; Future Scope | GUIDELINE | LIVING | 2026-09-05 | Free-tier orchestrator, dashboard restored (M8), daily-driver CLI, integration surfaces, learning ladder |
 
 ---
 
@@ -24,6 +26,8 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
 **New to the project?** `0001` → `0007` → `0008` → `0011`. Charter, current
 verdicts, current design, then the diagrams. About 40 minutes.
+
+**Ready to build?** `0012` (how) then `0013` (what for). Start at M0.
 
 **Want the full history?** `0002` → `0003` → `0004` → `0006` → `0007` → `0008`.
 
@@ -37,8 +41,8 @@ verdicts, current design, then the diagrams. About 40 minutes.
 |---|---|
 | **Phase** | Phase 0 complete. Phase 1 not started. |
 | **Architecture** | `0008` in DRAFT. Blocked on Q1–Q5 in `0009`. Revisions pending from `0010` §11. |
-| **Next action** | Build step 0 — the falsification experiment (`0008` §14). Resolves Q1, Q2, Q3 in one sitting. |
-| **Code written** | None, deliberately. |
+| **Next action** | **M0 falsification spike** (`0012` §7). ~2 hours. Resolves Q1, Q2, Q3. |
+| **Code written** | None. M0 is the first. |
 
 ---
 
