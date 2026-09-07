@@ -24,7 +24,7 @@ _LOCK = threading.Lock()
 TOOL_NAME = "side_effect_tool"
 
 
-def _tool_call_response(call_id: str, model: str) -> dict:
+def _tool_call_response(call_id: str, model: str, tool_name: str | None = None) -> dict:
     """Turn 1: the model asks for our side-effecting tool."""
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
@@ -41,7 +41,7 @@ def _tool_call_response(call_id: str, model: str) -> dict:
                     "id": call_id,
                     "type": "function",
                     "function": {
-                        "name": TOOL_NAME,
+                        "name": tool_name or TOOL_NAME,
                         "arguments": json.dumps({"payload": "m0-spike"}),
                     },
                 }],
@@ -144,8 +144,17 @@ class Handler(BaseHTTPRequestHandler):
                  for c in m["content"]))
             for m in messages
         )
+        # Use the tool name the agent actually offered. The SDK normalises
+        # names (it strips a "_tool" suffix), so hard-coding one is fragile.
+        offered = None
+        for t in (body.get("tools") or []):
+            fn = t.get("function") or {}
+            if fn.get("name"):
+                offered = fn["name"]
+                break
+
         resp = (_final_response(model) if already_ran
-                else _tool_call_response(self.fixed_call_id, model))
+                else _tool_call_response(self.fixed_call_id, model, offered))
 
         if body.get("stream"):
             self._sse(resp)

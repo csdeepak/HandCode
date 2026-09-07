@@ -26,7 +26,7 @@ These block `0008` from moving DRAFT → ACCEPTED.
 
 | | |
 |---|---|
-| **Status** | OPEN |
+| **Status** | **RESOLVED** — see `0014` |
 | **Source** | `0006:U1` |
 | **Blocks** | `0008` §6, build step 1 |
 | **Impact if yes** | The core BUILD verdict in `0007` collapses. Effect ledger becomes a thin audit layer rather than the product. |
@@ -37,7 +37,7 @@ These block `0008` from moving DRAFT → ACCEPTED.
 
 | | |
 |---|---|
-| **Status** | OPEN |
+| **Status** | **RESOLVED** — see `0014` |
 | **Source** | New — introduced by `0008` §6.2 |
 | **Blocks** | `0008` §6 data model |
 | **Impact if no** | The effect ledger's primary key is invalid and the whole data model must be redesigned around a different stable identifier (`action_event_id`, or a content hash). |
@@ -49,7 +49,7 @@ These block `0008` from moving DRAFT → ACCEPTED.
 
 | | |
 |---|---|
-| **Status** | OPEN |
+| **Status** | **RESOLVED** — see `0014` |
 | **Source** | New — introduced by `0008` §3 (Seam C) |
 | **Blocks** | The entire Option 3 architecture |
 | **Impact if no** | Seam C is unavailable, R1 becomes unsatisfiable, and the project falls back to Option 1 (detect-and-alarm only). That is a materially weaker product and would need a new architecture document. |
@@ -150,7 +150,7 @@ These block `0008` from moving DRAFT → ACCEPTED.
 
 | | |
 |---|---|
-| **Status** | OPEN |
+| **Status** | **RESOLVED** — see `0014` |
 | **Source** | New — `0012` §0 |
 | **Blocks** | **M1.** LiteLLM issue #27518: proxy-level `async_pre_call_hook` is bypassed on the Anthropic `/v1/messages` endpoint. |
 | **Impact if `/v1/messages`** | Seam A silently does nothing — no policy, no affinity, no trace-id. The failure is invisible, which makes it worse than an error. |
@@ -165,6 +165,33 @@ These block `0008` from moving DRAFT → ACCEPTED.
 | **Blocks** | M4 git reconciliation probe. |
 | **Impact if no** | The git probe cannot identify its own effect, and `NON_IDEMPOTENT_WRITE` commits fall back to fail-closed on every ambiguous resume. Usable, but noisy. |
 | **Method** | Attempt trailer injection by rewriting the bash command in the gate before execution; verify `git log --grep` finds it. |
+
+### Q15 — Does `LocalConversation.prompt_cache_key` serve our affinity need?
+
+| | |
+|---|---|
+| **Status** | OPEN |
+| **Source** | `0014:F1` |
+| **Impact** | May reduce `0008` §7 cache intelligence from BUILD to CONFIGURE. |
+| **Method** | Read how the SDK threads `prompt_cache_key` into the LLM call. |
+
+### Q16 — Is `Conversation.hook_config` a fourth seam?
+
+| | |
+|---|---|
+| **Status** | OPEN |
+| **Source** | `0014:F2` |
+| **Impact** | `0008` §3 considered three seams. If `HookConfig` can intercept rather than observe, the adapter may shrink. |
+| **Method** | Read `openhands.sdk.hooks.config.HookConfig` and its call sites. |
+
+### Q17 — Does `max_budget_per_run` cover the budget guard?
+
+| | |
+|---|---|
+| **Status** | OPEN |
+| **Source** | `0014:F3` |
+| **Impact** | Could satisfy part of `0013` §4 by configuration rather than code. |
+| **Method** | Test it against the mock provider with a low cap. |
 
 ---
 
@@ -216,4 +243,7 @@ Part C, run before each build step.
 
 | Date | Question | Resolution | Recorded in |
 |---|---|---|---|
-| — | — | — | — |
+| 2026-09-08 | Q1 | **CONFIRMED** — effect ran twice (1 before crash, 2 after resume) | `0014` |
+| 2026-09-08 | Q2 | **CONFIRMED** — `tool_call_id` byte-identical across resume | `0014` |
+| 2026-09-08 | Q3 | **CONFIRMED** — Seam C binds by replacing `ToolDefinition.executor` | `0014` |
+| 2026-09-08 | Q13 | **CONFIRMED** — SDK drives `/v1/chat/completions` | `0014` |

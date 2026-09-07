@@ -37,44 +37,40 @@ POLL_TIMEOUT_S = 90.0
 # ══════════════════════════════════════════════════════════════════════
 def child(mode: str, workspace: Path, base_url: str) -> int:
     """Run (or resume) one conversation. Killed mid-tool by the parent."""
+    import uuid as _uuid
+
+    sys.path.insert(0, str(HERE))
+    import m0_tool
     from openhands.sdk import LLM, Agent, Conversation
-    from openhands.sdk.tool import ToolExecutor, register_tool
+    from openhands.sdk.tool import Tool
 
-    log_path = workspace / SIDE_EFFECT_LOG
-    marker = workspace / MARKER
+    m0_tool.register()
 
-    class SideEffectExecutor(ToolExecutor):
-        """Appends a line, then sleeps. Non-idempotent by construction."""
-
-        def __call__(self, action, *a, **kw):
-            with log_path.open("a", encoding="utf-8") as fh:
-                fh.write(f"EFFECT ts={time.time():.3f} pid={os.getpid()}\n")
-                fh.flush()
-                os.fsync(fh.fileno())
-            # Signal the parent only AFTER the effect has landed, so the kill
-            # lands in the genuinely ambiguous window.
-            marker.write_text(str(time.time()), encoding="utf-8")
-            time.sleep(SLEEP_S)
-            return {"status": "ok"}
-
-    register_tool("side_effect_tool", SideEffectExecutor)
-
-    llm = LLM(model="openai/mock-model", api_key="not-needed", base_url=base_url)
-    agent = Agent(llm=llm, tools=["side_effect_tool"])
+    llm = LLM(model="openai/mock-model", api_key="not-needed",
+              base_url=base_url, service_id="m0", temperature=0.0,
+              num_retries=1, retry_min_wait=1, retry_max_wait=2)
+    agent = Agent(llm=llm, tools=[Tool(name=m0_tool.TOOL_NAME, params={
+        "log_path": str(workspace / SIDE_EFFECT_LOG),
+        "marker": str(workspace / MARKER),
+        "sleep_s": SLEEP_S,
+    })], include_default_tools=[])
 
     persist = workspace / "state"
-    conv_id_file = workspace / "conversation_id.txt"
+    cid_file = workspace / "conversation_id.txt"
 
     if mode == "fresh":
-        conv = Conversation(agent=agent, persistence_dir=str(persist))
-        cid = getattr(conv, "id", None) or getattr(conv, "conversation_id", None)
-        conv_id_file.write_text(str(cid), encoding="utf-8")
-        conv.send_message("Call side_effect_tool once with payload m0-spike.")
+        cid = _uuid.uuid4()
+        cid_file.write_text(str(cid), encoding="utf-8")
+        conv = Conversation(agent=agent, workspace=str(workspace / "ws"),
+                            persistence_dir=str(persist), conversation_id=cid,
+                            delete_on_close=False, stuck_detection=False)
+        conv.send_message(f"Call the {m0_tool.TOOL_NAME} tool once with payload m0-spike.")
         conv.run()
     else:
-        cid = conv_id_file.read_text(encoding="utf-8").strip()
-        conv = Conversation(agent=agent, persistence_dir=str(persist),
-                            conversation_id=cid)
+        cid = _uuid.UUID(cid_file.read_text(encoding="utf-8").strip())
+        conv = Conversation(agent=agent, workspace=str(workspace / "ws"),
+                            persistence_dir=str(persist), conversation_id=cid,
+                            delete_on_close=False, stuck_detection=False)
         conv.run()
     return 0
 
@@ -83,11 +79,27 @@ def child(mode: str, workspace: Path, base_url: str) -> int:
 # PARENT
 # ══════════════════════════════════════════════════════════════════════
 def _spawn(mode: str, workspace: Path, base_url: str) -> subprocess.Popen:
-    return subprocess.Popen(
+    """Child output goes to FILES, never to an undrained PIPE.
+
+    The SDK's visualizer is verbose enough to fill a pipe buffer, which blocks
+    the child until someone reads it -- the parent is polling for a marker at
+    that moment, so it deadlocks and times out. Files avoid it entirely.
+    """
+    env = {**os.environ, "OPENHANDS_SUPPRESS_BANNER": "1", "PYTHONIOENCODING": "utf-8"}
+    out = (workspace / f"child_{mode}.out").open("w", encoding="utf-8", errors="replace")
+    err = (workspace / f"child_{mode}.err").open("w", encoding="utf-8", errors="replace")
+    proc = subprocess.Popen(
         [sys.executable, str(HERE / "run_03_crash.py"),
          "--child", mode, "--workspace", str(workspace), "--base-url", base_url],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        stdout=out, stderr=err, env=env,
     )
+    proc._m0_files = (out, err)          # keep handles alive
+    return proc
+
+
+def _child_log(workspace: Path, mode: str, stream: str) -> str:
+    p = workspace / f"child_{mode}.{stream}"
+    return p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
 
 
 def _wait_for(path: Path, timeout: float, proc: subprocess.Popen) -> bool:
@@ -160,10 +172,13 @@ def parent() -> dict:
         entered = _wait_for(workspace / MARKER, POLL_TIMEOUT_S, p1)
 
         if not entered:
-            so, se = p1.communicate(timeout=15)
+            try:
+                p1.wait(timeout=15)
+            except subprocess.TimeoutExpired:
+                p1.kill()
             out["verdicts"] = {h: "ERROR" for h in out["hypotheses"]}
-            out["evidence"]["run1_stdout"] = so[-2500:]
-            out["evidence"]["run1_stderr"] = se[-2500:]
+            out["evidence"]["run1_stdout"] = _child_log(workspace, "fresh", "out")[-2500:]
+            out["evidence"]["run1_stderr"] = _child_log(workspace, "fresh", "err")[-2500:]
             out["notes"].append(
                 "The tool was never entered. Usually an SDK API mismatch — "
                 "check results/api_surface.json and the stderr above.")
@@ -172,7 +187,7 @@ def parent() -> dict:
         time.sleep(0.6)                    # firmly inside the sleep window
         p1.kill()
         try:
-            p1.communicate(timeout=10)
+            p1.wait(timeout=10)
         except subprocess.TimeoutExpired:
             pass
 
@@ -187,11 +202,10 @@ def parent() -> dict:
         (workspace / MARKER).unlink(missing_ok=True)
         p2 = _spawn("resume", workspace, base_url)
         try:
-            so2, se2 = p2.communicate(timeout=POLL_TIMEOUT_S)
+            p2.wait(timeout=POLL_TIMEOUT_S)
         except subprocess.TimeoutExpired:
             p2.kill()
-            so2, se2 = p2.communicate()
-        out["evidence"]["run2_stderr_tail"] = (se2 or "")[-1500:]
+        out["evidence"]["run2_stderr_tail"] = _child_log(workspace, "resume", "err")[-1500:]
 
         effects_after_resume = _count_effects(workspace)
         ids_after = _find_tool_call_ids(_read_events(workspace))

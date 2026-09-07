@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0013**.
+**The highest number is the newest document.** Current head: **0014**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -19,6 +19,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0011](docs/0011-request-flow-architecture.md) | Request Flow — End-to-End Diagrams | ARCHITECTURE | DRAFT | 2026-09-05 | Five Mermaid diagrams tracing one user request through every concept; concept coverage map |
 | [0012](docs/0012-low-level-design-and-build-plan.md) | Low-Level Design &amp; Build Plan | ARCHITECTURE | DRAFT | 2026-09-05 | Package layout, ledger schema, gate/hook/adapter interfaces, chaos test suite, milestones M0–M7 |
 | [0013](docs/0013-personal-use-and-future-scope.md) | Personal Use &amp; Future Scope | GUIDELINE | LIVING | 2026-09-05 | Free-tier orchestrator, dashboard restored (M8), daily-driver CLI, integration surfaces, learning ladder |
+| [0014](docs/0014-m0-results-decision-record.md) | M0 Results — Decision Record | DECISION | ACCEPTED | 2026-09-08 | All four hypotheses CONFIRMED. Double execution reproduced. Three corrections to 0012 |
 
 ---
 
@@ -39,10 +40,10 @@ verdicts, current design, then the diagrams. About 40 minutes.
 
 | | |
 |---|---|
-| **Phase** | Phase 0 complete. Phase 1 not started. |
-| **Architecture** | `0008` in DRAFT. Blocked on Q1–Q5 in `0009`. Revisions pending from `0010` §11. |
-| **Next action** | **M0 falsification spike** (`0012` §7). ~2 hours. Resolves Q1, Q2, Q3. |
-| **Code written** | None. M0 is the first. |
+| **Phase** | Phase 0 complete. **M0 complete — all hypotheses confirmed (`0014`).** |
+| **Architecture** | `0008` DRAFT — Q1/Q2/Q3/Q13 now resolved. Q4, Q5 remain. |
+| **Next action** | **M1** — LiteLLM wiring + live hook proof (`0012` §7). |
+| **Code written** | M0 spike, run green. `experiments/0000-falsification/`. |
 
 ---
 
