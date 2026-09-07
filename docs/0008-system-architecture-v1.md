@@ -97,7 +97,10 @@ There are exactly three seams available, and they have **different powers**.
 - **Sees:** every `ActionEvent` and `ObservationEvent`, turn structure, causal
   links, the full agent state machine.
 - **Can:** mirror, attribute, measure, detect drift.
-- **Cannot:** prevent anything. Callbacks are notification, not interception.
+- **Cannot:** ~~prevent anything~~ — **corrected by `0015` §2.** Callbacks *can*
+  block, via the public `ConversationState.block_action(action_id, reason)`.
+  What Seam B cannot do is **substitute** a stored observation; the agent emits
+  a rejection instead. See the revised seam table in `0015` §6.
 
 ### Seam C — At the tool boundary
 

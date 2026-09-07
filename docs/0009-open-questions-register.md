@@ -71,7 +71,7 @@ These block `0008` from moving DRAFT → ACCEPTED.
 
 | | |
 |---|---|
-| **Status** | OPEN |
+| **Status** | **RESOLVED** — see `0015` |
 | **Source** | `0006:U2` |
 | **Blocks** | `0008` §8 |
 | **Impact if no** | One extra build step in the request hook. Low risk either way. |
@@ -170,7 +170,7 @@ These block `0008` from moving DRAFT → ACCEPTED.
 
 | | |
 |---|---|
-| **Status** | OPEN |
+| **Status** | **RESOLVED** — see `0015` |
 | **Source** | `0014:F1` |
 | **Impact** | May reduce `0008` §7 cache intelligence from BUILD to CONFIGURE. |
 | **Method** | Read how the SDK threads `prompt_cache_key` into the LLM call. |
@@ -179,7 +179,7 @@ These block `0008` from moving DRAFT → ACCEPTED.
 
 | | |
 |---|---|
-| **Status** | OPEN |
+| **Status** | **RESOLVED** — see `0015` |
 | **Source** | `0014:F2` |
 | **Impact** | `0008` §3 considered three seams. If `HookConfig` can intercept rather than observe, the adapter may shrink. |
 | **Method** | Read `openhands.sdk.hooks.config.HookConfig` and its call sites. |
@@ -188,10 +188,19 @@ These block `0008` from moving DRAFT → ACCEPTED.
 
 | | |
 |---|---|
-| **Status** | OPEN |
+| **Status** | **RESOLVED** — see `0015` |
 | **Source** | `0014:F3` |
 | **Impact** | Could satisfy part of `0013` §4 by configuration rather than code. |
 | **Method** | Test it against the mock provider with a low cap. |
+
+### Q18 — Does litellm price every endpoint in the free-tier pool?
+
+| | |
+|---|---|
+| **Status** | OPEN |
+| **Source** | `0015` §4 |
+| **Impact** | `max_budget_per_run` relies on litellm cost calculation. M0 showed it fails for unmapped models. Any endpoint litellm cannot price is **invisible to the budget cap** — precisely the custom and self-hosted endpoints common in the free-tier pool (`0013` §2). |
+| **Method** | For each endpoint in the pool, make one call and check whether `accumulated_cost` moves. |
 
 ---
 
@@ -247,3 +256,7 @@ Part C, run before each build step.
 | 2026-09-08 | Q2 | **CONFIRMED** — `tool_call_id` byte-identical across resume | `0014` |
 | 2026-09-08 | Q3 | **CONFIRMED** — Seam C binds by replacing `ToolDefinition.executor` | `0014` |
 | 2026-09-08 | Q13 | **CONFIRMED** — SDK drives `/v1/chat/completions` | `0014` |
+| 2026-09-08 | Q5 | **RESOLVED** — SDK already sends `x-litellm-session-id` = conversation id | `0015` |
+| 2026-09-08 | Q15 | **PARTIAL** — provider-side cache shard key exists; cross-account affinity still ours | `0015` |
+| 2026-09-08 | Q16 | **PARTIAL** — `block_action` makes Seam B able to BLOCK (corrects `0008` §3); cannot SUBSTITUTE | `0015` |
+| 2026-09-08 | Q17 | **PARTIAL** — per-run USD cap is free; per-day is not | `0015` |
