@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0015**.
+**The highest number is the newest document.** Current head: **0016**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -21,6 +21,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0013](docs/0013-personal-use-and-future-scope.md) | Personal Use &amp; Future Scope | GUIDELINE | LIVING | 2026-09-05 | Free-tier orchestrator, dashboard restored (M8), daily-driver CLI, integration surfaces, learning ladder |
 | [0014](docs/0014-m0-results-decision-record.md) | M0 Results — Decision Record | DECISION | ACCEPTED | 2026-09-08 | All four hypotheses CONFIRMED. Double execution reproduced. Three corrections to 0012 |
 | [0015](docs/0015-sdk-capability-findings.md) | SDK Capability Findings | DECISION | ACCEPTED | 2026-09-08 | Q5/Q15/Q16/Q17 resolved. Seam B can block — corrects 0008 §3. Revised seam table |
+| [0016](docs/0016-m2a-results.md) | M2a Results — The Gate Works | DECISION | ACCEPTED | 2026-09-08 | Duplicate eliminated. Two design flaws found by tests: most-dangerous-match, and fence enforcement |
 
 ---
 
@@ -41,10 +42,10 @@ verdicts, current design, then the diagrams. About 40 minutes.
 
 | | |
 |---|---|
-| **Phase** | Phase 0 complete. **M0 complete — all hypotheses confirmed (`0014`).** |
+| **Phase** | **M0 and M2a complete.** The gate prevents duplicate effects (`0016`). |
 | **Architecture** | `0008` DRAFT — Q1/Q2/Q3/Q5/Q13/Q15/Q16/Q17 resolved. **Q4 is the last blocker.** §3 needs the `0015` correction. |
-| **Next action** | **M1** — LiteLLM wiring + live hook proof (`0012` §7). |
-| **Code written** | M0 spike, run green. `experiments/0000-falsification/`. |
+| **Next action** | **M4** (git probe — turns blocks into automatic resolutions) or **M2b** (Seam C, clean resume). |
+| **Code written** | `agentctl/` — ledger, classifier, gate, Seam B. **49 tests green.** |
 
 ---
 

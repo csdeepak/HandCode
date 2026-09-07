@@ -179,7 +179,7 @@ These block `0008` from moving DRAFT → ACCEPTED.
 
 | | |
 |---|---|
-| **Status** | **RESOLVED** — see `0015` |
+| **Status** | **RESOLVED** — read in `0015`, **executed in `0016`** |
 | **Source** | `0014:F2` |
 | **Impact** | `0008` §3 considered three seams. If `HookConfig` can intercept rather than observe, the adapter may shrink. |
 | **Method** | Read `openhands.sdk.hooks.config.HookConfig` and its call sites. |
@@ -260,3 +260,4 @@ Part C, run before each build step.
 | 2026-09-08 | Q15 | **PARTIAL** — provider-side cache shard key exists; cross-account affinity still ours | `0015` |
 | 2026-09-08 | Q16 | **PARTIAL** — `block_action` makes Seam B able to BLOCK (corrects `0008` §3); cannot SUBSTITUTE | `0015` |
 | 2026-09-08 | Q17 | **PARTIAL** — per-run USD cap is free; per-day is not | `0015` |
+| 2026-09-08 | Q16 | **CONFIRMED empirically** — `block_action` prevents execution; duplicate eliminated | `0016` |
