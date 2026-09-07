@@ -1,0 +1,37 @@
+{
+  "verdict": "PASS",
+  "evidence": {
+    "workspace": "C:\\Users\\csdee\\AppData\\Local\\Temp\\m2a_78avg5yu",
+    "effects_after_crash": 1,
+    "effects_after_resume": 1,
+    "ledger_blocked": [
+      {
+        "tool": "side_effect",
+        "state": "BLOCKED",
+        "class": "NON_IDEMPOTENT_WRITE",
+        "reason": "cannot determine whether side_effect already executed (no probe available)"
+      }
+    ],
+    "ledger_pending": 0,
+    "decisions_fresh": [
+      {
+        "tool": "side_effect",
+        "verdict": "EXECUTE",
+        "class": "NON_IDEMPOTENT_WRITE",
+        "reason": null
+      }
+    ],
+    "decisions_resume": [
+      {
+        "tool": "side_effect",
+        "verdict": "BLOCK",
+        "class": "NON_IDEMPOTENT_WRITE",
+        "reason": "cannot determine whether side_effect already executed (no probe available)"
+      }
+    ]
+  },
+  "notes": [
+    "The gate prevented the duplicate. M0 showed 2 effects here; with the gate installed there is 1.",
+    "docs/0009 Q16 RESOLVED empirically: block_action does prevent execution, not merely record disapproval."
+  ]
+}

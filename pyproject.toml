@@ -1,0 +1,25 @@
+[project]
+name = "agentctl"
+version = "0.2.0a0"
+description = "Effect-safety and cost-attribution control plane for long-running agent loops"
+requires-python = ">=3.12"
+dependencies = ["pyyaml>=6.0"]
+
+[project.optional-dependencies]
+openhands = ["openhands-sdk>=1.45.0"]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["agentctl*"]
+
+[tool.setuptools.package-data]
+"agentctl.kernel.ledger" = ["*.sql"]
+"agentctl.control.matrix.data" = ["*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::UserWarning"]

@@ -1,0 +1,61 @@
+# Capability matrix — per-tool effect classes. docs/0012 §5.1
+#
+# This table is the whole correctness story. Get it wrong and the gate protects
+# the wrong things. It is data, not code, precisely so it can be reviewed.
+version: 1
+
+defaults:
+  # An unknown tool is assumed dangerous. Safe direction, always.
+  unknown_tool: EXTERNAL
+
+tools:
+  read_file:      { class: PURE_READ }
+  read:           { class: PURE_READ }
+  grep:           { class: PURE_READ }
+  glob:           { class: PURE_READ }
+  list_directory: { class: PURE_READ }
+  think:          { class: PURE_READ }
+  finish:         { class: PURE_READ }
+
+  write_file:     { class: IDEMPOTENT_WRITE }
+  write:          { class: IDEMPOTENT_WRITE }
+
+  str_replace_editor: { class: NON_IDEMPOTENT_WRITE, probe: filesystem }
+  file_editor:        { class: NON_IDEMPOTENT_WRITE, probe: filesystem }
+  edit:               { class: NON_IDEMPOTENT_WRITE, probe: filesystem }
+
+  # The hard case: one tool name, every effect class. Classify by argument.
+  # Rules are evaluated in order; first match wins.
+  execute_bash:
+    class: EXTERNAL
+    arg_key: command
+    rules:
+      - match: '^\s*(ls|cat|head|tail|grep|rg|find|pwd|which|echo|wc)\b'
+        class: PURE_READ
+      - match: '^\s*git\s+(log|status|diff|show|branch|remote|rev-parse)\b'
+        class: PURE_READ
+      - match: '^\s*mkdir\s+-p\b'
+        class: IDEMPOTENT_WRITE
+      - match: '\b(rm\s+-rf|git\s+push\s+.*--force|--force-with-lease|DROP\s+(TABLE|DATABASE)|mkfs|dd\s+if=)'
+        class: DESTRUCTIVE
+      - match: '^\s*git\s+(commit|tag|merge|rebase|cherry-pick)\b'
+        class: NON_IDEMPOTENT_WRITE
+        probe: git
+      - match: '^\s*git\s+push\b'
+        class: EXTERNAL
+        probe: git
+      - match: '^\s*(curl|wget|http)\b'
+        class: EXTERNAL
+      - match: '>>'                      # append redirect
+        class: NON_IDEMPOTENT_WRITE
+
+  bash: { alias: execute_bash }
+
+# MCP tools are remote, third-party and opaque. docs/0010 §8.2
+mcp:
+  default: EXTERNAL
+  servers:
+    filesystem:
+      tools:
+        read_file:      PURE_READ
+        list_directory: PURE_READ
