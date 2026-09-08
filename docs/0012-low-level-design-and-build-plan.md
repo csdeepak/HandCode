@@ -425,7 +425,13 @@ class RequestHook(CustomLogger):
 ```
 
 **Live-fire acceptance test required** (see §0): assert the hook actually fires
-on your configured endpoint before trusting any of it.
+on your configured endpoint before trusting any of it. Done in `docs/0021`.
+
+**Where the metadata actually is.** Anything the pre-call hook writes into
+`data["metadata"]` arrives on the logging callback under
+`litellm_params.metadata`, *not* `kwargs["metadata"]`, which is empty. Reading
+only the obvious place yields `trace_id=None` and silently breaks the cost
+attribution in `0008` §8 (`docs/0021` §4).
 
 ---
 
@@ -624,6 +630,14 @@ harness.
 kernel makes the crash point chosen rather than raced for, and ~40s instead of
 ~4 minutes — the difference between running on every commit and not.
 Experiments `0001`-`0003` cover the SDK integration separately.
+
+### Force UTF-8 on every redirected subprocess
+
+Four encoding failures so far: M0's probes, M0's subprocess pipes, M4's CRLF
+appends, and the LiteLLM proxy refusing to start because its banner is
+non-ASCII (`docs/0021` §6). On Windows, set `PYTHONIOENCODING=utf-8` and
+`PYTHONUTF8=1` in any child environment whose output is redirected. Assume it;
+do not wait to be surprised.
 
 ### Mutation-check any change to the gate, ledger or a probe
 

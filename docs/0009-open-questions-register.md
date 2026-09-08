@@ -197,7 +197,7 @@ These block `0008` from moving DRAFT → ACCEPTED.
 
 | | |
 |---|---|
-| **Status** | OPEN |
+| **Status** | **RESOLVED** — confirmed as a real hazard in `0021` §5 |
 | **Source** | `0015` §4 |
 | **Impact** | `max_budget_per_run` relies on litellm cost calculation. M0 showed it fails for unmapped models. Any endpoint litellm cannot price is **invisible to the budget cap** — precisely the custom and self-hosted endpoints common in the free-tier pool (`0013` §2). |
 | **Method** | For each endpoint in the pool, make one call and check whether `accumulated_cost` moves. |
@@ -262,3 +262,4 @@ Part C, run before each build step.
 | 2026-09-08 | Q17 | **PARTIAL** — per-run USD cap is free; per-day is not | `0015` |
 | 2026-09-08 | Q16 | **CONFIRMED empirically** — `block_action` prevents execution; duplicate eliminated | `0016` |
 | 2026-09-08 | Q14 | **WONTFIX** — trailer injection unnecessary; fingerprinting works at Seam B | `0017` |
+| 2026-09-08 | Q18 | **CONFIRMED hazard** — litellm reports cost `0.0` for unpriced endpoints, indistinguishable from free | `0021` |

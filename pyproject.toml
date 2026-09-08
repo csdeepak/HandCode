@@ -10,6 +10,9 @@ agentctl = "agentctl.cli:main"
 
 [project.optional-dependencies]
 openhands = ["openhands-sdk>=1.45.0"]
+# litellm[proxy] downgrades mcp to <2, which breaks fastmcp and therefore the
+# OpenHands SDK -- and `pip check` reports nothing. docs/0021 §7.
+proxy = ["litellm[proxy]>=1.100.0", "mcp>=2.2.0"]
 dev = ["pytest>=8.0"]
 
 [build-system]

@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0020**.
+**The highest number is the newest document.** Current head: **0021**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -26,6 +26,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0018](docs/0018-m2b-results.md) | M2b Results — Substitution | DECISION | ACCEPTED | 2026-09-08 | Agent resumes with a result, not a rejection. Correctness story closed for local effects |
 | [0019](docs/0019-nine-point-chaos-suite.md) | The Nine-Point Chaos Suite | DECISION | ACCEPTED | 2026-09-08 | 38 tests, real process death. Mutation-verified to have teeth |
 | [0020](docs/0020-external-idempotency-probe.md) | The EXTERNAL Idempotency-Key Probe | DECISION | ACCEPTED | 2026-09-08 | Fourth verdict SAFE_TO_RETRY. Every effect class now has a recovery path |
+| [0021](docs/0021-m1-results.md) | M1 Results — Seam A Fires | DECISION | ACCEPTED | 2026-09-08 | Hook proven live in a real proxy; failover works; Q18 confirmed as a hazard |
 
 ---
 
@@ -49,8 +50,8 @@ verdicts, current design, then the diagrams. About 40 minutes.
 | **Phase** | **M0, M2a, M4, M2b complete.** No duplicates, ambiguity self-resolves, and the agent resumes cleanly (`0018`). |
 | **Architecture** | `0008` DRAFT — Q1/Q2/Q3/Q5/Q13/Q15/Q16/Q17 resolved. **Q4 is the last blocker.** §3 needs the `0015` correction. |
 | **Verify** | `python verify.py` — 6 checks, ~3 min, zero cost |
-| **Next action** | **M5** (cost ledger) — the correctness layer is complete for all five effect classes. |
-| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **136 tests green.** |
+| **Next action** | **M5** (cost ledger) — with pricing coverage as a first-class signal (`0021` §5). |
+| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **156 tests green.** |
 
 ---
 
