@@ -21,7 +21,11 @@ from typing import Any, Callable
 from agentctl.kernel.classify import Classifier
 from agentctl.kernel.gate import EffectGate
 from agentctl.kernel.ledger.store import LedgerStore
-from agentctl.kernel.reconcile import ProbeRegistry, default_registry
+from agentctl.kernel.reconcile import (
+    IdempotencyProbe,
+    ProbeRegistry,
+    default_registry,
+)
 
 from .handoff import SubstitutionHandoff
 from .seam_b import OpenHandsContext, SeamB
@@ -107,18 +111,21 @@ def protect(
     else:
         classifier = Classifier()
 
+    idem_fields = classifier.idempotency_fields()
     gate = EffectGate(
         store,
         classifier,
-        probes=probes if probes is not None else default_registry(repo_root),
+        probes=probes if probes is not None
+        else default_registry(repo_root, idem_fields),
         fence=fence,
     )
 
     handoff = SubstitutionHandoff()
     gated: list[str] = []
     if tools:
-        # Seam C must be installed BEFORE the Agent resolves its tools.
-        gated = install_seam_c(handoff, tools)
+        # Seam C must be installed BEFORE the Agent resolves its tools. It also
+        # stamps the idempotency key the EXTERNAL probe depends on.
+        gated = install_seam_c(handoff, tools, IdempotencyProbe(idem_fields))
 
     seam_b = SeamB(
         gate,

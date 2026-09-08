@@ -14,8 +14,13 @@ fingerprinting* instead:
 That needs no cooperation from the tool, works at Seam B, and generalises to
 effects that have nowhere to carry a marker.
 
-**The assumption it rests on**, stated plainly: the agent's workspace has a
-single writer. If a human commits to the same repo during the crash window, a
+Remote effects cannot be fingerprinted this way — the world in question is
+somebody else's server. They are handled by a different mechanism entirely
+(`external.py`, `docs/0020`): make the retry *safe* rather than trying to
+determine whether it is *necessary*.
+
+**The assumption fingerprinting rests on**, stated plainly: the agent's
+workspace has a single writer. If a human commits to the same repo during the crash window, a
 probe can misread that as the agent's effect. Every probe returns
 `INCONCLUSIVE` rather than guessing when it can distinguish the cases, and the
 gate fails closed on `INCONCLUSIVE`.
@@ -27,6 +32,12 @@ from typing import Protocol, runtime_checkable
 LANDED = "LANDED"
 DID_NOT_LAND = "DID_NOT_LAND"
 INCONCLUSIVE = "INCONCLUSIVE"
+
+#: The effect may have landed, and it does not matter: the call carries an
+#: idempotency key, so re-sending it produces at most one effect at the remote
+#: end. Answering "did it land?" is impossible for a remote API and also the
+#: wrong question -- see `docs/0020`.
+SAFE_TO_RETRY = "SAFE_TO_RETRY"
 
 
 @runtime_checkable
@@ -47,10 +58,10 @@ class ReconciliationProbe(Protocol):
         """
 
     def probe(self, call, record) -> str:
-        """LANDED | DID_NOT_LAND | INCONCLUSIVE, using `record.pre_state`.
+        """LANDED | DID_NOT_LAND | SAFE_TO_RETRY | INCONCLUSIVE.
 
-        Must never raise. When in doubt, return INCONCLUSIVE and let the gate
-        fail closed.
+        Uses `record.pre_state`. Must never raise. When in doubt, return
+        INCONCLUSIVE and let the gate fail closed.
         """
 
 

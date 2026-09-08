@@ -7,7 +7,7 @@ cost-efficient** across changes of provider, account, and model.
 > recoverable, measurable, and cost-efficient.
 
 **Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 123 tests — including a nine-point chaos suite with real process
+verified. 136 tests — including a nine-point chaos suite with real process
 death — plus four end-to-end crash experiments. All green.
 
 ---
@@ -94,6 +94,9 @@ Three seams with unequal powers, and that inequality is the whole design:
 | **B** | Event callback + `block_action` | yes | **no** |
 | **C** | `ToolDefinition.executor` wrap | yes | **yes** |
 
+Seam C also stamps idempotency keys — it is the only place a call can be
+modified before it executes, which is what makes remote effects retry-safe.
+
 Every decision is made by the gate and enforced at Seam B. **Seam C is not a
 second gate** — it exists only to honour the one verdict Seam B cannot deliver:
 handing back a recorded result instead of a refusal.
@@ -121,10 +124,13 @@ Diagrams: [`docs/0011`](docs/0011-request-flow-architecture.md).
 
 Stated plainly, because a safety layer that oversells itself is worse than none:
 
-- **`EXTERNAL` effects have no probe.** HTTP POSTs, emails and webhooks still
-  fail closed. The idempotency-key probe is unwritten.
+- **`EXTERNAL` effects need an idempotency key.** With one declared, a retry is
+  safe (`docs/0020`). Without one — `send_email` and friends — they still fail
+  closed, correctly: there is no safe retry.
 - **Only two effect kinds are chaos-tested** (git commit, file append). The
-  nine crash points are covered for those; `EXTERNAL` effects are not.
+  nine crash points are covered for those; `EXTERNAL` is tested separately.
+- **A non-compliant remote voids the guarantee.** We trust the server to honour
+  the key, and nothing local can detect that it did not.
 - **Single process.** Fencing is implemented and tested; multi-host is not
   exercised.
 - **No cost ledger, no routing, no policy compiler.** M5 onward.
@@ -140,7 +146,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            123 tests, including the nine-point chaos suite
+tests/            136 tests, including the nine-point chaos suite
 verify.py         one command that proves all of the above
 ```
 

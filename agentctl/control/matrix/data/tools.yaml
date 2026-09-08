@@ -51,6 +51,19 @@ tools:
 
   bash: { alias: execute_bash }
 
+  # EXTERNAL effects reach somebody else's server, so they cannot be
+  # fingerprinted. Declaring the argument that carries an idempotency key is
+  # what makes a retry safe instead of fail-closed. docs/0020
+  http_post:
+    class: EXTERNAL
+    idempotency_key: idempotency_key
+  http_request:
+    class: EXTERNAL
+    idempotency_key: idempotency_key
+
+  # No key mechanism declared -> stays fail-closed, which is correct.
+  send_email: { class: EXTERNAL }
+
 # MCP tools are remote, third-party and opaque. docs/0010 §8.2
 mcp:
   default: EXTERNAL

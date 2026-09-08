@@ -54,6 +54,18 @@ class Classifier:
         declared = entry.get("class")
         return EffectClass(declared) if declared else self._default
 
+    def idempotency_fields(self) -> dict[str, str]:
+        """{tool_name: argument that carries an idempotency key}.
+
+        Declared in the capability matrix. This is what lets an EXTERNAL effect
+        be retried safely instead of failing closed (`docs/0020`).
+        """
+        out: dict[str, str] = {}
+        for name, entry in self._tools.items():
+            if isinstance(entry, dict) and (f := entry.get("idempotency_key")):
+                out[name] = f
+        return out
+
     def probe_for(self, call: ToolCall) -> str | None:
         """Which reconciliation probe can answer 'did this land?' (M4)."""
         entry = self._entry(call.tool_name)

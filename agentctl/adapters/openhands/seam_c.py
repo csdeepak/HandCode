@@ -7,13 +7,23 @@ subclassing of `ToolExecutor` to re-register, no fork:
 
     gated = tool.model_copy(update={"executor": GatedExecutor(...)})
 
-What it adds over Seam B alone: when an effect already landed, the agent
-receives **the recorded observation** instead of a rejection, so the loop
-continues as though the crash never happened.
+What it adds over Seam B alone:
 
-It is deliberately thin — a lookup, a branch, and the inner call. All policy
-lives in the gate; all decisions are made at Seam B (`handoff.py`). Keeping
-this small is the whole portability argument in `docs/0008` §12.
+1. **Substitution** — when an effect already landed, the agent receives the
+   recorded observation instead of a rejection, so the loop continues as though
+   the crash never happened.
+2. **Idempotency-key injection** — Seam C is the only place that can modify a
+   call before it executes, and injecting a stable key is the only general way
+   to make a remote effect replay-safe (`docs/0020`).
+
+The second is a deliberate widening of Seam C's role, and it stays narrow: the
+key is *computed by the kernel* and merely written onto the call here. Seam C
+still decides nothing.
+
+It remains thin — a lookup, a branch, an optional field write, and the inner
+call. All policy lives in the gate; all decisions are made at Seam B
+(`handoff.py`). Keeping this small is the whole portability argument in
+`docs/0008` §12.
 """
 from __future__ import annotations
 
@@ -31,11 +41,14 @@ class GatedExecutor(ToolExecutor):
     """Wraps a real executor. Substitutes when Seam B says the effect landed."""
 
     def __init__(self, inner: ToolExecutor, handoff: SubstitutionHandoff,
-                 observation_type: type | None = None, tool_name: str = ""):
+                 observation_type: type | None = None, tool_name: str = "",
+                 idempotency: Any = None):
         self._inner = inner
         self._handoff = handoff
         self._observation_type = observation_type
         self._tool_name = tool_name
+        #: An `IdempotencyProbe`, when this tool declares a key field.
+        self._idempotency = idempotency
 
     def __call__(self, action, conversation=None):
         claim = self._handoff.claim(action, self._tool_name, _args(action))
@@ -56,7 +69,36 @@ class GatedExecutor(ToolExecutor):
             )
 
         # No claim means Seam B said EXECUTE. Seam C never decides.
-        return self._inner(action, conversation)
+        return self._inner(self._stamp_idempotency_key(action), conversation)
+
+    def _stamp_idempotency_key(self, action):
+        """Write the kernel's stable key onto the call before it goes out.
+
+        Without this the IdempotencyProbe declines and the effect fails closed,
+        so the injection is not an optimisation -- it IS the mechanism
+        (`docs/0020`).
+        """
+        if self._idempotency is None:
+            return action
+        try:
+            from agentctl.kernel.ledger.models import ToolCall
+            call = ToolCall("stamp", "", "", self._tool_name, _args(action))
+            field = self._idempotency.key_field(call)
+            if field is None:
+                return action
+            existing = getattr(action, field, None)
+            if existing:
+                # The caller already supplied a key. It is stable across a
+                # resume for the same reason ours is, so leave it alone.
+                return action
+            return action.model_copy(
+                update={field: self._idempotency.key_for(call)})
+        except Exception:                               # noqa: BLE001
+            # A failed stamp means the probe declines and the effect fails
+            # closed. Safe, but say so loudly: it silently costs protection.
+            log.exception("could not stamp an idempotency key on %s",
+                          self._tool_name)
+            return action
 
     def _revive(self, raw: bytes | None):
         """Rebuild the observation actually recorded at commit time."""
@@ -108,7 +150,7 @@ class GatedExecutor(ToolExecutor):
         getattr(self._inner, "interrupt", lambda: None)()
 
 
-def gate_tools(tools, handoff: SubstitutionHandoff):
+def gate_tools(tools, handoff: SubstitutionHandoff, idempotency: Any = None):
     """Replace each tool's executor with a gated one. `docs/0014` C1."""
     out = []
     for t in tools:
@@ -116,25 +158,28 @@ def gate_tools(tools, handoff: SubstitutionHandoff):
             out.append(t)
             continue
         out.append(t.model_copy(update={"executor": GatedExecutor(
-            t.executor, handoff, t.observation_type, t.name)}))
+            t.executor, handoff, t.observation_type, t.name, idempotency)}))
     return out
 
 
-def gate_tool_class(inner_cls: type[ToolDefinition], handoff: SubstitutionHandoff):
+def gate_tool_class(inner_cls: type[ToolDefinition], handoff: SubstitutionHandoff,
+                    idempotency: Any = None):
     """Build a subclass whose `create()` returns gated tools."""
 
     class Gated(inner_cls):                             # type: ignore[misc,valid-type]
         @classmethod
         def create(cls, conv_state=None, **params):
             return gate_tools(
-                inner_cls.create(conv_state=conv_state, **params), handoff)
+                inner_cls.create(conv_state=conv_state, **params),
+                handoff, idempotency)
 
     Gated.__name__ = f"Gated{inner_cls.__name__}"
     Gated.__qualname__ = Gated.__name__
     return Gated
 
 
-def install(handoff: SubstitutionHandoff, tools: dict[str, type]) -> list[str]:
+def install(handoff: SubstitutionHandoff, tools: dict[str, type],
+            idempotency: Any = None) -> list[str]:
     """Re-register each named tool with a gated executor.
 
     Call before constructing the Agent. Returns the names that were gated.
@@ -142,7 +187,7 @@ def install(handoff: SubstitutionHandoff, tools: dict[str, type]) -> list[str]:
     gated = []
     for name, cls in tools.items():
         try:
-            register_tool(name, gate_tool_class(cls, handoff))
+            register_tool(name, gate_tool_class(cls, handoff, idempotency))
             gated.append(name)
         except Exception:                               # noqa: BLE001
             log.exception("could not gate tool %s", name)

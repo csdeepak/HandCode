@@ -13,7 +13,9 @@ import json
 import logging
 
 from .classify import Classifier
-from .reconcile.base import DID_NOT_LAND, INCONCLUSIVE, LANDED, ProbeRegistry
+from .reconcile.base import (
+    DID_NOT_LAND, INCONCLUSIVE, LANDED, SAFE_TO_RETRY, ProbeRegistry,
+)
 from .ledger.models import (
     EffectClass,
     EffectState,
@@ -128,6 +130,18 @@ class EffectGate:
                 return GateDecision(
                     Verdict.EXECUTE, cls,
                     reason=f"{probe.name} probe: the effect did not land",
+                )
+            if verdict == SAFE_TO_RETRY:
+                # We cannot tell whether it landed, and we do not need to: the
+                # call carries an idempotency key, so the remote collapses a
+                # retry into the original effect (`docs/0020`).
+                self.store.reconcile(call.tool_call_id, verdict, landed=False)
+                self.store.write_intent(call, cls, self.fence,
+                                        self._capture(call, cls))
+                return GateDecision(
+                    Verdict.EXECUTE, cls,
+                    reason=(f"{probe.name} probe: outcome unknown, but the call "
+                            f"is idempotency-keyed so a retry is safe"),
                 )
 
         # No probe, or inconclusive. Fail closed.
