@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0018**.
+**The highest number is the newest document.** Current head: **0019**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -24,6 +24,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0016](docs/0016-m2a-results.md) | M2a Results — The Gate Works | DECISION | ACCEPTED | 2026-09-08 | Duplicate eliminated. Two design flaws found by tests: most-dangerous-match, and fence enforcement |
 | [0017](docs/0017-m4-results.md) | M4 Results — Reconciliation Probes | DECISION | ACCEPTED | 2026-09-08 | Git and filesystem probes. Ambiguity resolves with no human. Fingerprinting replaces trailer injection |
 | [0018](docs/0018-m2b-results.md) | M2b Results — Substitution | DECISION | ACCEPTED | 2026-09-08 | Agent resumes with a result, not a rejection. Correctness story closed for local effects |
+| [0019](docs/0019-nine-point-chaos-suite.md) | The Nine-Point Chaos Suite | DECISION | ACCEPTED | 2026-09-08 | 38 tests, real process death. Mutation-verified to have teeth |
 
 ---
 
@@ -46,9 +47,9 @@ verdicts, current design, then the diagrams. About 40 minutes.
 |---|---|
 | **Phase** | **M0, M2a, M4, M2b complete.** No duplicates, ambiguity self-resolves, and the agent resumes cleanly (`0018`). |
 | **Architecture** | `0008` DRAFT — Q1/Q2/Q3/Q5/Q13/Q15/Q16/Q17 resolved. **Q4 is the last blocker.** §3 needs the `0015` correction. |
-| **Verify** | `python verify.py` — 5 checks, ~2 min, zero cost |
-| **Next action** | **Nine-point chaos suite** (`0012` §6 — the largest remaining gap in the correctness claim) or **M5** (cost ledger). |
-| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **85 tests green.** |
+| **Verify** | `python verify.py` — 6 checks, ~3 min, zero cost |
+| **Next action** | **M5** (cost ledger) or an `EXTERNAL` idempotency-key probe — the last unguarded effect class. |
+| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **123 tests green.** |
 
 ---
 

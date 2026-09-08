@@ -7,7 +7,8 @@ cost-efficient** across changes of provider, account, and model.
 > recoverable, measurable, and cost-efficient.
 
 **Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 85 tests, four end-to-end crash experiments, all green.
+verified. 123 tests — including a nine-point chaos suite with real process
+death — plus four end-to-end crash experiments. All green.
 
 ---
 
@@ -122,8 +123,8 @@ Stated plainly, because a safety layer that oversells itself is worse than none:
 
 - **`EXTERNAL` effects have no probe.** HTTP POSTs, emails and webhooks still
   fail closed. The idempotency-key probe is unwritten.
-- **One crash point is tested, not nine.** This is the largest gap in the
-  correctness claim (`docs/0012` §6).
+- **Only two effect kinds are chaos-tested** (git commit, file append). The
+  nine crash points are covered for those; `EXTERNAL` effects are not.
 - **Single process.** Fencing is implemented and tested; multi-host is not
   exercised.
 - **No cost ledger, no routing, no policy compiler.** M5 onward.

@@ -23,7 +23,12 @@ ROOT = Path(__file__).parent
 PY = sys.executable
 
 CHECKS = [
-    ("unit tests", ["-m", "pytest", "tests/", "-q"], "the kernel and adapters"),
+    ("unit tests",
+     ["-m", "pytest", "tests/", "-q", "--ignore=tests/test_chaos_nine_point.py"],
+     "the kernel, adapters and CLI"),
+    ("nine-point chaos",
+     ["-m", "pytest", "tests/test_chaos_nine_point.py", "-q"],
+     "crash at every protocol point; the effect lands at most once"),
     ("M0  falsification",
      ["experiments/0000-falsification/run_all.py"],
      "double execution is real; the seams exist"),
@@ -70,10 +75,11 @@ def _env() -> dict:
 def main() -> int:
     _ascii_stdout()
     ap = argparse.ArgumentParser()
-    ap.add_argument("--fast", action="store_true", help="unit tests only")
+    ap.add_argument("--fast", action="store_true",
+                    help="unit tests + the nine-point suite only (~60s)")
     args = ap.parse_args()
 
-    checks = CHECKS[:1] if args.fast else CHECKS
+    checks = CHECKS[:2] if args.fast else CHECKS
     print("=" * 70)
     print("agentctl verification - no API key, no network, no tokens")
     print("=" * 70)
@@ -100,7 +106,7 @@ def main() -> int:
     print(f"all {len(results)} checks passed  ({total:.0f}s)")
     if not args.fast:
         print("\nThe correctness claims still hold on this machine:")
-        print("  - no duplicate side effect at the tested crash point")
+        print("  - no duplicate side effect at ANY of the nine crash points")
         print("  - ambiguity resolves automatically where the world can be asked")
         print("  - the agent resumes with a result, not a refusal")
     return 0

@@ -618,6 +618,20 @@ direction. Rules for the chaos suite:
 A test harness that fails silently toward your hypothesis is worse than no
 harness.
 
+### The nine-point suite drives the kernel, not the SDK
+
+`docs/0019`. The guarantee is a property of the *protocol*, so testing it at the
+kernel makes the crash point chosen rather than raced for, and ~40s instead of
+~4 minutes — the difference between running on every commit and not.
+Experiments `0001`-`0003` cover the SDK integration separately.
+
+### Mutation-check any change to the gate, ledger or a probe
+
+A suite that passes first time invites the suspicion that it cannot fail.
+Break the thing deliberately and confirm the suite notices. `docs/0019` §4 does
+this for the gate: neutering the ambiguous branch produces 7 failures, exactly
+where the effect had landed. **Treat this as a rule, not an anecdote.**
+
 ---
 
 ## 7. Milestones
