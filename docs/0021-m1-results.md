@@ -15,7 +15,8 @@ The skipped milestone. Seam A now exists and is proven to fire inside a real
 LiteLLM proxy.
 
 **Run:** 2026-09-08 · `litellm 1.100.0` proxy · zero cost.
-Code: `agentctl/kernel/hook.py`. Acceptance: `experiments/0005-m1-seam-a/`.
+Code: `agentctl/kernel/hook.py` (logic) + `agentctl/adapters/litellm/` (binding).
+Acceptance: `experiments/0005-m1-seam-a/`.
 **156 tests passing.**
 
 ---
