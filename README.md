@@ -41,7 +41,7 @@ python verify.py
 ```
 
 **Zero cost** — everything runs against a local mock provider. No API key, no
-network, no tokens. Takes about two minutes.
+network, no tokens. Takes about three minutes.
 
 Requires Python ≥ 3.12 (the OpenHands SDK does) and `git` on PATH.
 
@@ -140,7 +140,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            85 tests
+tests/            123 tests, including the nine-point chaos suite
 verify.py         one command that proves all of the above
 ```
 
