@@ -46,8 +46,9 @@ verdicts, current design, then the diagrams. About 40 minutes.
 |---|---|
 | **Phase** | **M0, M2a, M4, M2b complete.** No duplicates, ambiguity self-resolves, and the agent resumes cleanly (`0018`). |
 | **Architecture** | `0008` DRAFT — Q1/Q2/Q3/Q5/Q13/Q15/Q16/Q17 resolved. **Q4 is the last blocker.** §3 needs the `0015` correction. |
+| **Verify** | `python verify.py` — 5 checks, ~2 min, zero cost |
 | **Next action** | **Nine-point chaos suite** (`0012` §6 — the largest remaining gap in the correctness claim) or **M5** (cost ledger). |
-| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes. **76 tests green.** |
+| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **85 tests green.** |
 
 ---
 

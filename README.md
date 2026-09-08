@@ -1,103 +1,177 @@
 # AI Agent Control Plane
 
-A control plane for long-running LLM agent loops: making agent work
-**recoverable, measurable, and cost-efficient** across changes of provider,
-account, and model.
+Making long-running LLM agent work **recoverable, measurable, and
+cost-efficient** across changes of provider, account, and model.
 
 > The model/provider endpoint can change; the logical agent work must remain
 > recoverable, measurable, and cost-efficient.
 
-**Status: design phase. No code yet, deliberately.**
+**Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
+verified. 85 tests, four end-to-end crash experiments, all green.
 
 ---
 
-## Start here
+## The problem, in one example
 
-- **[INDEX.md](INDEX.md)** — every document, numbered. Highest number is newest.
-- **[docs/0001](docs/0001-project-charter.md)** — what this is and is not.
-- **[docs/0008](docs/0008-system-architecture-v1.md)** — the current architecture.
-- **[docs/0009](docs/0009-open-questions-register.md)** — what is blocked and why.
+An agent runs `git commit`. The process dies before the result is recorded. On
+resume, OpenHands re-drives the pending action through the real executor — and
+commits again.
 
----
+That is not a hypothesis. `docs/0014` reproduces it: **1 effect before the
+crash, 2 after resume.**
 
-## The one-paragraph version
+With this layer installed:
 
-Chat completions are stateless, so "session continuity" across an API switch is
-nearly free and the data plane already handles it. What actually breaks in long
-agent loops is narrower and harder: a tool commits a real side effect, the
-process dies, and replay executes it again. Phase 0 research confirmed this is
-a real property of OpenHands, not a hypothetical — actions are persisted before
-execution and re-driven through the real executor on resume. This project
-builds the missing layer: an **effect ledger** that records tool *commitment*,
-plus cache-affinity and cost-attribution intelligence, delivered as plugins
-into existing extension points rather than a fork of anything.
+| | M2a | M4 | M2b |
+|---|---|---|---|
+| Duplicate effect | none | none | none |
+| Ledger state | `BLOCKED` | `COMMITTED` | `COMMITTED` |
+| Human needed | yes | no | no |
+| Agent receives | rejection | rejection | **the result** |
 
 ---
 
-## Architecture in one diagram
+## Verify it yourself
+
+```bash
+python -m venv .venv && .venv/Scripts/activate     # bin/activate on Unix
+pip install -e ".[dev,openhands]"
+python verify.py
+```
+
+**Zero cost** — everything runs against a local mock provider. No API key, no
+network, no tokens. Takes about two minutes.
+
+Requires Python ≥ 3.12 (the OpenHands SDK does) and `git` on PATH.
+
+---
+
+## Use it
+
+```python
+from agentctl.adapters.openhands import protect
+
+guard = protect(
+    ledger="./ledger.db",
+    conversation_id=str(conversation_id),
+    tools={"commit": CommitTool},      # gated at Seam C
+    repo_root="./workspace",           # for the git probe
+    takeover=resuming_after_a_crash,   # a dead process cannot free its lease
+)
+
+conv = Conversation(agent=agent, callbacks=[guard.seam_b], ...)
+guard.attach(conv)                     # required, or the gate is inert
+```
+
+Omit `tools` to run Seam B only: still correct, but an already-landed effect is
+blocked rather than resumed cleanly.
+
+### When something blocks
+
+The gate fails closed when it cannot tell whether an effect happened. That
+needs a human, so it needs an interface:
+
+```bash
+agentctl status                       # what is in the ledger
+agentctl blocked                      # effects awaiting a decision
+agentctl show <tool_call_id>          # everything known about one
+agentctl resolve <id> --landed        # it did happen; do not re-run it
+agentctl resolve <id> --retry         # it did not; allow a retry
+```
+
+There is no "probably fine" — `resolve` requires an explicit choice.
+
+---
+
+## How it works
+
+Three seams with unequal powers, and that inequality is the whole design:
+
+| Seam | Where | Can block | Can substitute |
+|---|---|---|---|
+| **A** | LiteLLM `CustomLogger` | yes | n/a |
+| **B** | Event callback + `block_action` | yes | **no** |
+| **C** | `ToolDefinition.executor` wrap | yes | **yes** |
+
+Every decision is made by the gate and enforced at Seam B. **Seam C is not a
+second gate** — it exists only to honour the one verdict Seam B cannot deliver:
+handing back a recorded result instead of a refusal.
+
+The consequence is graceful degradation. Lose Seam C and the system still fails
+closed correctly; it only loses clean resume.
 
 ```
-AGENT HARNESS ──▶ [effect gate] ──▶ tool executor      ← the only place
-      │                                                   R1 is enforceable
-      ▼
-ENFORCEMENT KERNEL  (in-band, must not fail)
-      │  reads local effect ledger + compiled policy
+AGENT HARNESS ──▶ [Seam B: block] ──▶ [Seam C: substitute] ──▶ tool
+      │                   │
+      │            EFFECT LEDGER   SQLite · WAL · fsync · fenced
       ▼
 LLM DATA PLANE ──▶ providers
       │  telemetry
       ▼
-CONTROL PLANE  (out-of-band, may fail)
-   policy compiler · cost ledger · cache intelligence
-   capability matrix · replay evaluator
+CONTROL PLANE   out-of-band · may fail
 ```
 
-Full reasoning, alternatives considered, and failure analysis: `docs/0008`.
+Full reasoning: [`docs/0008`](docs/0008-system-architecture-v1.md).
+Diagrams: [`docs/0011`](docs/0011-request-flow-architecture.md).
+
+---
+
+## What it does not do yet
+
+Stated plainly, because a safety layer that oversells itself is worse than none:
+
+- **`EXTERNAL` effects have no probe.** HTTP POSTs, emails and webhooks still
+  fail closed. The idempotency-key probe is unwritten.
+- **One crash point is tested, not nine.** This is the largest gap in the
+  correctness claim (`docs/0012` §6).
+- **Single process.** Fencing is implemented and tested; multi-host is not
+  exercised.
+- **No cost ledger, no routing, no policy compiler.** M5 onward.
+
+---
+
+## Repository
+
+```
+agentctl/         the code
+  kernel/         in-band, must not fail. No network, no harness imports.
+  control/        out-of-band, may fail. Never imported by the kernel.
+  adapters/       harness-specific. The portability cost lives here.
+docs/             the numbered document stream. Highest number is newest.
+experiments/      reproducible crash experiments, zero cost
+tests/            85 tests
+verify.py         one command that proves all of the above
+```
+
+The kernel/control boundary is enforced by a test
+([`tests/test_boundaries.py`](tests/test_boundaries.py)). That single test is
+what stops the architecture rotting.
+
+**Start with [INDEX.md](INDEX.md)** — every document, numbered, newest last.
+[`docs/0001`](docs/0001-project-charter.md) is the charter,
+[`docs/0009`](docs/0009-open-questions-register.md) says what is still open.
 
 ---
 
 ## Method
 
-**Research before building. Falsify before committing.**
+Research before building. Falsify before committing. Every component got a
+BUILD / CONFIGURE / SKIP verdict backed by primary sources before any code was
+written — and Phase 0 deleted two components and downgraded two more, which was
+the point of running it.
 
-Every component gets a BUILD / CONFIGURE / SKIP verdict backed by primary
-sources before code is written. The default verdict is SKIP. Phase 0 deleted
-two components and downgraded two more — that was the point of running it.
+Every milestone so far has been finished by a bug only *execution* could find:
+cp1252 output on Windows, a crashed process holding its own lease, CRLF
+breaking the append probe, and an observation shape that validated on
+assignment then failed three components later. None were visible by reading.
 
-Research is conducted by a research agent using the prompt pack in `docs/0005`,
-which enforces source tiering, date-stamping, and mandatory
-VERIFIED / INFERRED / UNKNOWN confidence separation.
-
----
-
-## Repository layout
-
-```
-INDEX.md          The register. Read this first.
-CONVENTIONS.md    Numbering rules and document lifecycle.
-docs/             The numbered document stream. The project's memory.
-research/raw/     Unprocessed source material.
-experiments/      Reproducible experiment scripts, configs, results.
-issues/           Working notes on open problems.
-```
-
-Only `docs/` is numbered.
-
----
-
-## Next action
-
-Build step 0 — the falsification experiment in `docs/0008` §14. It resolves
-questions Q1, Q2, and Q3 from `docs/0009` in a single sitting, and any one of
-them resolving badly changes the architecture.
-
-Do not write ledger code before it runs.
+That is why `verify.py` costs nothing to run.
 
 ---
 
 ## A note on this repository's location
 
-This repo is intentionally initialized as its own git repository. The parent
-directory `C:\Users\csdee\` is itself a git repository with an unrelated remote
-(`pestechnology/PESU_RR_CSE_C_P38_...`). Keeping this project as a separate
-repo prevents its files from being swept into that one. Consider also adding
+This is deliberately its own git repository. The parent directory
+`C:\Users\csdee\` is itself a repo with an unrelated remote, and keeping this
+separate stops its files being swept into that one. Consider also adding
 `openhands/` to the home directory's `.gitignore`.
