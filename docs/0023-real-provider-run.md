@@ -16,7 +16,7 @@ invalidated an M0 answer, and produced the most important correction in the
 project.
 
 **Run:** 2026-09-08 · OpenRouter free-tier models · ~11k tokens · $0.00 billed.
-Code: `experiments/0007-real-provider/`. **176 tests passing.**
+Code: `experiments/0007-real-provider/`. **175 tests passing.**
 
 ---
 
