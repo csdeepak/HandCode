@@ -4,6 +4,7 @@ The human interface to fail-closed. When the gate cannot tell whether an effect
 landed it blocks and waits; without a way to see and answer those, the design
 is correct and unusable (`docs/0013` §3, Panel 3).
 
+    agentctl run "<task>"            run an agent on a real workspace
     agentctl status                  what is in the ledger
     agentctl cost                    what the work cost, and how much is known
     agentctl ingest <telemetry>      load Seam A telemetry into the cost ledger
@@ -220,6 +221,35 @@ def cmd_ingest(args) -> int:
     return 0
 
 
+def cmd_run(args) -> int:
+    from agentctl.runtime.runner import run
+    print("agentctl run")
+    result = run(
+        task=args.task, workspace=args.workspace, model=args.model,
+        base_url=args.base_url, ledger=args.ledger if args.ledger != DEFAULT_LEDGER
+        else None,
+        confirm_destructive=not args.allow_destructive,
+        max_iterations=args.max_iterations, max_budget_usd=args.max_budget,
+        resume=args.resume,
+    )
+    print()
+    print(f"  conversation  {result['conversation_id']}")
+    print(f"  ledger        {result['ledger']}")
+    verdicts = {}
+    for d in result["decisions"]:
+        verdicts[d["verdict"]] = verdicts.get(d["verdict"], 0) + 1
+    print(f"  decisions     {verdicts or 'none'}")
+    if result["blocked"]:
+        print(f"  BLOCKED       {len(result['blocked'])} effect(s) need you:")
+        print(f"                agentctl --ledger {result['ledger']} blocked")
+        return 1
+    print()
+    print(f"  resume with:  agentctl run '' "
+          f"--workspace {result['workspace']} "
+          f"--resume {result['conversation_id']}")
+    return 0
+
+
 # ── entry point ────────────────────────────────────────────────────────
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
@@ -248,6 +278,19 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--retry", dest="landed", action="store_false",
                    help="it did NOT happen; allow a retry")
     r.set_defaults(fn=cmd_resolve)
+
+    rn = sub.add_parser("run", help="run an agent on a real workspace")
+    rn.add_argument("task", help="what you want done")
+    rn.add_argument("--workspace", type=Path, default=Path("."),
+                    help="directory the agent works in (default: cwd)")
+    rn.add_argument("--model", default="openrouter/nvidia/nemotron-3-super-120b-a12b:free")
+    rn.add_argument("--base-url", help="an OpenAI-compatible endpoint, e.g. your proxy")
+    rn.add_argument("--max-iterations", type=int, default=30)
+    rn.add_argument("--max-budget", type=float, help="hard USD ceiling for the run")
+    rn.add_argument("--resume", help="conversation id to continue")
+    rn.add_argument("--allow-destructive", action="store_true",
+                    help="do not ask before rm -rf and friends. Think first.")
+    rn.set_defaults(fn=cmd_run)
 
     c = sub.add_parser("cost", help="what the work cost, and how much is known")
     c.add_argument("--today", action="store_true", help="last 24 hours only")

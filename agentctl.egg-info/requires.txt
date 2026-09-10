@@ -5,3 +5,7 @@ pytest>=8.0
 
 [openhands]
 openhands-sdk>=1.45.0
+
+[proxy]
+litellm[proxy]>=1.100.0
+mcp>=2.2.0
