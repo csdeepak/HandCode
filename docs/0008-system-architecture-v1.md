@@ -329,8 +329,14 @@ by the model, carried in the `ActionEvent`, and *stable across replay* — the
 same logical call presents the same key on resume. `intent_hash` is the
 integrity check that the replayed call is genuinely the same call.
 
-**This stability assumption is unverified. It is open question 4 in §15, and if
-it is false this data model breaks.**
+> **CORRECTED by `0023` §4.** The stability assumption is FALSE in general.
+> `tool_call_id` is minted by the model, so a pool, retry or fallback that
+> reaches a different model produces a different id for the identical call —
+> and a real run duplicated a `git commit` because of it.
+>
+> The ledger still keys on `tool_call_id`, but before treating a call as a
+> first sighting the gate falls back to `(conversation_id, intent_hash)` —
+> a value we compute rather than receive. `LedgerStore.find_by_intent`.
 
 ### 6.3 Effect classification
 

@@ -64,6 +64,18 @@ class EffectGate:
         cls = self.classifier.classify(call)
         rec = self.store.lookup(call.tool_call_id)
 
+        if rec is None and not cls.replay_safe:
+            # The id is model-minted, so a different model answering the same
+            # question produces a different one for the identical call
+            # (`docs/0023` §4). Before calling this a first sighting, ask
+            # whether this exact effect is already on record under another id.
+            twin = self.store.find_by_intent(call.conversation_id,
+                                             call.intent_hash())
+            if twin is not None:
+                log.info("matched %s to prior effect %s by intent hash",
+                         call.tool_call_id, twin.tool_call_id)
+                return self._decide_on(call, twin, cls, aliased=True)
+
         # First sighting — the common case.
         if rec is None:
             self.store.write_intent(call, cls, self.fence, self._capture(call, cls))
@@ -76,9 +88,18 @@ class EffectGate:
                 Verdict.BLOCK, cls,
                 reason="tool_call_id reused with different arguments",
             )
+        return self._decide_on(call, rec, cls)
+
+    def _decide_on(self, call: ToolCall, rec, cls: EffectClass,
+                   aliased: bool = False) -> GateDecision:
+        """Decide against a record, which may be under a different id."""
+        note = (f" (matched to {rec.tool_call_id} by intent hash)"
+                if aliased else "")
 
         if rec.state in (EffectState.COMMITTED, EffectState.OBSERVED):
-            return GateDecision(Verdict.SUBSTITUTE, cls, observation=rec.observation)
+            return GateDecision(Verdict.SUBSTITUTE, cls,
+                                observation=rec.observation,
+                                reason=f"already recorded{note}" if note else None)
 
         if rec.state is EffectState.FAILED:
             # Re-capture: the world may have moved since the failed attempt.
@@ -88,7 +109,8 @@ class EffectGate:
         if rec.state is EffectState.BLOCKED:
             return GateDecision(
                 Verdict.BLOCK, cls,
-                reason=rec.error or "previously blocked; awaiting human decision",
+                reason=(rec.error or "previously blocked; awaiting human decision")
+                + note,
             )
 
         # rec.state is INTENT — the irreducible ambiguity (docs/0008 §6.5).

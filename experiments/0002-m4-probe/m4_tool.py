@@ -32,8 +32,15 @@ SLEEP_ENV = "M4_SLEEP"
 
 
 class CommitAction(Action):
+    """Only the message is model-controlled.
+
+    `cwd` was once a field here, and a real model filled it with "." -- a
+    plausible value that sent the commit into whatever directory the process
+    happened to be in (`docs/0023` §3). WHERE an effect lands must never be
+    model-supplied.
+    """
+
     message: str = Field(default="agent work", description="Commit message.")
-    cwd: str = Field(default="", description="Repo root; the probe reads this.")
 
 
 class CommitObservation(Observation):
@@ -47,7 +54,7 @@ class CommitObservation(Observation):
 
 class CommitExecutor(ToolExecutor):
     def __call__(self, action, conversation=None):
-        repo = Path(action.cwd or os.environ.get(REPO_ENV, "."))
+        repo = Path(os.environ.get(REPO_ENV, "."))      # config, not the model
         subprocess.run(
             ["git", "commit", "--allow-empty", "-m", action.message],
             cwd=str(repo), capture_output=True, text=True,

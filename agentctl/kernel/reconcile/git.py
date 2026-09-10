@@ -106,12 +106,20 @@ class GitProbe:
 
     # ── internals ──────────────────────────────────────────────────────
     def _root(self, call) -> Path | None:
+        """Configured root wins over anything the model supplied.
+
+        A model that can choose the path can choose the blast radius, and the
+        probe would then faithfully fingerprint the wrong world. Argument keys
+        are a fallback for tools that genuinely take a path, never an override.
+        """
+        if self.repo_root is not None:
+            return self.repo_root
         for key in ("cwd", "working_dir", "path", "repo"):
             if (v := call.args.get(key)):
                 p = Path(str(v))
                 if p.is_dir():
                     return p
-        return self.repo_root
+        return None
 
     def _git(self, root: Path, *args: str) -> str | None:
         try:

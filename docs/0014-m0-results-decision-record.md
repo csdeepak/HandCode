@@ -24,7 +24,7 @@ Raw evidence: `experiments/0000-falsification/results/`.
 | # | Hypothesis | Verdict | Consequence |
 |---|---|---|---|
 | H1 / Q1 | Double execution is real | **CONFIRMED** | The Effect Ledger is the product. `0007` stands. |
-| H2 / Q2 | `tool_call_id` stable across resume | **CONFIRMED** | `0012` §2.1 primary key is valid. |
+| H2 / Q2 | `tool_call_id` stable across resume | **CONFIRMED — later CORRECTED** | See `0023` §4: this was an artifact of the mock returning a fixed id. A real multi-model pool mints a different id per model. |
 | H3 / Q3 | Executor wrappable without a fork | **CONFIRMED** | Seam C exists. Option 3 holds. |
 | H4 / Q13 | OpenAI-format endpoint in use | **CONFIRMED** | Seam A hooks will fire. |
 

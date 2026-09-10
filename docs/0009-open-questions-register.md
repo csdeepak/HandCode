@@ -37,7 +37,7 @@ These block `0008` from moving DRAFT → ACCEPTED.
 
 | | |
 |---|---|
-| **Status** | **RESOLVED** — see `0014` |
+| **Status** | **CORRECTED** — `0014` was a mock artifact; see `0023` §4 |
 | **Source** | New — introduced by `0008` §6.2 |
 | **Blocks** | `0008` §6 data model |
 | **Impact if no** | The effect ledger's primary key is invalid and the whole data model must be redesigned around a different stable identifier (`action_event_id`, or a content hash). |
@@ -263,3 +263,4 @@ Part C, run before each build step.
 | 2026-09-08 | Q16 | **CONFIRMED empirically** — `block_action` prevents execution; duplicate eliminated | `0016` |
 | 2026-09-08 | Q14 | **WONTFIX** — trailer injection unnecessary; fingerprinting works at Seam B | `0017` |
 | 2026-09-08 | Q18 | **CONFIRMED hazard** — litellm reports cost `0.0` for unpriced endpoints, indistinguishable from free | `0021` |
+| 2026-09-08 | Q2 | **CORRECTED** — `tool_call_id` is model-minted and NOT stable across a pool. M0's CONFIRMED was an artifact of a fixed mock id. Ledger now falls back to `intent_hash`. | `0023` |

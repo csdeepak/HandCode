@@ -7,7 +7,7 @@ cost-efficient** across changes of provider, account, and model.
 > recoverable, measurable, and cost-efficient.
 
 **Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 170 tests — including a nine-point chaos suite with real process
+verified. 176 tests — including a nine-point chaos suite with real process
 death — plus four end-to-end crash experiments. All green.
 
 ---
@@ -146,8 +146,9 @@ Stated plainly, because a safety layer that oversells itself is worse than none:
 - **Single process.** Fencing is implemented and tested; multi-host is not
   exercised.
 - **No policy compiler, no cache affinity, no dashboard.** M6 onward.
-- **Never run against a real provider.** Everything is verified against
-  local mocks. The first live API key will find something.
+- **One real provider only.** Verified against OpenRouter free-tier models
+  (`docs/0023`); it found two real bugs on the first attempt. Anthropic's
+  `/v1/messages` path and paid pricing coverage remain untested.
 
 ---
 
@@ -160,7 +161,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            170 tests, including the nine-point chaos suite
+tests/            176 tests, including the nine-point chaos suite
 verify.py         one command that proves all of the above
 ```
 

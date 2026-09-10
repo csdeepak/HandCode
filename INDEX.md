@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0022**.
+**The highest number is the newest document.** Current head: **0023**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -28,6 +28,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0020](docs/0020-external-idempotency-probe.md) | The EXTERNAL Idempotency-Key Probe | DECISION | ACCEPTED | 2026-09-08 | Fourth verdict SAFE_TO_RETRY. Every effect class now has a recovery path |
 | [0021](docs/0021-m1-results.md) | M1 Results — Seam A Fires | DECISION | ACCEPTED | 2026-09-08 | Hook proven live in a real proxy; failover works; Q18 confirmed as a hazard |
 | [0022](docs/0022-integration-complete.md) | Integration Complete | DECISION | ACCEPTED | 2026-09-08 | Full stack runs together; cost ledger with pricing coverage as a first-class signal |
+| [0023](docs/0023-real-provider-run.md) | The Real Provider Run | DECISION | ACCEPTED | 2026-09-08 | Found a real duplicate; corrected Q2. `tool_call_id` is model-minted and unstable across a pool |
 
 ---
 
@@ -51,8 +52,8 @@ verdicts, current design, then the diagrams. About 40 minutes.
 | **Phase** | **Integration complete** (`0022`). Full stack verified end to end; spend is attributable. |
 | **Architecture** | `0008` DRAFT — Q1/Q2/Q3/Q5/Q13/Q15/Q16/Q17 resolved. **Q4 is the last blocker.** §3 needs the `0015` correction. |
 | **Verify** | `python verify.py` — 8 checks, ~4 min, zero cost |
-| **Next action** | **M7** (policy compiler) or a first run against a real API key. |
-| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **170 tests green.** |
+| **Next action** | **M7** (policy compiler), or a run against a second provider family to test the `/v1/messages` path. |
+| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **176 tests green.** |
 
 ---
 

@@ -163,3 +163,54 @@ def test_pre_state_is_captured_for_dangerous_classes_only(gate):
     safe = bash("ls -la", cid="tc_pre2")
     gate.guard(safe)
     assert gate.store.lookup("tc_pre2").pre_state is None,         "no point fingerprinting the world for a read"
+
+
+# ── model-minted ids: the finding from the real-provider run (docs/0023) ──
+def test_the_same_effect_under_a_different_id_is_not_a_first_sighting(gate):
+    """A multi-model pool mints a different tool_call_id for the same call.
+
+    Run 1 asks model A, which returns `call-abc`. The process dies. Run 2 asks
+    model B, which returns `call_xyz` for the identical request. Keyed lookup
+    misses, and without this the effect executes a second time.
+    """
+    first = bash("git commit -m 'work'", cid="call-abc-from-model-A")
+    assert gate.guard(first).verdict is Verdict.EXECUTE
+    gate.record_success(first, b'{"status":"ok"}')
+
+    second = bash("git commit -m 'work'", cid="call_xyz_from_model_B")
+    d = gate.guard(second)
+    assert d.verdict is Verdict.SUBSTITUTE, (
+        "a different id for an identical call must not re-execute")
+    assert "intent hash" in (d.reason or "")
+
+
+def test_an_aliased_ambiguous_effect_still_blocks(gate):
+    """The INTENT case must survive the id change too."""
+    first = bash("git commit -m 'work'", cid="call-A")
+    gate.guard(first)                                   # leaves INTENT
+    d = gate.guard(bash("git commit -m 'work'", cid="call-B"))
+    assert d.verdict is Verdict.BLOCK
+
+
+def test_a_different_call_is_still_a_first_sighting(gate):
+    """The fallback must not collapse genuinely different effects."""
+    gate.guard(bash("git commit -m 'one'", cid="call-A"))
+    d = gate.guard(bash("git commit -m 'TWO'", cid="call-B"))
+    assert d.verdict is Verdict.EXECUTE
+
+
+def test_reads_are_not_slowed_by_the_fallback(gate):
+    """Only dangerous classes pay for the extra lookup."""
+    gate.guard(bash("ls -la", cid="call-A"))
+    assert gate.guard(bash("ls -la", cid="call-B")).verdict is Verdict.EXECUTE
+
+
+def test_the_fallback_is_scoped_to_one_conversation(gate):
+    """A different task that happens to run the same command is its own effect."""
+    a = ToolCall("call-A", "conv_1", "t", "execute_bash",
+                 {"command": "git commit -m 'x'"})
+    b = ToolCall("call-B", "conv_OTHER", "t", "execute_bash",
+                 {"command": "git commit -m 'x'"})
+    gate.guard(a)
+    gate.record_success(a, b"{}")
+    assert gate.guard(b).verdict is Verdict.EXECUTE

@@ -122,6 +122,32 @@ class LedgerStore:
         ).fetchone()
         return _to_record(row) if row else None
 
+    def find_by_intent(self, conversation_id: str, intent_hash: str,
+                       exclude_tool_call_id: str | None = None) -> EffectRecord | None:
+        """The same logical effect under a different `tool_call_id`.
+
+        WHY THIS EXISTS (`docs/0023` §4). The ledger is keyed on
+        `tool_call_id`, which the *model* mints. Ask a different model the same
+        question -- as any multi-model pool will on a retry or resume -- and it
+        returns a different id for the identical call. Keyed lookup misses, the
+        gate sees a first sighting, and the effect repeats.
+
+        `intent_hash` is ours: tool name plus canonicalised arguments. Same
+        logical effect, same hash, whoever asked.
+
+        Deliberately conservative. A genuine repeat of an identical call also
+        matches, and is treated as the same effect -- for a non-idempotent
+        effect that is the safe direction, and the probe or a human resolves it.
+        """
+        rows = self._db.execute(
+            "SELECT * FROM effect_record WHERE conversation_id=? AND intent_hash=? "
+            "ORDER BY started_at DESC", (conversation_id, intent_hash)).fetchall()
+        for r in rows:
+            if exclude_tool_call_id and r["tool_call_id"] == exclude_tool_call_id:
+                continue
+            return _to_record(r)
+        return None
+
     def pending(self, conversation_id: str) -> list[EffectRecord]:
         """Records stuck in INTENT — the ambiguous set after a crash."""
         rows = self._db.execute(
