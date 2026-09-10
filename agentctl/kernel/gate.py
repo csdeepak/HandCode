@@ -117,13 +117,22 @@ class EffectGate:
         return self._resolve_ambiguous(call, rec, cls)
 
     def _resolve_ambiguous(self, call, rec, cls: EffectClass) -> GateDecision:
-        """We cannot tell whether the effect landed. Decide by class."""
+        """We cannot tell whether the effect landed. Decide by class.
+
+        Every ledger write here targets `rec.tool_call_id`, never
+        `call.tool_call_id`. Under intent-hash aliasing those differ, and
+        writing to the caller's id raises `IllegalTransition` -- which the
+        fail-closed wrapper then turns into a BLOCK, producing a correct
+        outcome by an incorrect route and stranding the record (`docs/0024`).
+        """
+        rid = rec.tool_call_id
+
         if cls.replay_safe:
             # Repeating is harmless, so the window does not matter.
             return GateDecision(Verdict.EXECUTE, cls)
 
         if cls is EffectClass.DESTRUCTIVE:
-            self.store.block(call.tool_call_id, "destructive effect, outcome unknown")
+            self.store.block(rid, "destructive effect, outcome unknown")
             return GateDecision(
                 Verdict.ESCALATE, cls,
                 reason="destructive effect with unknown outcome; a human must decide",
@@ -140,13 +149,13 @@ class EffectGate:
                 verdict = INCONCLUSIVE
 
             if verdict == LANDED:
-                self.store.reconcile(call.tool_call_id, verdict, landed=True)
+                self.store.reconcile(rid, verdict, landed=True)
                 return GateDecision(
                     Verdict.SUBSTITUTE, cls, observation=rec.observation,
                     reason=f"{probe.name} probe: the effect already landed",
                 )
             if verdict == DID_NOT_LAND:
-                self.store.reconcile(call.tool_call_id, verdict, landed=False)
+                self.store.reconcile(rid, verdict, landed=False)
                 self.store.write_intent(call, cls, self.fence,
                                         self._capture(call, cls))
                 return GateDecision(
@@ -157,7 +166,7 @@ class EffectGate:
                 # We cannot tell whether it landed, and we do not need to: the
                 # call carries an idempotency key, so the remote collapses a
                 # retry into the original effect (`docs/0020`).
-                self.store.reconcile(call.tool_call_id, verdict, landed=False)
+                self.store.reconcile(rid, verdict, landed=False)
                 self.store.write_intent(call, cls, self.fence,
                                         self._capture(call, cls))
                 return GateDecision(
@@ -171,7 +180,7 @@ class EffectGate:
                   else f"{probe.name} probe inconclusive")
         reason = (f"cannot determine whether {call.tool_name} already "
                   f"executed ({detail})")
-        self.store.block(call.tool_call_id, reason)
+        self.store.block(rid, reason)
         return GateDecision(Verdict.BLOCK, cls, reason=reason)
 
     def _capture(self, call: ToolCall, cls: EffectClass) -> str | None:

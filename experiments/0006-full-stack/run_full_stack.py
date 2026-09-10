@@ -315,6 +315,12 @@ def parent() -> dict:
 
     # ══ verdict ═════════════════════════════════════════════════════
     ev = out["evidence"]
+    # A gate that CRASHES also returns BLOCK, so a correct commit count can
+    # hide an incorrect mechanism. Count the crashes (docs/0024).
+    ev["gate_errors"] = sum(
+        1 for d in (ev.get("decisions_fresh") or [])
+        + (ev.get("decisions_resume") or [])
+        if "gate error" in (d.get("reason") or ""))
     before, crash, resume = (ev.get("commits_before"),
                              ev.get("commits_after_crash"),
                              ev.get("commits_after_resume"))
@@ -335,6 +341,13 @@ def parent() -> dict:
         out["notes"].append(
             "No duplicate, but Seam A never fired -- the agent did not go "
             "through the proxy, or the hook is not loaded.")
+    elif ev.get("gate_errors"):
+        out["verdict"] = "FAIL"
+        out["notes"].append(
+            f"No duplicate, but the gate CRASHED {ev['gate_errors']} time(s) and "
+            f"fail-closed produced the right outcome by the wrong route. A "
+            f"correct result via an incorrect mechanism is not a pass "
+            f"(docs/0024).")
     else:
         out["verdict"] = "PASS"
         out["notes"].append(

@@ -184,12 +184,45 @@ def test_the_same_effect_under_a_different_id_is_not_a_first_sighting(gate):
     assert "intent hash" in (d.reason or "")
 
 
-def test_an_aliased_ambiguous_effect_still_blocks(gate):
-    """The INTENT case must survive the id change too."""
+def test_an_aliased_ambiguous_effect_blocks_WITHOUT_a_gate_error(gate):
+    """The INTENT case must survive the id change -- by the intended route.
+
+    This test previously asserted only the verdict, and BLOCK is also what the
+    fail-closed wrapper returns when the gate CRASHES. It passed for two years
+    of nothing while a real run was hitting
+    `IllegalTransition('no record for <new id>')` (`docs/0024`). Assert the
+    mechanism, not just the outcome.
+    """
     first = bash("git commit -m 'work'", cid="call-A")
     gate.guard(first)                                   # leaves INTENT
     d = gate.guard(bash("git commit -m 'work'", cid="call-B"))
+
     assert d.verdict is Verdict.BLOCK
+    assert "gate error" not in (d.reason or ""), (
+        f"blocked by crashing, not by deciding: {d.reason}")
+    # The ORIGINAL record must carry the outcome; the alias has none of its own.
+    assert gate.store.lookup("call-A").state is EffectState.BLOCKED
+    assert gate.store.lookup("call-B") is None
+
+
+def test_an_aliased_probe_result_lands_on_the_original_record(gate):
+    """A LANDED probe must reconcile the record it examined."""
+    from agentctl.kernel.reconcile.base import ProbeRegistry
+
+    class Landed:
+        name = "git"
+        def handles(self, call): return True
+        def capture(self, call): return {"probe": "git"}
+        def probe(self, call, rec): return "LANDED"
+
+    gate.probes = ProbeRegistry(Landed())
+    gate.guard(bash("git commit -m 'work'", cid="call-A"))      # INTENT
+    d = gate.guard(bash("git commit -m 'work'", cid="call-B"))
+
+    assert d.verdict is Verdict.SUBSTITUTE
+    assert "gate error" not in (d.reason or "")
+    assert gate.store.lookup("call-A").state is EffectState.COMMITTED
+    assert gate.store.lookup("call-A").probe_verdict == "LANDED"
 
 
 def test_a_different_call_is_still_a_first_sighting(gate):

@@ -639,6 +639,17 @@ non-ASCII (`docs/0021` §6). On Windows, set `PYTHONIOENCODING=utf-8` and
 `PYTHONUTF8=1` in any child environment whose output is redirected. Assume it;
 do not wait to be surprised.
 
+### Assert the ROUTE when the error path and the success path share an outcome
+
+Fail-closed makes failures look like decisions. A crashing gate returns BLOCK,
+and so does a gate that correctly decided to block — so a test asserting only
+the verdict cannot tell them apart, and one did not for an entire milestone
+(`docs/0024`). Assert which record moved, which reason was given, and whether
+an exception was swallowed.
+
+**Fail-safe designs are harder to test than fail-fast ones.** That is a cost of
+`0008` §6.5, and it should be paid deliberately.
+
 ### Mutation-check any change to the gate, ledger or a probe
 
 A suite that passes first time invites the suspicion that it cannot fail.
