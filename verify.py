@@ -41,6 +41,12 @@ CHECKS = [
     ("M2b substitution",
      ["experiments/0003-m2b-substitute/run_substitute_chaos.py"],
      "the agent resumes with a result"),
+    ("M1  Seam A",
+     ["experiments/0005-m1-seam-a/run_m1.py"],
+     "the proxy hook fires; two accounts fail over"),
+    ("FULL STACK",
+     ["experiments/0006-full-stack/run_full_stack.py"],
+     "agent -> proxy -> backends, with the gate. The integration."),
 ]
 
 

@@ -5,6 +5,8 @@ landed it blocks and waits; without a way to see and answer those, the design
 is correct and unusable (`docs/0013` §3, Panel 3).
 
     agentctl status                  what is in the ledger
+    agentctl cost                    what the work cost, and how much is known
+    agentctl ingest <telemetry>      load Seam A telemetry into the cost ledger
     agentctl blocked                 effects awaiting a decision
     agentctl show <tool_call_id>     everything known about one effect
     agentctl resolve <id> --landed   record that it did happen
@@ -18,13 +20,16 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from agentctl.control.cost import CostLedger
 from agentctl.kernel.ledger.models import EffectState
 from agentctl.kernel.ledger.store import LedgerStore
 
 DEFAULT_LEDGER = Path("ledger.db")
+DEFAULT_COST_LEDGER = Path("cost.db")
 
 
 def _ascii_stdout() -> None:
@@ -153,12 +158,76 @@ def cmd_resolve(args) -> int:
     return 0
 
 
+def cmd_cost(args) -> int:
+    if not args.cost_ledger.exists():
+        print(f"no cost ledger at {args.cost_ledger}\n"
+              f"  run: agentctl ingest <hook_telemetry.json>", file=sys.stderr)
+        return 2
+
+    since = (time.time() - 86400) if args.today else None
+    with CostLedger(args.cost_ledger) as c:
+        t = c.totals(conversation_id=args.conversation, since=since)
+        scope = ("today" if args.today else
+                 f"conversation {args.conversation}" if args.conversation else "all time")
+
+        print(f"cost ({scope})")
+        print(f"  spend           {t.describe_cost()}")
+        print(f"  calls           {t.calls}")
+        print(f"  tokens          {t.prompt_tokens} in / {t.completion_tokens} out")
+        if t.prompt_tokens:
+            print(f"  cache hits      {t.cached_tokens} "
+                  f"({t.cache_hit_ratio:.0%} of input)")
+
+        if not t.trustworthy and t.calls:
+            print()
+            print(f"  ! PRICING COVERAGE {t.coverage:.0%} "
+                  f"({t.priced_calls}/{t.calls} calls)")
+            print("    litellm reports 0.0 for endpoints it cannot price, so an")
+            print("    unpriced call is indistinguishable from a free one. The")
+            print("    real total is HIGHER than the figure above.")
+            if (blind := c.unpriced_deployments()):
+                print(f"    unpriced: {', '.join(blind)}")
+
+        if args.by_deployment:
+            rows = c.by_deployment()
+            if rows:
+                print(f"\n  {'DEPLOYMENT':<18} {'CALLS':>6} {'PRICED':>7} {'COST':>10}")
+                for r in rows:
+                    priced = f"{r['priced_calls']}/{r['calls']}"
+                    cost = (f"${r['cost']:.4f}" if r["priced_calls"] else "unknown")
+                    print(f"  {(r['deployment'] or '-'):<18} {r['calls']:>6} "
+                          f"{priced:>7} {cost:>10}")
+
+        if args.by_conversation:
+            rows = c.by_conversation()
+            if rows:
+                print(f"\n  {'CONVERSATION':<38} {'CALLS':>6} {'COST':>10}")
+                for r in rows:
+                    cost = (f"${r['cost']:.4f}" if r["priced_calls"] else "unknown")
+                    print(f"  {(r['conversation_id'] or '-')[:36]:<38} "
+                          f"{r['calls']:>6} {cost:>10}")
+    return 0
+
+
+def cmd_ingest(args) -> int:
+    with CostLedger(args.cost_ledger) as c:
+        n = c.ingest_telemetry(args.telemetry)
+    if n == 0:
+        print(f"nothing ingested from {args.telemetry}", file=sys.stderr)
+        return 2
+    print(f"ingested {n} record(s) into {args.cost_ledger}")
+    print("  agentctl cost --by-deployment")
+    return 0
+
+
 # ── entry point ────────────────────────────────────────────────────────
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="agentctl", description="Inspect and resolve the effect ledger.")
     p.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER,
-                   help=f"path to the ledger (default: {DEFAULT_LEDGER})")
+                   help=f"path to the effect ledger (default: {DEFAULT_LEDGER})")
+    p.add_argument("--cost-ledger", type=Path, default=DEFAULT_COST_LEDGER,
+                   help=f"path to the cost ledger (default: {DEFAULT_COST_LEDGER})")
     sub = p.add_subparsers(dest="command", required=True)
 
     sub.add_parser("status", help="summary of the ledger").set_defaults(fn=cmd_status)
@@ -179,6 +248,17 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--retry", dest="landed", action="store_false",
                    help="it did NOT happen; allow a retry")
     r.set_defaults(fn=cmd_resolve)
+
+    c = sub.add_parser("cost", help="what the work cost, and how much is known")
+    c.add_argument("--today", action="store_true", help="last 24 hours only")
+    c.add_argument("--conversation", help="one conversation")
+    c.add_argument("--by-deployment", action="store_true")
+    c.add_argument("--by-conversation", action="store_true")
+    c.set_defaults(fn=cmd_cost)
+
+    i = sub.add_parser("ingest", help="load Seam A telemetry into the cost ledger")
+    i.add_argument("telemetry", type=Path)
+    i.set_defaults(fn=cmd_ingest)
     return p
 
 

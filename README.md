@@ -7,7 +7,7 @@ cost-efficient** across changes of provider, account, and model.
 > recoverable, measurable, and cost-efficient.
 
 **Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 156 tests — including a nine-point chaos suite with real process
+verified. 170 tests — including a nine-point chaos suite with real process
 death — plus four end-to-end crash experiments. All green.
 
 ---
@@ -41,7 +41,7 @@ python verify.py
 ```
 
 **Zero cost** — everything runs against a local mock provider. No API key, no
-network, no tokens. Takes about three minutes.
+network, no tokens. Takes about four minutes.
 
 Requires Python ≥ 3.12 (the OpenHands SDK does) and `git` on PATH.
 
@@ -79,6 +79,18 @@ agentctl show <tool_call_id>          # everything known about one
 agentctl resolve <id> --landed        # it did happen; do not re-run it
 agentctl resolve <id> --retry         # it did not; allow a retry
 ```
+
+### Checking usage
+
+```bash
+agentctl ingest hook_telemetry.json   # load Seam A telemetry
+agentctl cost --by-deployment         # spend, with pricing coverage
+agentctl cost --conversation <id>     # cost per completed task
+```
+
+LiteLLM reports `0.0` for endpoints it cannot price, so a total is never shown
+without the share of calls it actually covers. `$0.0042 + unknown (1/3 priced)`
+is the honest answer, and the ledger will not print a bare number instead.
 
 There is no "probably fine" — `resolve` requires an explicit choice.
 
@@ -133,7 +145,9 @@ Stated plainly, because a safety layer that oversells itself is worse than none:
   the key, and nothing local can detect that it did not.
 - **Single process.** Fencing is implemented and tested; multi-host is not
   exercised.
-- **No cost ledger, no routing, no policy compiler.** M5 onward.
+- **No policy compiler, no cache affinity, no dashboard.** M6 onward.
+- **Never run against a real provider.** Everything is verified against
+  local mocks. The first live API key will find something.
 
 ---
 
@@ -146,7 +160,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            156 tests, including the nine-point chaos suite
+tests/            170 tests, including the nine-point chaos suite
 verify.py         one command that proves all of the above
 ```
 

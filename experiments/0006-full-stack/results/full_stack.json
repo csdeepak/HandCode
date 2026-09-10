@@ -1,0 +1,52 @@
+{
+  "verdict": "PASS",
+  "evidence": {
+    "workspace": "C:\\Users\\csdee\\AppData\\Local\\Temp\\fullstack_cnwbzjiy",
+    "commits_before": 1,
+    "commits_after_crash": 2,
+    "commits_after_resume": 2,
+    "hook_calls": 3,
+    "telemetry_records": 3,
+    "records_with_trace_id": 3,
+    "deployments_seen": [
+      "acct-a",
+      "acct-b"
+    ],
+    "backend_a_served": 1,
+    "backend_b_served": 2,
+    "ledger": [
+      {
+        "tool_name": "commit",
+        "state": "COMMITTED",
+        "effect_class": "NON_IDEMPOTENT_WRITE",
+        "probe_verdict": "LANDED"
+      }
+    ],
+    "blocked": 0,
+    "decisions_fresh": [
+      {
+        "tool": "commit",
+        "verdict": "EXECUTE",
+        "reason": null
+      }
+    ],
+    "gated_fresh": [
+      "commit"
+    ],
+    "decisions_resume": [
+      {
+        "tool": "commit",
+        "verdict": "SUBSTITUTE",
+        "reason": "git probe: the effect already landed"
+      }
+    ],
+    "gated_resume": [
+      "commit"
+    ]
+  },
+  "notes": [
+    "The whole stack ran together: agent -> proxy -> backends, with the gate at Seams B and C. One commit, no duplicate.",
+    "Seam A fired on 3 request(s); 3/3 records carry a trace id, deployments ['acct-a', 'acct-b'].",
+    "Ledger: ['COMMITTED'], resume decision ['SUBSTITUTE'], 0 blocked."
+  ]
+}
