@@ -3,6 +3,8 @@ name = "agentctl"
 version = "0.2.0a0"
 description = "Effect-safety and cost-attribution control plane for long-running agent loops"
 requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = ["pyyaml>=6.0"]
 
 [project.scripts]

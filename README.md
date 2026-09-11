@@ -207,7 +207,17 @@ That is why `verify.py` costs nothing to run.
 
 ## A note on this repository's location
 
-This is deliberately its own git repository. The parent directory
-`C:\Users\csdee\` is itself a repo with an unrelated remote, and keeping this
-separate stops its files being swept into that one. Consider also adding
-`openhands/` to the home directory's `.gitignore`.
+This is deliberately its own git repository. It was developed inside a
+directory whose *parent* was already a repo with an unrelated remote, and
+keeping it separate is what stopped its files being swept into that one.
+
+If you clone into a similar layout, check `git rev-parse --show-toplevel`
+before your first commit. The git probe learned the same lesson the hard way
+(`docs/0019`): it now records the toplevel it was configured with and refuses
+to act on a different one.
+
+---
+
+## License
+
+MIT. See [LICENSE](LICENSE).
