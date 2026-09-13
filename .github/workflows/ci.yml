@@ -112,15 +112,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev,openhands,proxy]"
 
-      - name: mcp must not have been downgraded
-        # litellm[proxy] once pulled mcp below what the SDK needs, and
-        # `pip check` reported nothing (docs/0021 §7). Assert it directly.
+      - name: Deliberately raise mcp past litellm's declared bound
+        # litellm[proxy] declares mcp<2.0; the OpenHands SDK needs fastmcp and
+        # therefore mcp>=2. The two are incompatible on paper and work in
+        # practice, so the override is explicit here rather than hidden in a
+        # range specifier that pip would refuse outright (docs/0028).
+        run: pip install --upgrade "mcp>=2.2.0"
+
+      - name: mcp must actually be >= 2
+        # `pip check` reported nothing when this broke before (docs/0021 §7),
+        # so assert the installed version rather than trusting metadata.
         run: |
           python - <<'EOF'
           from importlib.metadata import version
           mcp = version("mcp")
           print("mcp", mcp)
-          assert int(mcp.split(".")[0]) >= 2, f"mcp downgraded to {mcp}"
+          assert int(mcp.split(".")[0]) >= 2, f"mcp is {mcp}, need >= 2"
+          import fastmcp  # the thing that actually breaks
+          print("fastmcp imports fine")
           EOF
 
       - run: python -u verify.py

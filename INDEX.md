@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0027**.
+**The highest number is the newest document.** Current head: **0028**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -33,6 +33,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0025](docs/0025-making-it-usable.md) | Making It Usable | DECISION | ACCEPTED | 2026-09-11 | Real tools + `agentctl run`. The model saw empty observations because `content` is reserved |
 | [0026](docs/0026-classifier-first-word.md) | M3 — The Classifier Only Ever Saw the First Word | DECISION | ACCEPTED | 2026-09-13 | 21 under-classifications in 55 commands. Anchored rules never saw past the first word |
 | [0027](docs/0027-where-a-write-lands.md) | Where a Write Lands Is Not What Kind of Write It Is | DECISION | ACCEPTED | 2026-09-13 | `echo x > ~/.bashrc` was classified correctly and still went unasked |
+| [0028](docs/0028-ci-found-a-real-bug.md) | CI Found a Bug That Only Existed on Someone Else's Machine | DECISION | ACCEPTED | 2026-09-13 | `id()` is unique only among live objects; the proxy extra was never installable |
 
 ---
 
@@ -57,7 +58,7 @@ verdicts, current design, then the diagrams. About 40 minutes.
 | **Architecture** | `0008` DRAFT — Q1/Q2/Q3/Q5/Q13/Q15/Q16/Q17 resolved. **Q4 is the last blocker.** §3 needs the `0015` correction. |
 | **Verify** | `python verify.py` — 8 checks, ~4 min, zero cost |
 | **Next action** | **M7** (policy compiler), or a run against a second provider family to test the `/v1/messages` path. |
-| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **305 tests green.** |
+| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **308 tests green.** |
 
 ---
 

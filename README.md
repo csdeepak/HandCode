@@ -9,7 +9,7 @@ cost-efficient** across changes of provider, account, and model.
 > recoverable, measurable, and cost-efficient.
 
 **Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 305 tests — including a nine-point chaos suite with real process
+verified. 308 tests — including a nine-point chaos suite with real process
 death — plus four end-to-end crash experiments. All green.
 
 ---
@@ -57,6 +57,20 @@ pip install -e ".[dev,openhands]" -c constraints.txt
 CI runs both forms on Linux and Windows, and runs `verify.py` itself — so the
 badge above means the correctness claim reproduces on a machine that is not
 mine, which is the only version of that claim worth anything.
+
+### The proxy extra needs two steps
+
+`litellm[proxy]` declares `mcp<2.0`; the OpenHands SDK needs `fastmcp` and so
+needs `mcp>=2`. They are incompatible on paper and work in practice, so the
+override is explicit rather than hidden in a version range pip would refuse:
+
+```bash
+pip install -e ".[dev,openhands,proxy]"
+pip install --upgrade "mcp>=2.2.0"      # knowingly past litellm's bound
+```
+
+Only Seam A and the full-stack demo need this. Everything else — including the
+whole correctness core — runs without the proxy.
 
 ---
 
@@ -196,7 +210,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            305 tests, including the nine-point chaos suite
+tests/            308 tests, including the nine-point chaos suite
 verify.py         one command that proves all of the above
 ```
 

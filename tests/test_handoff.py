@@ -61,3 +61,54 @@ def test_pending_count():
     h.offer(Action(m=1), call("tc_a"), b"{}")
     h.offer(Action(m=2), call("tc_b", message="y"), b"{}")
     assert h.pending() == 2
+
+
+# ── regressions found by CI on Python 3.12 (docs/0028) ─────────────────
+def test_the_mailbox_keeps_the_action_alive():
+    """`id()` is unique only among LIVE objects.
+
+    With no strong reference, a pending action can be collected and a new,
+    unrelated action allocated at the same address -- which would then claim
+    the first call's recorded observation. CPython 3.13 happened not to
+    recycle the address; 3.12 did, and two tests failed.
+    """
+    import gc
+    import weakref
+
+    h = SubstitutionHandoff()
+    a = Action(message="x")
+    ref = weakref.ref(a)
+    h.offer(a, call(), b"{}")
+
+    del a
+    gc.collect()
+    assert ref() is not None, (
+        "the mailbox dropped the action; its id() can now be recycled "
+        "under a different action and claimed by the wrong call")
+
+
+def test_two_offers_are_two_entries():
+    """The symptom: the second offer overwrote the first at a recycled id."""
+    h = SubstitutionHandoff()
+    h.offer(Action(m=1), call("tc_a"), b"{}")
+    h.offer(Action(m=2), call("tc_b", message="y"), b"{}")
+    assert h.pending() == 2
+
+
+def test_a_fingerprint_match_also_clears_the_identity_entry():
+    """Otherwise the same substitution is honoured twice.
+
+    The fingerprint path popped `id(call)` from a dict keyed by `id(action)`,
+    which removed nothing and left the entry claimable again.
+    """
+    h = SubstitutionHandoff()
+    a = Action(message="x")
+    h.offer(a, call(), b'{"status":"ok"}')
+
+    # claim by fingerprint, using a DIFFERENT action object
+    first = h.claim(Action(message="x"), "commit", {"message": "x"})
+    assert first is not None, "fingerprint fallback should have matched"
+    assert h.pending() == 0, "identity entry survived a fingerprint claim"
+
+    # the original action must now find nothing
+    assert h.claim(a, "commit", {"message": "x"}) is None

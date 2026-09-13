@@ -12,9 +12,24 @@ agentctl = "agentctl.cli:main"
 
 [project.optional-dependencies]
 openhands = ["openhands-sdk>=1.45.0"]
-# litellm[proxy] downgrades mcp to <2, which breaks fastmcp and therefore the
-# OpenHands SDK -- and `pip check` reports nothing. docs/0021 §7.
-proxy = ["litellm[proxy]>=1.100.0", "mcp>=2.2.0"]
+# litellm[proxy] declares `mcp<2.0`, while the OpenHands SDK needs fastmcp and
+# therefore `mcp>=2`. The two are genuinely incompatible ON PAPER.
+#
+# Declaring `mcp>=2.2.0` here -- the fix docs/0021 §7 thought it had made --
+# does not resolve that. It makes the extra UNINSTALLABLE: pip reports
+# ResolutionImpossible and refuses, which is correct behaviour on its part.
+# The local environment only had both because they were installed at different
+# times and pip never re-resolved. CI installing from scratch is what exposed
+# it (docs/0028).
+#
+# They work together in practice, so the override is deliberate and explicit:
+#
+#     pip install -e ".[dev,openhands,proxy]"
+#     pip install --upgrade "mcp>=2.2.0"      # knowingly past litellm's bound
+#
+# `verify.py` is what certifies the combination, and CI asserts the mcp major
+# version directly rather than trusting either package's metadata.
+proxy = ["litellm[proxy]>=1.100.0"]
 dev = ["pytest>=8.0"]
 
 [build-system]
