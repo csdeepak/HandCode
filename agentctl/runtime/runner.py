@@ -20,6 +20,11 @@ What it wires up:
 
 A first-time `rm -rf` is not a replay, so the gate admits it. If you point this
 at a repository you care about, keep the confirmation on — it is the default.
+
+The confirmation asks on two independent grounds: the effect is `DESTRUCTIVE`,
+or it writes somewhere outside the workspace. The second is not a lesser form
+of the first — `echo x > ~/.bashrc` is an ordinary idempotent write that simply
+is not the agent's business (`docs/0027`).
 """
 from __future__ import annotations
 
@@ -105,7 +110,7 @@ def run(
     )
 
     if confirm_destructive:
-        _install_confirmation(guard, verbose)
+        _install_confirmation(guard, verbose, workspace=ws)
 
     llm = LLM(model=model, api_key=api_key, base_url=base_url,
               service_id="agentctl-run", temperature=0.0,
@@ -153,30 +158,52 @@ def run(
             "blocked": [b.tool_call_id for b in blocked]}
 
 
-def _install_confirmation(guard, verbose: bool) -> None:
-    """Ask before a destructive effect runs for the FIRST time.
+def _install_confirmation(guard, verbose: bool, workspace: Path | None = None) -> None:
+    """Ask before an effect that is dangerous, or that lands outside the workspace.
 
-    The gate is about replay safety, so a first-time `rm -rf` passes it. This
-    is the separate authorization question, and it is asked here rather than
-    buried in the gate so the two stay distinguishable.
+    The gate is about replay safety, so a first-time `rm -rf` passes it. This is
+    the separate authorization question, asked here rather than buried in the
+    gate so the two stay distinguishable (`docs/0025` §4).
+
+    Two independent reasons to ask, and they are not the same question:
+
+        DESTRUCTIVE          the effect is dangerous wherever it happens
+        escapes the root     the effect is ordinary, but not the agent's
+                             business -- `echo x > ~/.bashrc` classifies
+                             IDEMPOTENT_WRITE and is correct to (`docs/0027`)
+
+    Escalating the *class* for the second case would have been the easy fix and
+    the wrong one: the ledger would then treat a replayable write as
+    unrecoverable, and a safe resume would start failing closed.
     """
     from agentctl.kernel.ledger.models import EffectClass, GateDecision, Verdict
+    from agentctl.kernel.paths import escaping_writes
 
     inner = guard.gate.guard
 
     def guard_with_confirmation(call):
         decision = inner(call)
-        if (decision.verdict is Verdict.EXECUTE
-                and decision.effect_class is EffectClass.DESTRUCTIVE):
-            print(f"\n  !! DESTRUCTIVE: {call.tool_name} "
-                  f"{str(call.args)[:200]}", file=sys.stderr)
-            try:
-                answer = input("     allow? [y/N] ").strip().lower()
-            except EOFError:
-                answer = "n"
-            if answer != "y":
-                return GateDecision(Verdict.BLOCK, decision.effect_class,
-                                    reason="refused by the operator")
+        if decision.verdict is not Verdict.EXECUTE:
+            return decision
+
+        reasons: list[str] = []
+        if decision.effect_class is EffectClass.DESTRUCTIVE:
+            reasons.append("DESTRUCTIVE")
+        if outside := escaping_writes(call, workspace):
+            reasons.append("writes outside the workspace: "
+                           + ", ".join(outside[:4]))
+        if not reasons:
+            return decision
+
+        print(f"\n  !! {' | '.join(reasons)}", file=sys.stderr)
+        print(f"     {call.tool_name} {str(call.args)[:200]}", file=sys.stderr)
+        try:
+            answer = input("     allow? [y/N] ").strip().lower()
+        except EOFError:
+            answer = "n"
+        if answer != "y":
+            return GateDecision(Verdict.BLOCK, decision.effect_class,
+                                reason="refused by the operator")
         return decision
 
     guard.gate.guard = guard_with_confirmation

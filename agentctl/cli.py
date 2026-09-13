@@ -289,7 +289,8 @@ def build_parser() -> argparse.ArgumentParser:
     rn.add_argument("--max-budget", type=float, help="hard USD ceiling for the run")
     rn.add_argument("--resume", help="conversation id to continue")
     rn.add_argument("--allow-destructive", action="store_true",
-                    help="do not ask before rm -rf and friends. Think first.")
+                    help="do not ask before rm -rf, or before a write that "
+                         "lands outside the workspace. Think first.")
     rn.set_defaults(fn=cmd_run)
 
     c = sub.add_parser("cost", help="what the work cost, and how much is known")

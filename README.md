@@ -7,7 +7,7 @@ cost-efficient** across changes of provider, account, and model.
 > recoverable, measurable, and cost-efficient.
 
 **Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 264 tests — including a nine-point chaos suite with real process
+verified. 305 tests — including a nine-point chaos suite with real process
 death — plus four end-to-end crash experiments. All green.
 
 ---
@@ -58,8 +58,11 @@ ledgered. Crash it and re-run with `--resume <id>`: work already done is not
 repeated.
 
 Two safety properties, deliberately separate — the **gate** stops an effect
-happening *twice*; `--confirm-destructive` (on by default) stops a dangerous one
-happening *at all* without a human saying yes.
+happening *twice*; `--confirm-destructive` (on by default) stops one happening
+*at all* without a human saying yes. It asks on two grounds: the effect is
+destructive, **or** it writes outside the workspace. `echo x > ~/.bashrc` is an
+ordinary idempotent write that is simply none of the agent's business
+(`docs/0027`).
 
 ### Or embed it
 
@@ -180,7 +183,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            264 tests, including the nine-point chaos suite
+tests/            305 tests, including the nine-point chaos suite
 verify.py         one command that proves all of the above
 ```
 
