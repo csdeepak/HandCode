@@ -1,0 +1,134 @@
+name: CI
+
+# Everything here had only ever run on one Windows laptop. The point of this
+# workflow is not the badge -- it is that the classifier targets bash while
+# the project was developed on Windows, and `verify.py` is the thing this
+# repository asks strangers to run.
+#
+# Two questions, deliberately kept apart:
+#   tests   does a COLD install work today, on someone else's machine
+#   pinned  does the recorded constraints.txt still reproduce
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # docs/0012 §6: force UTF-8 on every redirected subprocess. Four separate
+  # cp1252 bugs came from not doing this, and CI redirects everything.
+  PYTHONIOENCODING: utf-8
+  PYTHONUTF8: "1"
+
+jobs:
+  tests:
+    name: tests ${{ matrix.os }} py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        # 3.12 is the floor the README claims; 3.13 is what it was built on.
+        python: ["3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Give git an identity
+        # The chaos suite makes real commits. A runner has git but no author,
+        # and `git commit` fails without one.
+        run: |
+          git config --global user.email "ci@example.invalid"
+          git config --global user.name "agentctl CI"
+          git config --global init.defaultBranch main
+
+      - name: Install (unpinned, as a new cloner gets it)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,openhands]"
+
+      - name: Versions actually resolved
+        run: pip list
+
+      - run: pytest tests/ -q
+
+  pinned:
+    name: pinned constraints ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Give git an identity
+        run: |
+          git config --global user.email "ci@example.invalid"
+          git config --global user.name "agentctl CI"
+          git config --global init.defaultBranch main
+
+      - name: Install the recorded set
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,openhands]" -c constraints.txt
+
+      - run: pytest tests/ -q
+
+  verify:
+    name: verify.py (the correctness claim)
+    runs-on: ubuntu-latest
+    # Spawns a mock provider, a LiteLLM proxy and real subprocesses that are
+    # killed mid-effect. Slower than the unit tests and worth every second:
+    # this is the claim the README makes to strangers.
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Give git an identity
+        run: |
+          git config --global user.email "ci@example.invalid"
+          git config --global user.name "agentctl CI"
+          git config --global init.defaultBranch main
+
+      - name: Install with the proxy extra
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,openhands,proxy]"
+
+      - name: mcp must not have been downgraded
+        # litellm[proxy] once pulled mcp below what the SDK needs, and
+        # `pip check` reported nothing (docs/0021 §7). Assert it directly.
+        run: |
+          python - <<'EOF'
+          from importlib.metadata import version
+          mcp = version("mcp")
+          print("mcp", mcp)
+          assert int(mcp.split(".")[0]) >= 2, f"mcp downgraded to {mcp}"
+          EOF
+
+      - run: python -u verify.py
+
+      - name: Keep the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-results
+          path: experiments/*/results/*.json
+          if-no-files-found: ignore

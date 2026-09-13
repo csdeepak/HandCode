@@ -1,5 +1,7 @@
 # AI Agent Control Plane
 
+[![CI](https://github.com/csdeepak/HandCode/actions/workflows/ci.yml/badge.svg)](https://github.com/csdeepak/HandCode/actions/workflows/ci.yml)
+
 Making long-running LLM agent work **recoverable, measurable, and
 cost-efficient** across changes of provider, account, and model.
 
@@ -44,6 +46,17 @@ python verify.py
 network, no tokens. Takes about four minutes.
 
 Requires Python ≥ 3.12 (the OpenHands SDK does) and `git` on PATH.
+
+If a dependency has since shipped something incompatible, install the exact set
+that is known to pass:
+
+```bash
+pip install -e ".[dev,openhands]" -c constraints.txt
+```
+
+CI runs both forms on Linux and Windows, and runs `verify.py` itself — so the
+badge above means the correctness claim reproduces on a machine that is not
+mine, which is the only version of that claim worth anything.
 
 ---
 
