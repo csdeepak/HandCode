@@ -62,9 +62,15 @@ def run(
     max_iterations: int = 30,
     max_budget_usd: float | None = None,
     resume: str | None = None,
+    record: str | Path | None = None,
+    replay: str | Path | None = None,
     verbose: bool = True,
 ) -> dict:
-    """Run one agent task. Returns a summary dict."""
+    """Run one agent task. Returns a summary dict.
+
+    `record` writes every completion to a cassette; `replay` serves them back
+    from disk with no API key, no network and no sampling (M6, `docs/0029`).
+    """
     from agentctl.adapters.openhands import protect
     from agentctl.runtime import tools as rt
     from openhands.sdk import LLM, Agent, Conversation
@@ -80,12 +86,38 @@ def run(
     # Do NOT register the plain tools here: protect() registers gated versions
     # under the same names, and doing both only produces duplicate warnings.
 
+    # Replay stands in for the provider entirely: the cassette decides the
+    # model, so a `--model` flag cannot silently invalidate every fingerprint.
+    replay_server = None
+    if replay is not None:
+        from agentctl.control.replay import Cassette, ReplayServer
+
+        cassette = Cassette.load(replay)
+        if not cassette.turns:
+            raise SystemExit(f"cassette {replay} has no turns")
+        first = cassette.turns[0]
+        model = first.provider_model or first.model or model
+        replay_server = ReplayServer(cassette).start()
+        base_url = replay_server.base_url
+        if verbose:
+            print(f"  replay        {replay} ({len(cassette)} turns)")
+
     api_key, key_env = _key_for(model)
+    if replay_server is not None:
+        api_key, key_env = "replay-no-key-needed", None
     if not api_key and not base_url:
         raise SystemExit(
             f"No API key found for {model}.\n"
             f"  Set one in your environment, e.g. OPENROUTER_API_KEY.\n"
             f"  It is read from the environment and never logged.")
+
+    recorder = None
+    if record is not None:
+        from agentctl.adapters.litellm.recorder import attach
+
+        recorder = attach(record, configured_model=model)
+        if verbose:
+            print(f"  recording     {record}")
 
     cid = uuid.UUID(resume) if resume else uuid.uuid4()
 
@@ -146,16 +178,34 @@ def run(
         print(f"  destructive   {'CONFIRM' if confirm_destructive else 'ALLOWED'}")
         print()
 
-    if not resume:
-        conv.send_message(task)
-    conv.run()
+    try:
+        if not resume:
+            conv.send_message(task)
+        conv.run()
+    finally:
+        # A cassette is only useful if it survives the run that produced it,
+        # including a run that died -- which is the interesting case here.
+        if recorder is not None:
+            from agentctl.adapters.litellm.recorder import detach
+            detach(recorder)
 
     blocked = guard.blocked()
     guard.close()
 
-    return {"conversation_id": str(cid), "workspace": str(ws),
-            "ledger": str(ledger_path), "decisions": decisions,
-            "blocked": [b.tool_call_id for b in blocked]}
+    out = {"conversation_id": str(cid), "workspace": str(ws),
+           "ledger": str(ledger_path), "decisions": decisions,
+           "blocked": [b.tool_call_id for b in blocked]}
+
+    if recorder is not None:
+        out["recorded"] = {"cassette": str(record),
+                           "turns": len(recorder.cassette),
+                           "errors": recorder.errors}
+    if replay_server is not None:
+        from agentctl.control.replay import summarise
+        out["replay"] = summarise(replay_server.cassette)
+        replay_server.stop()
+
+    return out
 
 
 def _install_confirmation(guard, verbose: bool, workspace: Path | None = None) -> None:

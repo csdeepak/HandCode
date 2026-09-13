@@ -230,7 +230,7 @@ def cmd_run(args) -> int:
         else None,
         confirm_destructive=not args.allow_destructive,
         max_iterations=args.max_iterations, max_budget_usd=args.max_budget,
-        resume=args.resume,
+        resume=args.resume, record=args.record, replay=args.replay,
     )
     print()
     print(f"  conversation  {result['conversation_id']}")
@@ -239,6 +239,25 @@ def cmd_run(args) -> int:
     for d in result["decisions"]:
         verdicts[d["verdict"]] = verdicts.get(d["verdict"], 0) + 1
     print(f"  decisions     {verdicts or 'none'}")
+
+    if rec := result.get("recorded"):
+        print(f"  recorded      {rec['turns']} turns -> {rec['cassette']}"
+              + (f"  ({rec['errors']} errors)" if rec["errors"] else ""))
+        print(f"  replay it:    agentctl run '' --workspace "
+              f"{result['workspace']} --replay {rec['cassette']}")
+
+    if rep := result.get("replay"):
+        print(f"  replayed      {rep['turns_replayed']}/{rep['turns_recorded']}"
+              f" turns, $0.00")
+        if rep["diverged"]:
+            # The point of M6: a divergence is the finding, not an error.
+            print(f"  DIVERGED      {rep['misses']} miss(es), "
+                  f"{rep['unplayed']} turn(s) never reached")
+            if rep["first_divergence"]:
+                print(f"                {rep['first_divergence']}")
+        else:
+            print("  identical     the run matched the recording exactly")
+
     if result["blocked"]:
         print(f"  BLOCKED       {len(result['blocked'])} effect(s) need you:")
         print(f"                agentctl --ledger {result['ledger']} blocked")
@@ -288,6 +307,11 @@ def build_parser() -> argparse.ArgumentParser:
     rn.add_argument("--max-iterations", type=int, default=30)
     rn.add_argument("--max-budget", type=float, help="hard USD ceiling for the run")
     rn.add_argument("--resume", help="conversation id to continue")
+    rn.add_argument("--record", metavar="CASSETTE",
+                    help="write every completion to a cassette for later replay")
+    rn.add_argument("--replay", metavar="CASSETTE",
+                    help="serve completions from a cassette: no key, no "
+                         "network, no tokens, no sampling")
     rn.add_argument("--allow-destructive", action="store_true",
                     help="do not ask before rm -rf, or before a write that "
                          "lands outside the workspace. Think first.")

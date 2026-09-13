@@ -672,7 +672,7 @@ demonstrable, and teaches one thing.
 | ~~M3~~ | ~~Classifier + capability matrix~~ | ✅ **DONE** — 75-command corpus green; building it found 21 under-classifications (`0026`) | Why data beats code for policy |
 | **M4** | Git + filesystem probes | Chaos green for `NON_IDEMPOTENT_WRITE` | Reconciliation, idempotency |
 | **M5** | Cost ledger + attribution | `agentctl cost --today` shows spend per task | Telemetry joins, observability |
-| **M6** | Record/replay evaluator | Re-run a real session offline at zero cost | Deterministic testing of nondeterministic systems |
+| ~~M6~~ | ~~Record/replay evaluator~~ | DONE - a real session replays with no key, no network, 0 misses (`0029`) | Deterministic testing of nondeterministic systems |
 | **M7** | Policy compiler | Budget cap actually blocks; escalation asks first | Control/data plane separation, DSL design |
 
 **M2 is now the whole thesis** — M0 is done and confirmed it. Everything after

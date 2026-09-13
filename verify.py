@@ -47,6 +47,9 @@ CHECKS = [
     ("FULL STACK",
      ["experiments/0006-full-stack/run_full_stack.py"],
      "agent -> proxy -> backends, with the gate. The integration."),
+    ("M6  replay",
+     ["experiments/0008-m6-replay/run_replay.py"],
+     "a real recorded session replays offline, identically, for nothing"),
 ]
 
 

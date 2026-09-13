@@ -9,7 +9,7 @@ cost-efficient** across changes of provider, account, and model.
 > recoverable, measurable, and cost-efficient.
 
 **Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 308 tests — including a nine-point chaos suite with real process
+verified. 328 tests — including a nine-point chaos suite with real process
 death — plus four end-to-end crash experiments. All green.
 
 ---
@@ -87,6 +87,21 @@ agentctl run "add type hints to utils.py" --workspace ./myproject
 Real tools (bash, read, write), a real model, every effect classified and
 ledgered. Crash it and re-run with `--resume <id>`: work already done is not
 repeated.
+
+### Run it again for nothing
+
+```bash
+agentctl run "..." --workspace ./app --record session.jsonl   # once, for real
+agentctl run ""    --workspace ./app --replay session.jsonl   # $0.00, offline
+```
+
+`--replay` serves every completion from the recording: no API key, no network,
+no tokens, no sampling. A request the cassette does not contain is answered
+with a 502 naming the turn that diverged, never with a plausible-looking
+completion — a replay that cannot fail would not be worth running.
+
+Replay pins the model, not the world: tool output feeds the next request, so
+the workspace has to start where the recording did (`docs/0029`).
 
 Two safety properties, deliberately separate — the **gate** stops an effect
 happening *twice*; `--confirm-destructive` (on by default) stops one happening
@@ -198,7 +213,7 @@ Stated plainly, because a safety layer that oversells itself is worse than none:
   the key, and nothing local can detect that it did not.
 - **Single process.** Fencing is implemented and tested; multi-host is not
   exercised.
-- **No policy compiler, no cache affinity, no dashboard.** M6 onward.
+- **No policy compiler, no cache affinity, no dashboard.** M7 onward.
 - **One real provider only.** Verified against OpenRouter free-tier models
   (`docs/0023`); it found two real bugs on the first attempt. Anthropic's
   `/v1/messages` path and paid pricing coverage remain untested.
@@ -214,7 +229,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            308 tests, including the nine-point chaos suite
+tests/            328 tests, including the nine-point chaos suite
 verify.py         one command that proves all of the above
 ```
 
