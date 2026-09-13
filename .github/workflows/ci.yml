@@ -117,19 +117,31 @@ jobs:
         # therefore mcp>=2. The two are incompatible on paper and work in
         # practice, so the override is explicit here rather than hidden in a
         # range specifier that pip would refuse outright (docs/0028).
-        run: pip install --upgrade "mcp>=2.2.0"
+        #
+        # `fastmcp` is named too: the proxy install leaves only `fastmcp-slim`,
+        # which has no client support, and the SDK does `from fastmcp import
+        # Client` on nearly every import path.
+        run: pip install --upgrade "mcp>=2.2.0" "fastmcp>=4.0.3"
 
-      - name: mcp must actually be >= 2
-        # `pip check` reported nothing when this broke before (docs/0021 §7),
-        # so assert the installed version rather than trusting metadata.
+      - name: The SDK must actually import
+        # An earlier version of this step asserted `import fastmcp` and PASSED
+        # while client support was missing: fastmcp's __init__ resolves names
+        # lazily through __getattr__, so importing the package proves nothing
+        # and only attribute access raises (docs/0028 §5).
+        #
+        # So exercise the symbol the SDK really uses, and then the SDK itself.
         run: |
           python - <<'EOF'
           from importlib.metadata import version
           mcp = version("mcp")
-          print("mcp", mcp)
+          print("mcp", mcp, "| fastmcp", version("fastmcp"))
           assert int(mcp.split(".")[0]) >= 2, f"mcp is {mcp}, need >= 2"
-          import fastmcp  # the thing that actually breaks
-          print("fastmcp imports fine")
+
+          from fastmcp import Client          # NOT `import fastmcp`
+          print("fastmcp client ok:", Client.__module__)
+
+          from openhands.sdk.event.base import Event   # the real import chain
+          print("openhands sdk ok:", Event.__name__)
           EOF
 
       - run: python -u verify.py

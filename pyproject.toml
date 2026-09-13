@@ -25,7 +25,10 @@ openhands = ["openhands-sdk>=1.45.0"]
 # They work together in practice, so the override is deliberate and explicit:
 #
 #     pip install -e ".[dev,openhands,proxy]"
-#     pip install --upgrade "mcp>=2.2.0"      # knowingly past litellm's bound
+#     pip install --upgrade "mcp>=2.2.0" "fastmcp>=4.0.3"
+#
+# `fastmcp` is named because the proxy install leaves only `fastmcp-slim`,
+# which has no client support, and the SDK does `from fastmcp import Client`.
 #
 # `verify.py` is what certifies the combination, and CI asserts the mcp major
 # version directly rather than trusting either package's metadata.

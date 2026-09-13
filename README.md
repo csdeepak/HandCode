@@ -66,8 +66,12 @@ override is explicit rather than hidden in a version range pip would refuse:
 
 ```bash
 pip install -e ".[dev,openhands,proxy]"
-pip install --upgrade "mcp>=2.2.0"      # knowingly past litellm's bound
+pip install --upgrade "mcp>=2.2.0" "fastmcp>=4.0.3"
 ```
+
+`fastmcp` is named explicitly because the proxy install leaves only
+`fastmcp-slim`, which has no client support — and the SDK does
+`from fastmcp import Client` on nearly every import path.
 
 Only Seam A and the full-stack demo need this. Everything else — including the
 whole correctness core — runs without the proxy.
