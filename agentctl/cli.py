@@ -231,6 +231,7 @@ def cmd_run(args) -> int:
         confirm_destructive=not args.allow_destructive,
         max_iterations=args.max_iterations, max_budget_usd=args.max_budget,
         resume=args.resume, record=args.record, replay=args.replay,
+        policy=args.policy,
     )
     print()
     print(f"  conversation  {result['conversation_id']}")
@@ -266,6 +267,56 @@ def cmd_run(args) -> int:
     print(f"  resume with:  agentctl run '' "
           f"--workspace {result['workspace']} "
           f"--resume {result['conversation_id']}")
+    return 0
+
+
+def cmd_policy(args) -> int:
+    """Compile a policy, or show what the compiled one says.
+
+    Compiling is a separate, explicit step for the reason in `docs/0012` §5.2:
+    every error a policy can contain should surface HERE, where a person is
+    watching, and never in the middle of a run where the only safe response is
+    to stop the work.
+    """
+    from agentctl.control.policy import PolicyError, compile_to
+    from agentctl.kernel.policy import Policy
+
+    if args.source:
+        try:
+            out = compile_to(args.source, args.out)
+        except PolicyError as e:
+            print(f"{args.source} does not compile:\n{e}", file=sys.stderr)
+            return 2
+        except FileNotFoundError:
+            print(f"no such policy: {args.source}", file=sys.stderr)
+            return 2
+        print(f"compiled {args.source} -> {out}")
+
+    try:
+        pol = Policy.load(args.out)
+    except FileNotFoundError as e:
+        print(e, file=sys.stderr)
+        return 2
+
+    print()
+    print(f"policy {args.out}")
+    print(f"  source        {pol.source_sha256[:16] or '(inline)'}")
+    print(f"  default pool  {pol.default_pool} "
+          f"{pol.pool(pol.default_pool or '')}")
+    esc = pol.escalation
+    if esc:
+        print(f"  escalate to   {esc.get('pool')} "
+              f"({'confirm' if esc.get('require_confirmation') else 'SILENT'})")
+    for scope in ("per_task", "daily"):
+        if (lim := pol.limit(scope)) is not None:
+            print(f"  {scope:<13} ${lim:.2f}")
+    print(f"  on exceeded   {pol.on_exceeded}")
+    print(f"  on unpriced   {pol.on_unpriced}"
+          "   (litellm prices some endpoints at 0.0 -- docs/0021)")
+    for cls in ("PURE_READ", "IDEMPOTENT_WRITE", "NON_IDEMPOTENT_WRITE",
+                "EXTERNAL", "DESTRUCTIVE"):
+        if (rule := pol.effect_rule(cls)):
+            print(f"  {cls:<13} {rule}")
     return 0
 
 
@@ -307,6 +358,9 @@ def build_parser() -> argparse.ArgumentParser:
     rn.add_argument("--max-iterations", type=int, default=30)
     rn.add_argument("--max-budget", type=float, help="hard USD ceiling for the run")
     rn.add_argument("--resume", help="conversation id to continue")
+    rn.add_argument("--policy", metavar="POLICY",
+                    help="policy.yaml or a compiled policy. Budget caps and "
+                         "effect rules are enforced before the run starts.")
     rn.add_argument("--record", metavar="CASSETTE",
                     help="write every completion to a cassette for later replay")
     rn.add_argument("--replay", metavar="CASSETTE",
@@ -316,6 +370,15 @@ def build_parser() -> argparse.ArgumentParser:
                     help="do not ask before rm -rf, or before a write that "
                          "lands outside the workspace. Think first.")
     rn.set_defaults(fn=cmd_run)
+
+    po = sub.add_parser("policy", help="compile and inspect the policy")
+    po.add_argument("source", nargs="?",
+                    help="policy.yaml to compile; omit to show the compiled one")
+    po.add_argument("--out", type=Path,
+                    default=Path("agentctl/control/policy/data/"
+                                 "policy.compiled.json"),
+                    help="where the compiled artifact lives")
+    po.set_defaults(fn=cmd_policy)
 
     c = sub.add_parser("cost", help="what the work cost, and how much is known")
     c.add_argument("--today", action="store_true", help="last 24 hours only")

@@ -673,7 +673,7 @@ demonstrable, and teaches one thing.
 | **M4** | Git + filesystem probes | Chaos green for `NON_IDEMPOTENT_WRITE` | Reconciliation, idempotency |
 | **M5** | Cost ledger + attribution | `agentctl cost --today` shows spend per task | Telemetry joins, observability |
 | ~~M6~~ | ~~Record/replay evaluator~~ | DONE - a real session replays with no key, no network, 0 misses (`0029`) | Deterministic testing of nondeterministic systems |
-| **M7** | Policy compiler | Budget cap actually blocks; escalation asks first | Control/data plane separation, DSL design |
+| ~~M7~~ | ~~Policy compiler~~ | DONE - the cap blocks before the run starts; escalation asks (`0030`) | Control/data plane separation, DSL design |
 
 **M2 is now the whole thesis** — M0 is done and confirmed it. Everything after
 is leverage.

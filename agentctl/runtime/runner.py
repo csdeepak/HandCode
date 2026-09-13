@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -64,6 +65,8 @@ def run(
     resume: str | None = None,
     record: str | Path | None = None,
     replay: str | Path | None = None,
+    policy: str | Path | None = None,
+    cost_ledger: str | Path | None = None,
     verbose: bool = True,
 ) -> dict:
     """Run one agent task. Returns a summary dict.
@@ -118,6 +121,17 @@ def run(
         recorder = attach(record, configured_model=model)
         if verbose:
             print(f"  recording     {record}")
+
+    pol = _load_policy(policy)
+    if pol:
+        _enforce_before_spending(pol, model, cost_ledger, max_budget_usd,
+                                 replay is not None, verbose)
+        if max_budget_usd is None:
+            max_budget_usd = pol.limit("per_task")
+        # `docs/0002` §5: never silently spend. A policy that names DESTRUCTIVE
+        # as requiring approval turns the confirmation on regardless of flags.
+        if pol.requires_approval("DESTRUCTIVE"):
+            confirm_destructive = True
 
     cid = uuid.UUID(resume) if resume else uuid.uuid4()
 
@@ -257,3 +271,98 @@ def _install_confirmation(guard, verbose: bool, workspace: Path | None = None) -
         return decision
 
     guard.gate.guard = guard_with_confirmation
+
+
+# ── policy enforcement (M7, docs/0030) ─────────────────────────────────
+def _load_policy(policy):
+    """Load a compiled policy, or compile a .yaml on the spot.
+
+    Accepting the source form is a convenience with a sharp edge: compiling
+    here means a malformed policy is discovered at run time, which is exactly
+    what `docs/0012` §5.2 wants to avoid. So it is compiled BEFORE anything
+    else happens, and a failure stops the run before a single effect.
+    """
+    from pathlib import Path as _P
+
+    from agentctl.kernel.policy import Policy
+
+    if policy is None:
+        return Policy.empty()
+    p = _P(policy)
+    if p.suffix in (".yaml", ".yml"):
+        from agentctl.control.policy import PolicyError, compile_policy
+        try:
+            return Policy(compile_policy(p))
+        except PolicyError as e:
+            raise SystemExit(f"policy {p} does not compile:\n{e}")
+    return Policy.load(p)
+
+
+def _daily_spend(cost_ledger) -> tuple[float, float] | None:
+    """(spent, coverage) for the last 24h, or None if nothing is recorded.
+
+    Read HERE, in the runtime, and handed to the kernel as a number. The kernel
+    may not import the cost ledger (`docs/0008` R2) and should not: a budget
+    guard that queried a database in-band would fail closed whenever the
+    control plane was down, turning a cost feature into an outage.
+    """
+    from pathlib import Path as _P
+
+    p = _P(cost_ledger) if cost_ledger else _P("cost.db")
+    if not p.exists():
+        return None
+    try:
+        from agentctl.control.cost import CostLedger
+        with CostLedger(p) as c:
+            t = c.totals(since=time.time() - 86400)
+        return (t.cost_usd, t.coverage) if t.calls else None
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+def _enforce_before_spending(pol, model, cost_ledger, max_budget_usd,
+                             replaying: bool, verbose: bool) -> None:
+    """Refuse the run outright if policy already says no.
+
+    Before the ledger, before the agent, before a single token: a budget check
+    that happens after the work is an audit, not a cap.
+    """
+    if verbose:
+        print(f"  policy        {len(pol.pool(pol.default_pool or ''))} "
+              f"deployment(s) in {pol.default_pool!r}"
+              f"  per-task ${pol.limit('per_task') or 0:.2f}")
+
+    # Replay spends nothing, so a budget cannot bind and a stale ledger must
+    # not stop an offline run.
+    if replaying:
+        return
+
+    spend = _daily_spend(cost_ledger)
+    if spend is not None:
+        spent, coverage = spend
+        v = pol.check_budget(spent, "daily", coverage)
+        if not v.allowed:
+            raise SystemExit(
+                f"refusing to start: {v.reason}\n"
+                f"  raise budget.daily_usd, or wait for the window to roll.")
+        if not v.trustworthy and verbose:
+            print(f"  ! budget      {v.describe()}", file=sys.stderr)
+
+    # Escalation: using something outside the default pool is spending money
+    # the policy did not pre-authorise (`docs/0002` §5).
+    default = pol.default_pool
+    if default and model not in pol.pool(default):
+        esc = pol.escalation or {}
+        target = esc.get("pool")
+        in_escalation_pool = target and model in pol.pool(target)
+        if esc.get("require_confirmation", True):
+            where = f"the {target!r} pool" if in_escalation_pool else "no pool"
+            print(f"\n  !! {model} is not in the default pool {default!r} "
+                  f"({where})", file=sys.stderr)
+            try:
+                answer = input("     spend on it? [y/N] ").strip().lower()
+            except EOFError:
+                answer = "n"
+            if answer != "y":
+                raise SystemExit("refused: policy requires confirmation "
+                                 "before leaving the default pool")

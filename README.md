@@ -9,7 +9,7 @@ cost-efficient** across changes of provider, account, and model.
 > recoverable, measurable, and cost-efficient.
 
 **Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 332 tests — including a nine-point chaos suite with real process
+verified. 362 tests — including a nine-point chaos suite with real process
 death — plus four end-to-end crash experiments. All green.
 
 ---
@@ -130,6 +130,27 @@ guard.attach(conv)                     # required, or the gate is inert
 Omit `tools` to run Seam B only: still correct, but an already-landed effect is
 blocked rather than resumed cleanly.
 
+### Policy
+
+```bash
+agentctl policy policy.yaml            # compile, then show what it says
+agentctl run "..." --policy policy.yaml
+```
+
+Compiling is a separate step on purpose. Every error a policy can contain —
+an undefined pool, a daily cap below the per-task cap, a misspelled effect
+class — surfaces there, where you are watching, rather than mid-run where the
+only safe response is to stop. A typo like `desctructive` would otherwise
+compile into an artifact where `DESTRUCTIVE` has no rule at all, and the file
+would still read like protection.
+
+The cap is enforced *before* the run starts, because a budget check that runs
+after the work is an audit:
+
+```
+refusing to start: budget exceeded: $1.5000 of $1.00 (daily)
+```
+
 ### When something blocks
 
 The gate fails closed when it cannot tell whether an effect happened. That
@@ -213,7 +234,9 @@ Stated plainly, because a safety layer that oversells itself is worse than none:
   the key, and nothing local can detect that it did not.
 - **Single process.** Fencing is implemented and tested; multi-host is not
   exercised.
-- **No policy compiler, no cache affinity, no dashboard.** M7 onward.
+- **No cache affinity, no dashboard.** The policy compiler landed in M7;
+  `pools` and `tiering` are declarations the LiteLLM proxy would act on,
+  not things `agentctl run` routes by (`docs/0030` §6).
 - **One real provider only.** Verified against OpenRouter free-tier models
   (`docs/0023`); it found two real bugs on the first attempt. Anthropic's
   `/v1/messages` path and paid pricing coverage remain untested.
@@ -229,7 +252,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            332 tests, including the nine-point chaos suite
+tests/            362 tests, including the nine-point chaos suite
 verify.py         one command that proves all of the above
 ```
 

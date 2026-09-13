@@ -1,0 +1,45 @@
+# The default policy: what `docs/0013` calls the real daily driver.
+#
+# Edit this, run `agentctl policy compile`, and the kernel picks up the
+# compiled artifact. Nothing here is evaluated in-band -- see
+# `agentctl/kernel/policy.py`.
+version: 1
+
+pools:
+  free_tier:
+    - openrouter/free
+    - google-ai-studio/flash
+    - cerebras/llama
+    - mistral/free
+  paid:
+    - anthropic/sonnet
+
+routing:
+  default_pool: free_tier
+  escalate_to:
+    pool: paid
+    when:
+      requires_capability: [long_context]
+      or_after_failures: 3
+    # docs/0002 section 5: never silently spend.
+    require_confirmation: true
+
+budget:
+  daily_usd: 2.00
+  per_task_usd: 0.50
+  on_exceeded: block
+  # litellm reports 0.0 for endpoints it cannot price (docs/0021 section 5), so
+  # measured spend is a LOWER bound. `warn` keeps working and says so, which is
+  # fail-open -- consistent with docs/0008 section 6.5, where cost decisions
+  # fail open and only effect decisions fail closed. `block` is the honest
+  # alternative and stops most free-tier work.
+  on_unpriced: warn
+
+tiering:
+  planning: { min_tier: strong }
+  edit:     { min_tier: mid }
+  read:     { min_tier: cheap }
+
+effects:
+  destructive: require_human_approval
+  external:    reconcile_or_block

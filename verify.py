@@ -50,6 +50,9 @@ CHECKS = [
     ("M6  replay",
      ["experiments/0008-m6-replay/run_replay.py"],
      "a real recorded session replays offline, identically, for nothing"),
+    ("M7  policy",
+     ["experiments/0009-m7-policy/run_policy.py"],
+     "the budget cap blocks; escalation asks before spending"),
 ]
 
 

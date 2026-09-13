@@ -1,0 +1,42 @@
+{
+  "budget": {
+    "daily_usd": 2.0,
+    "on_exceeded": "block",
+    "on_unpriced": "warn",
+    "per_task_usd": 0.5
+  },
+  "compiled_at": 1789320921.6737514,
+  "effects": {
+    "DESTRUCTIVE": "require_human_approval",
+    "EXTERNAL": "reconcile_or_block"
+  },
+  "routing": {
+    "default_pool": "free_tier",
+    "escalation": {
+      "after_failures": 3,
+      "pool": "paid",
+      "require_confirmation": true,
+      "requires_capability": [
+        "long_context"
+      ]
+    },
+    "pools": {
+      "free_tier": [
+        "openrouter/free",
+        "google-ai-studio/flash",
+        "cerebras/llama",
+        "mistral/free"
+      ],
+      "paid": [
+        "anthropic/sonnet"
+      ]
+    }
+  },
+  "source_sha256": "afe4fcecb811ad4a8d0fbfb58179e9fa139ee92f0036f70c97feb0ee0d144098",
+  "tiering": {
+    "edit": "mid",
+    "planning": "strong",
+    "read": "cheap"
+  },
+  "version": 1
+}
