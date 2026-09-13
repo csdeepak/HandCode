@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0025**.
+**The highest number is the newest document.** Current head: **0026**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -31,6 +31,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0023](docs/0023-real-provider-run.md) | The Real Provider Run | DECISION | ACCEPTED | 2026-09-08 | Found a real duplicate; corrected Q2. `tool_call_id` is model-minted and unstable across a pool |
 | [0024](docs/0024-right-outcome-wrong-route.md) | The Right Outcome by the Wrong Route | DECISION | ACCEPTED | 2026-09-11 | A demo passed while the gate was crashing. Assert the route, not just the result |
 | [0025](docs/0025-making-it-usable.md) | Making It Usable | DECISION | ACCEPTED | 2026-09-11 | Real tools + `agentctl run`. The model saw empty observations because `content` is reserved |
+| [0026](docs/0026-classifier-first-word.md) | M3 — The Classifier Only Ever Saw the First Word | DECISION | ACCEPTED | 2026-09-13 | 21 under-classifications in 55 commands. Anchored rules never saw past the first word |
 
 ---
 
@@ -55,7 +56,7 @@ verdicts, current design, then the diagrams. About 40 minutes.
 | **Architecture** | `0008` DRAFT — Q1/Q2/Q3/Q5/Q13/Q15/Q16/Q17 resolved. **Q4 is the last blocker.** §3 needs the `0015` correction. |
 | **Verify** | `python verify.py` — 8 checks, ~4 min, zero cost |
 | **Next action** | **M7** (policy compiler), or a run against a second provider family to test the `/v1/messages` path. |
-| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **184 tests green.** |
+| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **264 tests green.** |
 
 ---
 

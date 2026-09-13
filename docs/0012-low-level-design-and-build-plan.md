@@ -669,7 +669,7 @@ demonstrable, and teaches one thing.
 | ~~M0~~ | ~~Falsification spike~~ | ✅ **DONE** — all four hypotheses confirmed (`0014`) | — |
 | **M1** | LiteLLM wiring + live hook proof | `async_pre_call_hook` provably fires; two accounts fail over. **Trace-id forwarding is already free** (`0015` §5) — only add the turn component | Proxy architecture, the endpoint trap |
 | **M2** | Ledger + gate. **Seam B first**, then Seam C | (a) `block_action` empirically confirmed; (b) chaos suite green at all 9 points for `PURE_READ`/`IDEMPOTENT_WRITE` | Write-ahead logging, durability, SQLite |
-| **M3** | Classifier + capability matrix | `execute_bash` classified correctly across a 50-command corpus | Why data beats code for policy |
+| ~~M3~~ | ~~Classifier + capability matrix~~ | ✅ **DONE** — 75-command corpus green; building it found 21 under-classifications (`0026`) | Why data beats code for policy |
 | **M4** | Git + filesystem probes | Chaos green for `NON_IDEMPOTENT_WRITE` | Reconciliation, idempotency |
 | **M5** | Cost ledger + attribution | `agentctl cost --today` shows spend per task | Telemetry joins, observability |
 | **M6** | Record/replay evaluator | Re-run a real session offline at zero cost | Deterministic testing of nondeterministic systems |

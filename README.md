@@ -7,7 +7,7 @@ cost-efficient** across changes of provider, account, and model.
 > recoverable, measurable, and cost-efficient.
 
 **Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 184 tests — including a nine-point chaos suite with real process
+verified. 264 tests — including a nine-point chaos suite with real process
 death — plus four end-to-end crash experiments. All green.
 
 ---
@@ -150,6 +150,11 @@ Diagrams: [`docs/0011`](docs/0011-request-flow-architecture.md).
 
 Stated plainly, because a safety layer that oversells itself is worse than none:
 
+- **No sandbox.** `execute_bash` runs on the host. The capability matrix stands
+  in for one, and a 75-command corpus keeps it honest (`docs/0026`) — but it is
+  regex over a command string, not a shell parser, and an interpreter
+  (`python -c "..."`) is opaque to it by construction. Not enough for untrusted
+  tasks. Listed first because it is the limitation the others assume away.
 - **`EXTERNAL` effects need an idempotency key.** With one declared, a retry is
   safe (`docs/0020`). Without one — `send_email` and friends — they still fail
   closed, correctly: there is no safe retry.
@@ -175,7 +180,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            184 tests, including the nine-point chaos suite
+tests/            264 tests, including the nine-point chaos suite
 verify.py         one command that proves all of the above
 ```
 
