@@ -9,7 +9,7 @@ cost-efficient** across changes of provider, account, and model.
 > recoverable, measurable, and cost-efficient.
 
 **Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 362 tests — including a nine-point chaos suite with real process
+verified. 413 tests — including a nine-point chaos suite with real process
 death — plus four end-to-end crash experiments. All green.
 
 ---
@@ -81,8 +81,14 @@ whole correctness core — runs without the proxy.
 ## Use it
 
 ```bash
+agentctl doctor --workspace ./myproject     # check BEFORE you spend
 agentctl run "add type hints to utils.py" --workspace ./myproject
 ```
+
+`doctor` checks packages, the SDK import chain, git, your provider keys, the
+policy, and whether the workspace has uncommitted changes the agent is about
+to edit. It reports the one thing it cannot know — OpenRouter exposes no
+remaining-free-request counter on any endpoint (`docs/0031`).
 
 Real tools (bash, read, write), a real model, every effect classified and
 ledgered. Crash it and re-run with `--resume <id>`: work already done is not
@@ -129,6 +135,19 @@ guard.attach(conv)                     # required, or the gate is inert
 
 Omit `tools` to run Seam B only: still correct, but an already-landed effect is
 blocked rather than resumed cleanly.
+
+### Failing over
+
+```bash
+agentctl proxy --out ./proxy          # config built from the keys you have
+cd ./proxy && litellm --config proxy_config.yaml --port 4000
+agentctl run "..." --model openai/pool --base-url http://localhost:4000
+```
+
+A pool over **one** provider key survives a transient upstream overload and a
+per-model limit. It does **not** survive an account-wide daily cap — three
+`:free` models on one key share one quota. The command counts credentials, not
+deployments, and says so.
 
 ### Policy
 
@@ -252,7 +271,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            362 tests, including the nine-point chaos suite
+tests/            413 tests, including the nine-point chaos suite
 verify.py         one command that proves all of the above
 ```
 

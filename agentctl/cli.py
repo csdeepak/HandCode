@@ -4,6 +4,7 @@ The human interface to fail-closed. When the gate cannot tell whether an effect
 landed it blocks and waits; without a way to see and answer those, the design
 is correct and unusable (`docs/0013` §3, Panel 3).
 
+    agentctl doctor                  is everything ready? check before running
     agentctl run "<task>"            run an agent on a real workspace
     agentctl status                  what is in the ledger
     agentctl cost                    what the work cost, and how much is known
@@ -270,6 +271,47 @@ def cmd_run(args) -> int:
     return 0
 
 
+def cmd_doctor(args) -> int:
+    """Preflight. What is ready, what is missing, what will stop you."""
+    from agentctl.runtime.doctor import check_all, report
+
+    print("agentctl doctor")
+    print()
+    rows = check_all(workspace=args.workspace, probe_network=not args.offline)
+    return report(rows)
+
+
+def cmd_proxy(args) -> int:
+    """Generate a proxy config from the keys you actually have."""
+    from agentctl.control.proxy import accounts, available, write
+
+    entries = available()
+    cfg, hook = write(args.out)
+    n_acct = len(accounts(entries))
+
+    print(f"wrote {cfg}")
+    print(f"wrote {hook}")
+    print()
+    print(f"  {len(entries)} deployment(s) across {n_acct} account(s):")
+    for env_var, model, short, is_free in entries:
+        print(f"    {short:<18} {model}  [{'free' if is_free else 'PAID'}]")
+    print()
+    if n_acct == 1:
+        print("  ! ONE ACCOUNT. A pool over one key survives a transient")
+        print("    overload or a per-model limit, but NOT an account-wide")
+        print("    daily cap -- every entry above shares the same quota.")
+        print("    Export a second provider key and re-run this.")
+        print()
+    print("  start it:")
+    print(f"    cd {args.out}")
+    print("    litellm --config proxy_config.yaml --port 4000")
+    print()
+    print("  then point runs at it (no key needed client-side):")
+    print("    agentctl run \"...\" --workspace ./app \\")
+    print("      --model openai/pool --base-url http://localhost:4000")
+    return 0
+
+
 def cmd_policy(args) -> int:
     """Compile a policy, or show what the compiled one says.
 
@@ -328,7 +370,26 @@ def build_parser() -> argparse.ArgumentParser:
                    help=f"path to the effect ledger (default: {DEFAULT_LEDGER})")
     p.add_argument("--cost-ledger", type=Path, default=DEFAULT_COST_LEDGER,
                    help=f"path to the cost ledger (default: {DEFAULT_COST_LEDGER})")
+
+    # The same two options AFTER the subcommand, because that is where people
+    # type them: `agentctl status --ledger X` used to be an error telling you
+    # the argument was unrecognised, while `agentctl --ledger X status` worked.
+    # SUPPRESS is what makes this safe -- without it the subparser's default
+    # would overwrite a value given before the subcommand.
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--ledger", type=Path, default=argparse.SUPPRESS,
+                        help=argparse.SUPPRESS)
+    common.add_argument("--cost-ledger", type=Path, default=argparse.SUPPRESS,
+                        help=argparse.SUPPRESS)
+
     sub = p.add_subparsers(dest="command", required=True)
+    _orig_add_parser = sub.add_parser
+
+    def add_parser(name, **kw):
+        kw.setdefault("parents", [common])
+        return _orig_add_parser(name, **kw)
+
+    sub.add_parser = add_parser                 # every subcommand gets them
 
     sub.add_parser("status", help="summary of the ledger").set_defaults(fn=cmd_status)
 
@@ -370,6 +431,16 @@ def build_parser() -> argparse.ArgumentParser:
                     help="do not ask before rm -rf, or before a write that "
                          "lands outside the workspace. Think first.")
     rn.set_defaults(fn=cmd_run)
+
+    px = sub.add_parser("proxy", help="generate a LiteLLM proxy config")
+    px.add_argument("--out", default=".", help="where to write the config")
+    px.set_defaults(fn=cmd_proxy)
+
+    dr = sub.add_parser("doctor", help="check everything before you run")
+    dr.add_argument("--workspace", help="also check this workspace")
+    dr.add_argument("--offline", action="store_true",
+                    help="skip the provider account probe")
+    dr.set_defaults(fn=cmd_doctor)
 
     po = sub.add_parser("policy", help="compile and inspect the policy")
     po.add_argument("source", nargs="?",

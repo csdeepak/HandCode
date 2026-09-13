@@ -38,3 +38,9 @@ experiments/*/results/*.json
 *.db
 *.db-wal
 *.db-shm
+
+# Scratch workspaces created by `agentctl run --workspace ./...` inside the
+# repo. They hold your code and a ledger, not this project source.
+/myproject/
+/demo/
+/scratch-*/

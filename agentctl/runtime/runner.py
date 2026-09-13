@@ -52,6 +52,20 @@ def _key_for(model: str) -> tuple[str | None, str | None]:
     return None, None
 
 
+def _env_var_for(model: str) -> str:
+    """The environment variable this model's provider actually reads."""
+    for prefix, env in (("openrouter/", "OPENROUTER_API_KEY"),
+                        ("anthropic/", "ANTHROPIC_API_KEY"),
+                        ("openai/", "OPENAI_API_KEY"),
+                        ("gemini/", "GEMINI_API_KEY"),
+                        ("mistral/", "MISTRAL_API_KEY"),
+                        ("cerebras/", "CEREBRAS_API_KEY"),
+                        ("groq/", "GROQ_API_KEY")):
+        if model.startswith(prefix):
+            return env
+    return "the API key variable for your provider"
+
+
 def run(
     task: str,
     workspace: str | Path = ".",
@@ -111,8 +125,12 @@ def run(
     if not api_key and not base_url:
         raise SystemExit(
             f"No API key found for {model}.\n"
-            f"  Set one in your environment, e.g. OPENROUTER_API_KEY.\n"
-            f"  It is read from the environment and never logged.")
+            # Name the variable THIS model needs. Telling someone to set
+            # OPENROUTER_API_KEY for an anthropic/ model is advice that
+            # cannot work.
+            f"  Set {_env_var_for(model)} in your environment.\n"
+            f"  It is read from the environment and never logged.\n"
+            f"  Check what you have:  agentctl doctor")
 
     recorder = None
     if record is not None:
@@ -196,6 +214,15 @@ def run(
         if not resume:
             conv.send_message(task)
         conv.run()
+    except Exception as e:                              # noqa: BLE001
+        # A provider refusing to serve is not a bug in the agent framework, and
+        # the SDK's own error ends with "please file a bug report at
+        # github.com/OpenHands" -- which sends you to the wrong place. Say what
+        # actually happened (`docs/0031`).
+        detail = _explain_provider_error(e)
+        if detail:
+            raise SystemExit(detail) from None
+        raise
     finally:
         # A cassette is only useful if it survives the run that produced it,
         # including a run that died -- which is the interesting case here.
@@ -366,3 +393,63 @@ def _enforce_before_spending(pol, model, cost_ledger, max_budget_usd,
             if answer != "y":
                 raise SystemExit("refused: policy requires confirmation "
                                  "before leaving the default pool")
+
+
+def _explain_provider_error(exc: Exception) -> str | None:
+    """Turn a provider refusal into something actionable, or None.
+
+    Returns None for anything not recognised -- guessing at an unfamiliar
+    error would hide it, and an unhandled traceback is better than a confident
+    wrong explanation.
+    """
+    import re
+
+    text = str(exc)
+    low = text.lower()
+
+    if "rate limit" in low or "429" in text or "ratelimiterror" in low:
+        when = ""
+        if m := re.search(r'"X-RateLimit-Reset":"(\d{10,13})"', text):
+            from datetime import datetime
+            ts = int(m.group(1))
+            ts = ts / 1000 if ts > 10_000_000_000 else ts
+            r = datetime.fromtimestamp(ts).astimezone()
+            when = f"\n  resets       {r:%Y-%m-%d %H:%M} local"
+        remaining = ""
+        if m := re.search(r'"X-RateLimit-Remaining":"(\d+)"', text):
+            remaining = f"\n  remaining    {m.group(1)}"
+        per_day = ("\n  note         the free-model cap is account-wide across "
+                   "every `:free`\n               model, so switching model "
+                   "does not help"
+                   if "free-models-per-day" in low else "")
+        return (f"the provider is rate limiting you. This is not an agent "
+                f"error.{remaining}{when}{per_day}\n"
+                f"  options      wait for the reset, use a different provider "
+                f"key,\n               or run offline:  agentctl run '' "
+                f"--replay <cassette>")
+
+    if "insufficient" in low and "credit" in low:
+        return ("the provider says the account is out of credit. Nothing was "
+                "spent on this run.")
+
+    if "no auth credentials" in low or "invalid api key" in low or "401" in text:
+        return ("the provider rejected the API key. Check the environment "
+                "variable for your model's provider; the value is read from "
+                "the environment and never logged.")
+
+    if ("400 bad request" in low or "badrequesterror" in low
+            or "not a valid model" in low):
+        return ("the provider rejected the request — usually an unknown or "
+                "unavailable model id.\n"
+                "  check        the id at openrouter.ai/models; it needs the "
+                "provider prefix,\n"
+                "               e.g. openrouter/vendor/model:free\n"
+                "  known-good   agentctl proxy   (lists the ids it builds a "
+                "pool from)")
+
+    if "overloaded" in low or "503" in text or "502" in text:
+        return ("the provider is overloaded and refused the request. Free-tier "
+                "endpoints do this under load.\n"
+                "  options      retry, or point --base-url at a proxy with a "
+                "pool so a failure fails over.")
+    return None

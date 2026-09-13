@@ -60,3 +60,62 @@ def test_the_three_tools_match_the_capability_matrix():
     assert clf.classify(ToolCall("t", "c", "t", "execute_bash",
                                  {"command": "rm -rf /"})) is EffectClass.DESTRUCTIVE
     assert set(TOOLS) == {"execute_bash", "read_file", "write_file"}
+
+
+# ── the tool must run the shell it is named after (docs/0031 §9) ───────
+def test_execute_bash_actually_runs_bash():
+    """`shell=True` uses COMSPEC on Windows -- cmd.exe -- for a tool called
+    `execute_bash`. A real run produced `<< was unexpected at this time.`
+    from a heredoc five times, wrote nothing, and reported success."""
+    import shutil
+
+    from agentctl.runtime.tools import _shell
+
+    if not (shutil.which("bash") or shutil.which("sh")):
+        pytest.skip("no bash on this machine")
+    argv = _shell()
+    assert argv and argv[-1] == "-c"
+    assert "bash" in argv[0].lower() or argv[0].lower().endswith("sh.exe") \
+        or argv[0].endswith("/sh")
+
+
+def test_a_heredoc_works(tmp_path, monkeypatch):
+    """The exact command the model wrote, which cmd.exe rejected."""
+    import shutil
+    if not shutil.which("bash"):
+        pytest.skip("no bash on this machine")
+    monkeypatch.setenv("AGENTCTL_WORKSPACE", str(tmp_path))
+    from agentctl.runtime.tools import BashAction, BashExecutor
+
+    obs = BashExecutor()(BashAction(
+        command="cat << 'EOF' > made.py\nprint('hi')\nEOF"))
+    assert obs.exit_code == 0, obs.output
+    assert (tmp_path / "made.py").read_text(encoding="utf-8") == "print('hi')\n"
+
+
+def test_bash_syntax_the_classifier_assumes_actually_works(tmp_path, monkeypatch):
+    """The matrix splits on `&&` `||` `;` `|` and matches `rm -rf`.
+
+    Those are bash rules. Under cmd.exe the classifier would be guarding a
+    shell nobody is running.
+    """
+    import shutil
+    if not shutil.which("bash"):
+        pytest.skip("no bash on this machine")
+    monkeypatch.setenv("AGENTCTL_WORKSPACE", str(tmp_path))
+    from agentctl.runtime.tools import BashAction, BashExecutor
+
+    ex = BashExecutor()
+    assert ex(BashAction(command="echo one && echo two")).output.splitlines() \
+        == ["one", "two"]
+    assert ex(BashAction(command="echo a; echo b")).output.splitlines() == ["a", "b"]
+    assert "1" in ex(BashAction(command="echo hello | wc -l")).output
+
+
+def test_a_failing_command_is_reported_as_an_error(tmp_path, monkeypatch):
+    """`is_error` is what Seam B now reads to avoid committing a failure."""
+    monkeypatch.setenv("AGENTCTL_WORKSPACE", str(tmp_path))
+    from agentctl.runtime.tools import BashAction, BashExecutor
+
+    obs = BashExecutor()(BashAction(command="exit 3"))
+    assert obs.exit_code == 3 and obs.is_error is True

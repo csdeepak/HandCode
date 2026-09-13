@@ -189,8 +189,17 @@ class SeamB:
         if type(event).__name__ == "AgentErrorEvent":
             self.gate.record_failure_by_id(
                 tcid, str(getattr(event, "error", "tool error"))[:500])
-        else:
-            self.gate.record_success_by_id(tcid, self.ctx.serialize(event))
+            return
+
+        # The event type is not the whole story. A tool that RAN and failed
+        # still arrives as an ordinary ObservationEvent, and committing it
+        # tells a resume the work is done. A real run recorded five `exit=1`
+        # shell commands as COMMITTED (`docs/0031` §10).
+        if (why := _tool_error(event)) is not None:
+            self.gate.record_tool_error(tcid, why, self.ctx.serialize(event))
+            return
+
+        self.gate.record_success_by_id(tcid, self.ctx.serialize(event))
 
 
 def make_seam_b_callback(
@@ -201,3 +210,27 @@ def make_seam_b_callback(
 ) -> SeamB:
     """Convenience for when the conversation already exists."""
     return SeamB(gate, ctx, on_decision).attach(conversation)
+
+
+def _tool_error(event: Any) -> str | None:
+    """Did the tool report failure? Returns why, or None if it succeeded.
+
+    `Observation.is_error` is the SDK's own flag and the only honest source:
+    the event type is `ObservationEvent` either way, so reading the type alone
+    cannot tell a success from a failure (`docs/0031` §10).
+
+    Returns None when there is no observation or no flag, because "cannot tell"
+    must not become "failed" -- treating every unreadable event as an error
+    would block work for no reason.
+    """
+    obs = getattr(event, "observation", None)
+    if obs is None or not getattr(obs, "is_error", False):
+        return None
+
+    # Prefer the tool's own text; it names the actual shell error.
+    for attr in ("output", "status", "file_text"):
+        if (v := getattr(obs, attr, None)):
+            return str(v)[:300]
+    if (code := getattr(obs, "exit_code", None)) is not None:
+        return f"exit={code}"
+    return "the tool reported an error"

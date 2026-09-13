@@ -19,6 +19,7 @@ replay, so the ledger admits it. Authorization is a separate concern — see
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Sequence
@@ -74,11 +75,34 @@ class BashObservation(Observation):
                    is_error=exit_code != 0)
 
 
+def _shell() -> list[str] | None:
+    r"""The argv prefix for running a bash command, or None if bash is absent.
+
+    `shell=True` uses `COMSPEC` on Windows — **cmd.exe** — and this tool is
+    called `execute_bash`. The gap is not cosmetic:
+
+    * the model writes bash, and cmd.exe rejects it. A real run produced
+      `<< was unexpected at this time.` five times from heredocs, wrote
+      nothing, and still reported success (`docs/0031` §9).
+    * the capability matrix splits commands on `&&`, `||`, `;`, `|` and matches
+      `rm -rf`, `git reset --hard`, `>` redirects. Those are **bash** rules.
+      Under cmd.exe the classifier would be guarding a shell nobody is running,
+      and `del /s /q` — the thing that actually deletes — matches nothing.
+
+    So bash is used explicitly when present. Git for Windows ships one, so this
+    is usually satisfied even on Windows.
+    """
+    exe = shutil.which("bash") or shutil.which("sh")
+    return [exe, "-c"] if exe else None
+
+
 class BashExecutor(ToolExecutor):
     def __call__(self, action, conversation=None):
+        argv = _shell()
         try:
             r = subprocess.run(
-                action.command, shell=True, cwd=str(_workspace()),
+                (argv + [action.command]) if argv else action.command,
+                shell=argv is None, cwd=str(_workspace()),
                 capture_output=True, text=True, encoding="utf-8",
                 errors="replace",
                 timeout=float(os.environ.get(TIMEOUT_ENV, "120")))

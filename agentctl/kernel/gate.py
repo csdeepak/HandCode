@@ -226,6 +226,41 @@ class EffectGate:
         except Exception:                               # noqa: BLE001
             log.exception("could not record failure for %s", tool_call_id)
 
+    def record_tool_error(self, tool_call_id: str, error: str,
+                          observation: bytes | None = None) -> None:
+        """The tool RAN and reported failure. That is a third thing.
+
+        Not `record_success`: committing a failed effect means a resume treats
+        work that never happened as done, and silently skips it. A real run
+        recorded five `exit=1` shell commands as COMMITTED (`docs/0031` §10).
+
+        Not `record_failure` either. `FAILED` means *provably did not land*,
+        and a non-zero exit is not proof of that — `echo x > a.txt && bad`
+        writes the file and exits 1. Asserting it did not land would be a lie
+        in the direction that permits a duplicate.
+
+        So it splits on whether repeating is safe, which is what the effect
+        class already encodes:
+
+            replay_safe   -> FAILED, and the agent may simply try again
+            everything    -> BLOCKED. Nobody knows whether it landed; that is
+            else             the definition of the ambiguous case, and
+                             `docs/0008` §6.5 says effect decisions fail closed.
+        """
+        rec = None
+        try:
+            rec = self.store.lookup(tool_call_id)
+        except Exception:                               # noqa: BLE001
+            log.exception("could not look up %s", tool_call_id)
+
+        if rec is not None and not rec.effect_class.replay_safe:
+            self._try_block(
+                tool_call_id,
+                f"the tool reported failure and this effect cannot be safely "
+                f"repeated, so whether it landed is unknown: {error[:300]}")
+            return
+        self.record_failure_by_id(tool_call_id, error)
+
     def _try_block(self, tool_call_id: str, reason: str) -> None:
         try:
             if self.store.lookup(tool_call_id):
