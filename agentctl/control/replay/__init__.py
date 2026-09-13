@@ -6,8 +6,9 @@
 The recorder lives in `adapters/litellm/` because it is vendor-specific,
 which is the same split the rest of the package uses.
 """
-from .cassette import Cassette, Miss, Turn, fingerprint, summarise
+from .cassette import (Cassette, Miss, Turn, current_env, fingerprint,
+                       incompatible, summarise)
 from .server import ReplayServer
 
-__all__ = ["Cassette", "Miss", "Turn", "ReplayServer", "fingerprint",
-           "summarise"]
+__all__ = ["Cassette", "Miss", "Turn", "ReplayServer", "current_env",
+           "fingerprint", "incompatible", "summarise"]

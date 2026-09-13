@@ -15,7 +15,7 @@ A real session recorded against a real provider, then replayed with **no API
 key in the environment, no network, no tokens and no sampling** — identical
 file, identical gate decisions.
 
-**328 tests passing** (was 308). Code: `control/replay/`,
+**332 tests passing** (was 308). Code: `control/replay/`,
 `adapters/litellm/recorder.py`. Experiment: `0008-m6-replay`, now in
 `verify.py`.
 
@@ -134,6 +134,45 @@ That is correct behaviour, and it means:
 `0008-m6-replay` therefore seeds its workspace to a fixed state before
 replaying. A cassette shipped without its starting conditions is not a
 reproducible test.
+
+### And the world is bigger than the workspace
+
+CI then failed the way that actually settles this. The experiment passed on
+Windows and came back `INCONCLUSIVE` on Linux:
+
+```
+cassette miss -- turn 0: message 0 (system) differs from the recording
+```
+
+Message 0 is the **system prompt**, and the recorded one contains the word
+`powershell`. The SDK builds it from the host, so a Windows recording cannot
+replay on Linux no matter how correct the matching is. The workspace was
+identical; the machine was not.
+
+So a cassette is a fixture of an **environment**, not of a model and not of a
+directory. Each turn now records `platform`, `python` and `openhands_sdk`, and
+the experiment refuses up front:
+
+```
+SKIPPED - recorded on win32, replaying on linux -- the SDK puts the shell
+          name in the system prompt, so turn 0 cannot match
+```
+
+**SKIP is a third outcome, distinct from PASS and from FAIL**, alongside the
+`INCONCLUSIVE` that `0012` §6 already required. Reporting this as a divergence
+would have been a lie: the code did not change, the machine did. Reporting it
+as a pass would be worse. `verify.py` prints every skip in the summary, because
+a skip nobody sees is a check that quietly stopped existing.
+
+Only `platform` is refused. A different SDK version is *reported* but still
+attempted — a changed prompt should surface as an honest miss, which is
+information, rather than being pre-empted by caution.
+
+The consequence for coverage is worth stating plainly: **CI cannot run the
+real-session round trip**, because the cassette was recorded on a machine
+unlike the runner. What CI does cover is the replay machinery itself —
+`tests/test_replay.py`, 24 tests, everywhere. Recording a Linux cassette would
+close the gap and needs a key in CI, which is not a trade worth making.
 
 ## 7. What determinism hides
 

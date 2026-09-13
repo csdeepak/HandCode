@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
@@ -91,12 +92,18 @@ class Turn:
     # the run; matching needs the stripped one. They are not the same string
     # and using one for both breaks replay (`docs/0029` §3).
     provider_model: str = ""
+    # The environment the recording was made in. A cassette is NOT portable:
+    # the SDK builds a platform-dependent system prompt -- a Windows recording
+    # says "powershell" in message 0 -- so a cassette recorded on one OS misses
+    # on turn 0 everywhere else. Recording this is what lets a replay say so
+    # instead of looking like a behaviour change (`docs/0029` §6).
+    env: dict = field(default_factory=dict)
 
     def to_json(self) -> str:
         return json.dumps({
             "index": self.index, "fingerprint": self.fingerprint,
             "model": self.model, "provider_model": self.provider_model,
-            "usage": self.usage,
+            "usage": self.usage, "env": self.env,
             "request": self.request, "response": self.response,
         }, default=str)
 
@@ -106,7 +113,8 @@ class Turn:
         return cls(index=d["index"], fingerprint=d["fingerprint"],
                    request=d["request"], response=d["response"],
                    model=d.get("model", ""), usage=d.get("usage") or {},
-                   provider_model=d.get("provider_model", ""))
+                   provider_model=d.get("provider_model", ""),
+                   env=d.get("env") or {})
 
 
 @dataclass
@@ -134,6 +142,37 @@ class Miss:
         return f"turn {self.turn}: same messages, different tools or model"
 
 
+def current_env() -> dict:
+    """What this machine is, for the parts a recording depends on."""
+    import platform
+    try:
+        from importlib.metadata import version
+        sdk = version("openhands-sdk")
+    except Exception:                                   # noqa: BLE001
+        sdk = "?"
+    return {"platform": sys.platform, "python": platform.python_version(),
+            "openhands_sdk": sdk}
+
+
+def incompatible(cassette: "Cassette") -> str | None:
+    """Why this cassette cannot replay here, or None if it can.
+
+    Only `platform` is fatal, and it is fatal for a concrete reason rather than
+    caution: the SDK writes the shell name into the system prompt, so message 0
+    differs and every turn misses. The SDK version is reported when it differs
+    but not refused -- a prompt change would show up as an honest miss.
+    """
+    if not cassette.turns:
+        return "the cassette is empty"
+    rec = cassette.turns[0].env or {}
+    here = current_env()
+    if rec.get("platform") and rec["platform"] != here["platform"]:
+        return (f"recorded on {rec['platform']}, replaying on "
+                f"{here['platform']} -- the SDK puts the shell name in the "
+                f"system prompt, so turn 0 cannot match")
+    return None
+
+
 def _messages(request: dict) -> list[dict]:
     m = request.get("messages")
     return m if isinstance(m, list) else []
@@ -157,10 +196,12 @@ class Cassette:
 
     # ── recording ──────────────────────────────────────────────────────
     def append(self, request: dict, response: dict, *, model: str = "",
-               usage: dict | None = None, provider_model: str = "") -> Turn:
+               usage: dict | None = None, provider_model: str = "",
+               env: dict | None = None) -> Turn:
         t = Turn(index=len(self.turns), fingerprint=fingerprint(request),
                  request=request, response=response, model=model,
-                 usage=usage or {}, provider_model=provider_model)
+                 usage=usage or {}, provider_model=provider_model,
+                 env=env if env is not None else current_env())
         self.turns.append(t)
         self._index.setdefault(t.fingerprint, []).append(t.index)
         return t

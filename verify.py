@@ -73,6 +73,13 @@ def run(name: str, argv: list[str], why: str) -> tuple[bool, float, str]:
     # NOT a failure -- docs/0012 §6.
     if "INCONCLUSIVE" in out:
         return False, elapsed, "INCONCLUSIVE"
+    # Exit 3 means "this check does not apply on this machine", which is a
+    # third thing again. A cassette is bound to the platform it was recorded
+    # on (docs/0029 §6), so demanding it pass on Linux would be demanding
+    # something untrue. Not counted as a failure, and never silent.
+    if p.returncode == 3:
+        reason = next((l.strip() for l in out.splitlines() if "SKIPPED" in l), "")
+        return True, elapsed, (reason or "SKIPPED")
     return p.returncode == 0, elapsed, ("ok" if p.returncode == 0 else "FAILED")
 
 
@@ -98,8 +105,10 @@ def main() -> int:
         print(f"\n  running {name} ...", flush=True)
         ok, secs, status = run(name, argv, why)
         results.append((name, ok, secs, status, why))
-        mark = "PASS" if ok else status
-        print(f"  {mark:<13} {name:<20} {secs:5.1f}s   {why}")
+        skipped = ok and "SKIP" in status
+        mark = ("SKIP" if skipped else "PASS") if ok else status
+        print(f"  {mark:<13} {name:<20} {secs:5.1f}s   "
+              f"{status if skipped else why}")
 
     print("\n" + "=" * 70)
     failed = [r for r in results if not r[1]]
@@ -112,7 +121,14 @@ def main() -> int:
         print("Re-run the individual experiment to see why.")
         return 1
 
-    print(f"all {len(results)} checks passed  ({total:.0f}s)")
+    skipped = [r for r in results if "SKIP" in r[3]]
+    print(f"all {len(results) - len(skipped)} applicable checks passed  "
+          f"({total:.0f}s)" if skipped else
+          f"all {len(results)} checks passed  ({total:.0f}s)")
+    # Never silent. A skip that nobody sees is a check that quietly stopped
+    # existing, which is worse than one that fails.
+    for name, _, _, status, _ in skipped:
+        print(f"  SKIPPED  {name}: {status}")
     if not args.fast:
         print("\nThe correctness claims still hold on this machine:")
         print("  - no duplicate side effect at ANY of the nine crash points")

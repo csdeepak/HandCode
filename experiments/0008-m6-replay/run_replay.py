@@ -48,6 +48,22 @@ def main() -> int:
                  "verdict": "INCONCLUSIVE", "evidence": {}}
     ev = out["evidence"]
 
+    # A cassette is a fixture of an ENVIRONMENT, not just of a model. The SDK
+    # writes the shell name into the system prompt, so a Windows recording says
+    # "powershell" in message 0 and misses on turn 0 anywhere else. Refuse
+    # clearly rather than report a divergence that is not one (`docs/0029` §6).
+    from agentctl.control.replay import Cassette, current_env, incompatible
+
+    why = incompatible(Cassette.load(CASSETTE))
+    if why:
+        out["verdict"] = "SKIPPED"
+        ev.update({"reason": why, "here": current_env()})
+        _write(out)
+        print(f"  SKIPPED - {why}")
+        print("  The replay machinery itself is covered by tests/test_replay.py,")
+        print("  which runs everywhere. This checks a REAL recorded session.")
+        return 3
+
     root = Path(tempfile.mkdtemp(prefix="m6_replay_"))
     ws = root / "ws"
     ws.mkdir(parents=True)

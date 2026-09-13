@@ -266,3 +266,43 @@ def test_a_closed_recorder_is_inert_even_if_still_registered(tmp_path):
         {"model": "m", "messages": [{"role": "user", "content": "x"}]},
         {"choices": [{"message": {"content": "y"}}]}, 0, 1)
     assert len(rec.cassette) == 0 and rec.errors == 0
+
+
+# ── a cassette is bound to its environment (docs/0029 §6) ──────────────
+def test_a_cassette_records_where_it_was_made():
+    from agentctl.control.replay import current_env
+
+    c = Cassette()
+    t = c.append(req("hi"), resp("yo"))
+    assert t.env["platform"] and t.env["openhands_sdk"]
+    assert t.env == current_env()
+
+
+def test_a_foreign_platform_is_refused_not_replayed():
+    """The CI failure: a Windows recording missed on turn 0 under Linux.
+
+    The SDK writes the shell name into the system prompt, so message 0 differs
+    and nothing can match. Reporting that as a divergence would be wrong --
+    the code did not change, the machine did.
+    """
+    from agentctl.control.replay import incompatible
+
+    c = Cassette()
+    c.append(req("hi"), resp("yo"))
+    c.turns[0].env = {"platform": "some-other-os", "openhands_sdk": "1.45.0"}
+    why = incompatible(c)
+    assert why and "some-other-os" in why and "system prompt" in why
+
+
+def test_the_same_platform_is_allowed():
+    from agentctl.control.replay import incompatible
+
+    c = Cassette()
+    c.append(req("hi"), resp("yo"))
+    assert incompatible(c) is None
+
+
+def test_an_empty_cassette_is_refused():
+    from agentctl.control.replay import incompatible
+
+    assert incompatible(Cassette()) == "the cassette is empty"
