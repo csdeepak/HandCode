@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0031**.
+**The highest number is the newest document.** Current head: **0033**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -37,6 +37,8 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0029](docs/0029-m6-replay.md) | M6 - Replaying a Session Means Replaying the World Too | DECISION | ACCEPTED | 2026-09-13 | Record/replay at zero cost; a deny-list cannot match two representations |
 | [0030](docs/0030-m7-policy.md) | M7 - A Policy That Fails Open Is Worse Than No Policy | DECISION | ACCEPTED | 2026-09-13 | Compile out of band, look up in band. A typo must not disarm DESTRUCTIVE |
 | [0031](docs/0031-handover.md) | Handover - The Flaws a Real User Found in an Hour | DECISION | ACCEPTED | 2026-09-13 | doctor, provider-error translation, proxy pools. A generator that emitted invalid YAML |
+| [0032](docs/0032-keys-and-dashboard.md) | One Registry, One Keys File, One Screen | DECISION | ACCEPTED | 2026-09-14 | Where to get every key, one file to hold them, and a screen saying if failover is real |
+| [0033](docs/0033-multi-account.md) | Many Keys, Many Accounts | DECISION | ACCEPTED | 2026-09-14 | The account is the unit, not the provider. And 'outside any repo' was false here |
 
 ---
 
@@ -61,7 +63,7 @@ verdicts, current design, then the diagrams. About 40 minutes.
 | **Architecture** | `0008` DRAFT — Q1/Q2/Q3/Q5/Q13/Q15/Q16/Q17 resolved. **Q4 is the last blocker.** §3 needs the `0015` correction. |
 | **Verify** | `python verify.py` — 8 checks, ~4 min, zero cost |
 | **Next action** | **M0-M7 are all complete.** Next: a run against a second provider family to test the `/v1/messages` path, and Q9 -- the read/write ratio by effect class, which decides whether speculative execution is worth building. |
-| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **413 tests green.** |
+| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **462 tests green.** |
 
 ---
 

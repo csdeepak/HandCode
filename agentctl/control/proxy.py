@@ -34,35 +34,56 @@ from pathlib import Path
 
 # (env var, litellm model, short name, is_free). Order is fallback order:
 # free first, paid last, so degrading never silently costs money.
-CANDIDATES: list[tuple[str, str, str, bool]] = [
-    ("OPENROUTER_API_KEY", "openrouter/nex-agi/nex-n2.5-pro:free",
-     "or-nex", True),
-    ("OPENROUTER_API_KEY", "openrouter/nvidia/nemotron-3-super-120b-a12b:free",
-     "or-nemotron", True),
-    ("OPENROUTER_API_KEY", "openrouter/deepseek/deepseek-chat-v3.1:free",
-     "or-deepseek", True),
-    ("GEMINI_API_KEY", "gemini/gemini-2.5-flash", "gemini-flash", True),
-    ("MISTRAL_API_KEY", "mistral/mistral-small-latest", "mistral-small", True),
-    ("CEREBRAS_API_KEY", "cerebras/llama-3.3-70b", "cerebras-llama", True),
-    ("GROQ_API_KEY", "groq/llama-3.3-70b-versatile", "groq-llama", True),
-    ("ANTHROPIC_API_KEY", "anthropic/claude-sonnet-5", "anthropic-sonnet", False),
-    ("OPENAI_API_KEY", "openai/gpt-4o-mini", "openai-mini", False),
-]
-
 POOL = "pool"
 
 
 def available(env: dict | None = None) -> list[tuple[str, str, str, bool]]:
-    """Candidates whose key is actually set."""
-    e = env if env is not None else os.environ
-    return [c for c in CANDIDATES if e.get(c[0])]
+    """One deployment per ACCOUNT per model: (env, model, id, is_free).
+
+    The cross product is the point. Two OpenRouter accounts times three models
+    is six deployments, and when one account hits its daily cap the other three
+    keep serving — which a single-account pool cannot do however many models it
+    lists (`docs/0033`).
+
+    Ordered free-first, paid-last, because that is also the fallback order: an
+    outage degrades toward slower, never silently toward billed (`docs/0002`
+    §5).
+    """
+    from .providers import all_accounts
+
+    out = []
+    seen: dict[str, int] = {}
+    for acct in all_accounts(env):
+        n = seen[acct.provider.name] = seen.get(acct.provider.name, 0) + 1
+        for i, model in enumerate(acct.provider.models):
+            # `provider-aN-mI`, both parts always present and labelled. The
+            # obvious scheme -- label plus model index -- produced
+            # `openrouter-2` (account 1, model 2) alongside `openrouter-2-0`
+            # (account 2, model 0): unique, and unreadable in a fallback map
+            # exactly when you are debugging one. Nothing is abbreviated
+            # either, since `openrouter` and `openai` share a prefix.
+            short = f"{acct.provider.name}-a{n}-m{i}"
+            out.append((acct.env, f"{acct.provider.prefix}{model}", short,
+                        acct.provider.free_tier))
+    return out
+
+
+# Kept for callers that want the catalogue rather than what is configured.
+def _candidates() -> list[tuple[str, str, str, bool]]:
+    from .providers import PROVIDERS as _P
+    return [(p.key, f"{p.prefix}{m}", f"{p.name}-{i}", p.free_tier)
+            for p in sorted(_P, key=lambda x: not x.free_tier)
+            for i, m in enumerate(p.models)]
+
+
+CANDIDATES: list[tuple[str, str, str, bool]] = _candidates()
 
 
 def accounts(entries: list[tuple[str, str, str, bool]]) -> set[str]:
-    """Distinct credentials behind the pool.
+    """Distinct credentials behind the pool, by environment variable.
 
-    The number that matters. Three models on one key is one account, and an
-    account-wide daily cap takes all three down together.
+    Not providers: two keys at one provider are two accounts with two quotas,
+    and counting them as one would under-report the failover you actually have.
     """
     return {c[0] for c in entries}
 
@@ -147,6 +168,13 @@ def _validate(text: str) -> None:
     for m in models:
         assert m["litellm_params"].get("api_key", "").startswith("os.environ/"), \
             "a key was inlined instead of referenced from the environment"
+
+    # Deployment ids are what `fallbacks` points at. A duplicate would send a
+    # failover to whichever entry litellm resolved first -- silently the wrong
+    # provider. Two providers abbreviating to the same prefix caused exactly
+    # this once (`docs/0032`).
+    ids = [m["model_info"]["id"] for m in models]
+    assert len(set(ids)) == len(ids), f"duplicate deployment ids: {ids}"
     fb = (doc.get("router_settings") or {}).get("fallbacks")
     if fb:
         assert isinstance(fb, list) and isinstance(fb[0], dict), \

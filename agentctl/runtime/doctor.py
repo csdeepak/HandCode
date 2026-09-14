@@ -28,15 +28,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-PROVIDERS = [
-    ("OPENROUTER_API_KEY", "openrouter", "many models, free tier available"),
-    ("ANTHROPIC_API_KEY", "anthropic", "paid"),
-    ("OPENAI_API_KEY", "openai", "paid"),
-    ("GEMINI_API_KEY", "gemini", "free tier available"),
-    ("MISTRAL_API_KEY", "mistral", "free tier available"),
-    ("CEREBRAS_API_KEY", "cerebras", "free tier available"),
-    ("GROQ_API_KEY", "groq", "free tier available"),
-]
+# Derived, never duplicated. `doctor` and `proxy` each kept their own provider
+# list until one registry replaced both -- two lists drift, and drift here
+# means a key you added is checked by one command and ignored by another. The
+# same defect as `docs/0029` §4.
+def _provider_rows() -> list[tuple[str, str, str]]:
+    from agentctl.control.providers import PROVIDERS as _P
+    return [(p.key, p.name,
+             "free tier available" if p.free_tier else "paid") for p in _P]
+
+
+PROVIDERS = _provider_rows()
 
 OK, WARN, BAD = "ok", "!!", "XX"
 
@@ -89,23 +91,49 @@ def _packages() -> list[tuple[str, str, str]]:
     return rows
 
 
-def _providers(probe: bool) -> list[tuple[str, str, str]]:
-    rows = []
-    present = [(env, name, note) for env, name, note in PROVIDERS
-               if os.environ.get(env)]
-    for env, name, note in PROVIDERS:
-        if os.environ.get(env):
-            rows.append((OK, name, f"{env} set ({note})"))
+def _keys_file() -> list[tuple[str, str, str]]:
+    """Is the keys file exposed to git? The guard nobody thinks to run.
 
-    if not present:
+    `keys.py` documents this as one of three guards, and it was not actually
+    wired anywhere until the docstring was checked against the code.
+    """
+    from agentctl.control.keys import check_not_tracked, resolve
+
+    p = resolve()
+    if p is None:
+        return [(WARN, "keys file",
+                 "none found — run: agentctl keys --init")]
+    if (warn := check_not_tracked(p)):
+        return [(BAD, "keys file", warn)]
+    return [(OK, "keys file", f"{p} (not exposed to git)")]
+
+
+def _providers(probe: bool) -> list[tuple[str, str, str]]:
+    from agentctl.control.providers import all_accounts
+
+    rows = _keys_file()
+    accts = all_accounts()
+    for a in accts:
+        rows.append((OK, a.label,
+                     f"{a.env} set "
+                     f"({'free tier' if a.provider.free_tier else 'paid'})"))
+
+    if not accts:
         rows.append((BAD, "providers", "no API key in the environment"))
         return rows
 
-    if len(present) == 1:
-        # This is the project's own thesis: one account cannot fail over.
+    providers = {a.provider.name for a in accts}
+    if len(accts) == 1:
+        # The project's own thesis: one account cannot fail over.
         rows.append((WARN, "failover",
-                     f"only {present[0][1]} is configured — a rate limit on it "
-                     f"stops all work. A pool needs a second provider."))
+                     f"only {accts[0].label} — a daily cap on it stops all "
+                     f"work. A second key, even at the same provider, is a "
+                     f"second quota."))
+    elif len(providers) == 1:
+        rows.append((WARN, "failover",
+                     f"{len(accts)} accounts, all at "
+                     f"{next(iter(providers))} — survives a cap, not the "
+                     f"provider going down."))
 
     if probe and os.environ.get("OPENROUTER_API_KEY"):
         rows.append(_openrouter())

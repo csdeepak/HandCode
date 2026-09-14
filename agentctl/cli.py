@@ -4,6 +4,8 @@ The human interface to fail-closed. When the gate cannot tell whether an effect
 landed it blocks and waits; without a way to see and answer those, the design
 is correct and unusable (`docs/0013` §3, Panel 3).
 
+    agentctl keys                    provider keys: what is set, where to get more
+    agentctl dash                    one screen: providers, effects, spend, policy
     agentctl doctor                  is everything ready? check before running
     agentctl run "<task>"            run an agent on a real workspace
     agentctl status                  what is in the ledger
@@ -281,6 +283,80 @@ def cmd_doctor(args) -> int:
     return report(rows)
 
 
+def cmd_keys(args) -> int:
+    """Show which provider keys are set, and where to get the rest.
+
+    Never prints a value. `set (73 chars)` is the most it will say.
+    """
+    from agentctl.control.keys import (HOME_PATH, check_not_tracked, resolve,
+                                       write_template)
+    from agentctl.control.providers import (PROVIDERS, accounts_for,
+                                            all_accounts, missing)
+
+    path = Path(args.file) if args.file else (resolve() or HOME_PATH)
+
+    if args.init:
+        p, created = write_template(path)
+        print(f"{'wrote' if created else 'kept existing'} {p}")
+        print("  added ignore rules to .gitignore BEFORE writing it")
+        if created:
+            print("  fill in the keys you have; blanks are fine")
+        print()
+
+    if (warn := check_not_tracked(path)):
+        print(f"  !! {warn}", file=sys.stderr)
+        print(file=sys.stderr)
+
+    import os as _os
+
+    accts = all_accounts()
+    print(f"keys {path}{'' if path.exists() else '  (not created yet)'}")
+    print()
+    for p in PROVIDERS:
+        tag = "" if p.free_tier else " (paid)"
+        mine = accounts_for(p)
+        if not mine:
+            print(f"  --   {p.name:<15}{tag:<7} {p.console}")
+            continue
+        for a in mine:
+            # Length only. The value never leaves the file.
+            print(f"  ok   {a.label:<15}{tag:<7} {a.env:<26} "
+                  f"set ({len(_os.environ.get(a.env, ''))} chars)")
+
+    print()
+    print(f"  {len(accts)} account(s) across "
+          f"{len({a.provider.name for a in accts})} provider(s).")
+    if len(accts) <= 1:
+        print()
+        print("  ONE ACCOUNT is the thing that stops work. A free-tier cap is")
+        print("  usually per account, so a second key -- even at the SAME")
+        print("  provider -- buys a second quota:")
+        print()
+        print("    OPENROUTER_API_KEY_2=sk-or-v1-...    # in your keys file")
+        print()
+        print("  Different providers are better still; they survive an outage")
+        print("  as well as a cap:")
+        for p in missing():
+            if p.free_tier:
+                print(f"    {p.name:<11} {p.console}")
+    return 0
+
+
+def cmd_dash(args) -> int:
+    """Providers, failover, effects, spend and policy on one screen."""
+    from agentctl.control.dash import collect, render, to_html
+
+    data = collect(ledger=args.ledger, cost_ledger=args.cost_ledger)
+    if args.html:
+        out = Path(args.html)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(to_html(data), encoding="utf-8")
+        print(f"wrote {out}")
+        return 0
+    print(render(data))
+    return 0
+
+
 def cmd_proxy(args) -> int:
     """Generate a proxy config from the keys you actually have."""
     from agentctl.control.proxy import accounts, available, write
@@ -432,6 +508,17 @@ def build_parser() -> argparse.ArgumentParser:
                          "lands outside the workspace. Think first.")
     rn.set_defaults(fn=cmd_run)
 
+    ky = sub.add_parser("keys", help="provider keys: what is set, where to get more")
+    ky.add_argument("--init", action="store_true",
+                    help="write a keys.env template listing every provider")
+    ky.add_argument("--file", help=f"path to the keys file (default: keys.env)")
+    ky.set_defaults(fn=cmd_keys)
+
+    da = sub.add_parser("dash", help="one screen: providers, effects, spend, policy")
+    da.add_argument("--html", metavar="OUT",
+                    help="write a self-contained HTML page instead")
+    da.set_defaults(fn=cmd_dash)
+
     px = sub.add_parser("proxy", help="generate a LiteLLM proxy config")
     px.add_argument("--out", default=".", help="where to write the config")
     px.set_defaults(fn=cmd_proxy)
@@ -466,6 +553,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     _ascii_stdout()
+    # Load keys.env before anything reads the environment. An already-exported
+    # variable wins: something you set deliberately in a shell should not be
+    # replaced by a file. Values are never printed (`docs/0032`).
+    try:
+        from agentctl.control.keys import load_quietly
+        load_quietly()
+    except Exception:                                   # noqa: BLE001
+        pass                                            # never block the CLI
     args = build_parser().parse_args(argv)
     return args.fn(args)
 

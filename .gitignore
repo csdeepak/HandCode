@@ -44,3 +44,8 @@ experiments/*/results/*.json
 /myproject/
 /demo/
 /scratch-*/
+
+# Provider API keys. Written by `agentctl keys --init`.
+keys.env
+*.env
+!*.env.template

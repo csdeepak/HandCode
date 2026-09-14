@@ -9,7 +9,7 @@ cost-efficient** across changes of provider, account, and model.
 > recoverable, measurable, and cost-efficient.
 
 **Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 413 tests — including a nine-point chaos suite with real process
+verified. 462 tests — including a nine-point chaos suite with real process
 death — plus four end-to-end crash experiments. All green.
 
 ---
@@ -77,6 +77,32 @@ Only Seam A and the full-stack demo need this. Everything else — including the
 whole correctness core — runs without the proxy.
 
 ---
+
+## Set up your keys
+
+```bash
+agentctl keys --init      # writes keys.env listing every provider + how to get one
+agentctl keys             # what is set, and where to get the rest
+agentctl dash             # failover, effects, spend, policy on one screen
+```
+
+`keys.env` is gitignored **before** it is written, and no command ever prints a
+value. If it ever becomes tracked by git, every command says so loudly and
+tells you to rotate — a `.gitignore` entry added after a file is tracked does
+nothing (`docs/0032`).
+
+**Multiple accounts per provider** is the point. A free-tier cap is usually
+per account, so a second key at the *same* provider buys a second quota:
+
+```
+OPENROUTER_API_KEY=sk-or-v1-...      # first account
+OPENROUTER_API_KEY_2=sk-or-v1-...    # second, separate quota
+GEMINI_API_KEY=...                   # different provider, survives an outage too
+```
+
+Any suffix works (`_2`, `_ALT`, `_WORK`), and each becomes its own deployment
+in the pool. `agentctl dash` says which of four states you are actually in
+(`docs/0033`).
 
 ## Use it
 
@@ -271,7 +297,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            413 tests, including the nine-point chaos suite
+tests/            462 tests, including the nine-point chaos suite
 verify.py         one command that proves all of the above
 ```
 
