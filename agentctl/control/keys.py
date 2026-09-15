@@ -329,3 +329,76 @@ def ensure_ignored(gitignore: str | Path = ".gitignore",
         fh.write("\n# Provider API keys. Written by `agentctl keys --init`.\n")
         fh.write("\n".join(need) + "\n")
     return True
+
+
+# ── blocking a commit that contains a real key ─────────────────────────
+def scan_text(text: str, values: set[str] | None = None) -> list[str]:
+    """Which of YOUR keys appear in `text`. Returns env names, never values.
+
+    Compares against the credentials you actually hold rather than against a
+    shape. A regex for `sk-[A-Za-z0-9]{20,}` flags every placeholder in every
+    test file, and a check that cries wolf is one people learn to ignore --
+    which is worse than no check, because it is mistaken for protection.
+    """
+    path = resolve()
+    if values is None:
+        if path is None:
+            return []
+        values = set()
+        pairs = parse(path.read_text(encoding="utf-8"))
+    else:
+        pairs = {}
+    names = []
+    for name, value in (pairs.items() if pairs else []):
+        # Short values are not credentials and would match everywhere.
+        if value and len(value) >= 16 and value in text:
+            names.append(name)
+    for value in values:
+        if value and len(value) >= 16 and value in text:
+            names.append("<supplied>")
+    return names
+
+
+def scan_staged() -> list[str]:
+    """Real keys present in what git is about to commit."""
+    r = subprocess.run(["git", "diff", "--cached"], capture_output=True,
+                       text=True, encoding="utf-8", errors="replace")
+    if r.returncode != 0:
+        return []
+    return scan_text(r.stdout)
+
+
+PRE_COMMIT_HOOK = """#!/bin/sh
+# Installed by `agentctl keys --install-hook`.
+# Refuses any commit containing a credential from your keys file.
+exec "{python}" -c "
+import sys
+sys.path.insert(0, r'{root}')
+from agentctl.control.keys import scan_staged
+hits = scan_staged()
+if hits:
+    print('COMMIT BLOCKED: these keys appear in the staged changes:')
+    for h in sorted(set(hits)):
+        print('   ', h)
+    print('Remove them, then commit. If one was already pushed, rotate it.')
+    raise SystemExit(1)
+"
+"""
+
+
+def install_hook(repo: str | Path = ".") -> Path:
+    """Install the pre-commit guard in `repo`."""
+    import sys
+
+    hooks = Path(repo) / ".git" / "hooks"
+    hooks.mkdir(parents=True, exist_ok=True)
+    p = hooks / "pre-commit"
+    p.write_text(
+        PRE_COMMIT_HOOK.format(python=sys.executable.replace("\\", "/"),
+                               root=str(Path(__file__).resolve().parent.parent.parent)),
+        encoding="utf-8", newline="\n")
+    try:
+        os.chmod(p, 0o755)
+    except Exception:                                   # noqa: BLE001
+        pass
+    return p

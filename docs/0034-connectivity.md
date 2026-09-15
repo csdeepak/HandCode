@@ -17,7 +17,7 @@ charter's premise — *many keys, many accounts* — is true for the first time.
 Getting to a truthful answer took four corrections, and every one of them was a
 **measurement** that was wrong rather than a key that was.
 
-**476 tests passing** (was 462). New: `control/probe.py`, `tests/conftest.py`.
+**480 tests passing** (was 462). New: `control/probe.py`, `tests/conftest.py`.
 
 ---
 
@@ -125,7 +125,36 @@ Found by an autouse hook that printed leaked names after each test, not by
 reasoning. `tests/conftest.py` now snapshots and restores every
 credential-shaped variable.
 
-## 10. Consequences
+## 10. A safety sweep that cried wolf, read after the push
+
+The commit for this document ran a grep for key-shaped strings and reported a
+match. It was a test placeholder — `sk-or-v1-NEVERSHOWTHIS0000000000` — and a
+comparison against all 31 live values confirmed nothing real had leaked.
+
+Two failures there, and the second is the worse one:
+
+* **The sweep matched a shape, not a secret.** A regex for
+  `sk-[A-Za-z0-9]{20,}` flags every fixture in every test file. A check that
+  cries wolf gets ignored, which is worse than no check because it is mistaken
+  for protection.
+* **The sweep and the push were the same command**, so its output arrived
+  after the push. A check whose result you read afterwards is not a check.
+
+Both are now fixed by the same thing: `agentctl keys --install-hook` writes a
+git `pre-commit` hook that compares staged content against **the keys you
+actually hold** and refuses the commit. Verified by staging a file containing
+a real key:
+
+```
+COMMIT BLOCKED: these keys appear in the staged changes:
+    OPENROUTER_API_KEY
+Remove them, then commit. If one was already pushed, rotate it.
+```
+
+The placeholder passes; the real key does not. And it runs *before* the commit
+exists, which is the only moment at which the answer is useful.
+
+## 11. Consequences
 
 - `docs/0012` §6 → a generated launcher must set the encoding itself; the rule
   existed and the generator ignored it.
@@ -133,6 +162,8 @@ credential-shaped variable.
 - Cerebras is live but cannot infer without payment; it is excluded by
   `--verify` and will return on its own if that changes. No code records the
   tier, because the tier keeps changing.
+- `README` → `agentctl keys --install-hook` is the first thing to run after
+  filling the file in.
 - **Remaining honest gap:** `--verify` tests one account per provider and
   assumes the tier is account-wide. If one of six keys at a provider were
   downgraded individually, this would not notice.

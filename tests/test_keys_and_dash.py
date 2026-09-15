@@ -420,3 +420,37 @@ def test_init_ignores_in_the_repo_that_holds_the_file(tmp_path, monkeypatch):
 def test_the_specific_filename_is_ignored_not_only_the_glob(tmp_path):
     keys.ensure_ignored(tmp_path / ".gitignore", name="my-secrets.txt")
     assert "my-secrets.txt" in (tmp_path / ".gitignore").read_text(encoding="utf-8")
+
+
+# ── the pre-commit guard (docs/0034 §11) ───────────────────────────────
+def test_the_scanner_ignores_a_placeholder(tmp_path, monkeypatch):
+    """A shape-based check flags every test fixture, and a check that cries
+    wolf is worse than none -- it gets ignored while looking like protection.
+    """
+    monkeypatch.setenv("AGENTCTL_KEYS", str(tmp_path / "k.env"))
+    (tmp_path / "k.env").write_text("GROQ_API_KEY=real-value-long-enough-here\n",
+                                    encoding="utf-8")
+    assert keys.scan_text('SECRET = "sk-or-v1-NEVERSHOWTHIS0000000000"') == []
+
+
+def test_the_scanner_catches_a_real_key(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENTCTL_KEYS", str(tmp_path / "k.env"))
+    (tmp_path / "k.env").write_text("GROQ_API_KEY=real-value-long-enough-here\n",
+                                    encoding="utf-8")
+    assert keys.scan_text("api_key = real-value-long-enough-here") == ["GROQ_API_KEY"]
+
+
+def test_a_short_value_is_not_treated_as_a_credential(tmp_path, monkeypatch):
+    """`GROQ_API_KEY=x` would otherwise match every file containing an x."""
+    monkeypatch.setenv("AGENTCTL_KEYS", str(tmp_path / "k.env"))
+    (tmp_path / "k.env").write_text("GROQ_API_KEY=x\n", encoding="utf-8")
+    assert keys.scan_text("the letter x appears here") == []
+
+
+def test_the_hook_is_installed_executable_and_refers_to_this_checkout(tmp_path):
+    import subprocess
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    p = keys.install_hook(tmp_path)
+    assert p.name == "pre-commit" and p.exists()
+    body = p.read_text(encoding="utf-8")
+    assert "scan_staged" in body and "COMMIT BLOCKED" in body

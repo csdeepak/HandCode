@@ -295,6 +295,15 @@ def cmd_keys(args) -> int:
 
     path = Path(args.file) if args.file else (resolve() or HOME_PATH)
 
+    if args.install_hook:
+        from agentctl.control.keys import install_hook
+        h = install_hook(".")
+        print(f"installed {h}")
+        print("  any commit containing one of YOUR keys is now refused.")
+        print("  it compares against the keys you hold, not against a shape --")
+        print("  a check that flags every placeholder gets ignored.")
+        print()
+
     if args.init:
         p, created = write_template(path)
         print(f"{'wrote' if created else 'kept existing'} {p}")
@@ -567,6 +576,9 @@ def build_parser() -> argparse.ArgumentParser:
     ky.add_argument("--init", action="store_true",
                     help="write a keys.env template listing every provider")
     ky.add_argument("--file", help="path to the keys file")
+    ky.add_argument("--install-hook", action="store_true",
+                    help="install a git pre-commit hook that refuses any "
+                         "commit containing one of your keys")
     ky.add_argument("--check-paid", action="store_true",
                     help="also send one tiny completion to PAID providers. "
                          "This costs money, so it is off by default.")
