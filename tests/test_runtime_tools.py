@@ -168,3 +168,93 @@ def test_the_content_itself_is_unchanged(tmp_path, monkeypatch):
     f.write_bytes(b"old\r\n")
     WriteExecutor()(WriteAction(path="f.txt", content="line one\nline two\n"))
     assert f.read_text(encoding="utf-8").splitlines() == ["line one", "line two"]
+
+
+# ── the timeout must actually bound the call (docs/0036) ───────────────
+def test_a_grandchild_cannot_hold_the_agent_open(tmp_path, monkeypatch):
+    """The timeout was advisory, not enforced.
+
+    `subprocess.run(timeout=...)` kills its direct child then drains the
+    pipes -- but a grandchild still holds the write end, so the drain blocks
+    until that grandchild exits by itself. Measured on a live run: a 3-second
+    limit returned after 60.1 seconds, and a model that wrote
+    `cd / && find . -name x` hung the agent for minutes.
+
+    The guarantee is BOUNDED, not instant: some grandchildren survive
+    `taskkill /T`, so the contract is `limit + grace`.
+    """
+    import shutil
+    import time
+
+    if not shutil.which("bash"):
+        pytest.skip("no bash on this machine")
+    monkeypatch.setenv("AGENTCTL_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("AGENTCTL_BASH_TIMEOUT", "3")
+    from agentctl.runtime.tools import BashAction, BashExecutor
+
+    started = time.time()
+    obs = BashExecutor()(BashAction(command="sleep 60 | cat"))
+    elapsed = time.time() - started
+
+    assert obs.exit_code == 124 and obs.is_error
+    assert "timed out" in obs.output
+    assert elapsed < 30, f"took {elapsed:.1f}s -- the timeout is not enforced"
+
+
+def test_a_plain_long_command_is_killed_promptly(tmp_path, monkeypatch):
+    import shutil
+    import time
+
+    if not shutil.which("bash"):
+        pytest.skip("no bash on this machine")
+    monkeypatch.setenv("AGENTCTL_WORKSPACE", str(tmp_path))
+    monkeypatch.setenv("AGENTCTL_BASH_TIMEOUT", "3")
+    from agentctl.runtime.tools import BashAction, BashExecutor
+
+    started = time.time()
+    obs = BashExecutor()(BashAction(command="sleep 60"))
+    assert obs.exit_code == 124
+    assert time.time() - started < 12
+
+
+def test_a_normal_command_is_not_slowed_down(tmp_path, monkeypatch):
+    """The fix must not add latency to the 99% case."""
+    import time
+
+    monkeypatch.setenv("AGENTCTL_WORKSPACE", str(tmp_path))
+    from agentctl.runtime.tools import BashAction, BashExecutor
+
+    started = time.time()
+    obs = BashExecutor()(BashAction(command="echo hello"))
+    assert obs.exit_code == 0 and "hello" in obs.output
+    assert time.time() - started < 10
+
+
+# ── pointing at a proxy needs no client credential (docs/0036) ─────────
+def test_a_base_url_without_a_key_supplies_a_placeholder(monkeypatch):
+    """`agentctl proxy` prints "no key needed client-side". That was false.
+
+    litellm rejects `api_key=None` with "Missing credentials ... set
+    OPENAI_API_KEY", which sends you looking for a key you deliberately do not
+    have -- the credentials live in the proxy.
+    """
+    import inspect
+
+    from agentctl.runtime import runner
+
+    src = inspect.getsource(runner.run)
+    assert "elif base_url and not api_key:" in src
+    assert "proxy-holds-the-credentials" in src
+
+
+def test_a_missing_key_with_no_proxy_still_refuses(monkeypatch, tmp_path):
+    """The placeholder must not paper over a genuinely missing key."""
+    from agentctl.runtime.runner import run
+
+    for var in ("OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
+                "GEMINI_API_KEY", "MISTRAL_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("AGENTCTL_KEYS", str(tmp_path / "none.env"))
+
+    with pytest.raises(SystemExit, match="No API key found"):
+        run("x", tmp_path, model="anthropic/claude-sonnet-5", verbose=False)

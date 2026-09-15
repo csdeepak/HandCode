@@ -96,21 +96,72 @@ def _shell() -> list[str] | None:
     return [exe, "-c"] if exe else None
 
 
+def _kill_tree(proc: subprocess.Popen) -> None:
+    r"""Kill the process AND everything it started.
+
+    Killing only the shell is not enough. `subprocess.run(timeout=...)` kills
+    its direct child and then waits to drain the pipes -- but a grandchild
+    still holds the write end, so the drain blocks until that grandchild exits
+    on its own. Measured: a 3-second timeout returned after 60.1 seconds.
+
+    That made the timeout advisory. A model that writes
+    `cd / && find . -name x` can hang the agent for as long as the scan takes,
+    which is exactly what happened on a live run (`docs/0036`).
+    """
+    try:
+        if os.name == "nt":
+            # taskkill /T walks the child tree; there are no process groups
+            # to signal on Windows.
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                           capture_output=True, timeout=15)
+        else:
+            import signal
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except Exception:                                   # noqa: BLE001
+        pass
+    try:
+        proc.kill()
+    except Exception:                                   # noqa: BLE001
+        pass
+
+
 class BashExecutor(ToolExecutor):
     def __call__(self, action, conversation=None):
         argv = _shell()
+        limit = float(os.environ.get(TIMEOUT_ENV, "120"))
+        popen_kwargs: dict = {}
+        if os.name != "nt":
+            # Its own process group, so the whole tree can be signalled.
+            popen_kwargs["start_new_session"] = True
         try:
-            r = subprocess.run(
+            proc = subprocess.Popen(
                 (argv + [action.command]) if argv else action.command,
                 shell=argv is None, cwd=str(_workspace()),
-                capture_output=True, text=True, encoding="utf-8",
-                errors="replace",
-                timeout=float(os.environ.get(TIMEOUT_ENV, "120")))
-            out = (r.stdout or "") + (("\n" + r.stderr) if r.stderr else "")
-            return BashObservation.make(r.returncode, _clip(out.strip()))
-        except subprocess.TimeoutExpired:
-            return BashObservation.make(124, "timed out")
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, encoding="utf-8", errors="replace",
+                **popen_kwargs)
         except Exception as e:                          # noqa: BLE001
+            return BashObservation.make(1, f"{type(e).__name__}: {e}")
+
+        try:
+            out, _ = proc.communicate(timeout=limit)
+            return BashObservation.make(proc.returncode, _clip((out or "").strip()))
+        except subprocess.TimeoutExpired:
+            _kill_tree(proc)
+            try:
+                # Bounded: if something STILL holds the pipe, report the
+                # timeout without the output rather than wait forever. A
+                # missing tail is a far smaller loss than an agent that never
+                # returns.
+                out, _ = proc.communicate(timeout=10)
+            except Exception:                           # noqa: BLE001
+                out = ""
+            tail = _clip((out or "").strip())
+            return BashObservation.make(
+                124, f"timed out after {limit:.0f}s and was killed"
+                     + (f"\n{tail}" if tail else ""))
+        except Exception as e:                          # noqa: BLE001
+            _kill_tree(proc)
             return BashObservation.make(1, f"{type(e).__name__}: {e}")
 
 

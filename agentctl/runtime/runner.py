@@ -122,6 +122,14 @@ def run(
     api_key, key_env = _key_for(model)
     if replay_server is not None:
         api_key, key_env = "replay-no-key-needed", None
+    elif base_url and not api_key:
+        # Pointing at a proxy: the credentials live in the proxy, not here.
+        # litellm still requires *something* in the field and errors with
+        # "Missing credentials ... set OPENAI_API_KEY" if it is None -- which
+        # sends you looking for a key you deliberately do not have. The
+        # `agentctl proxy` instructions promised no client key was needed and
+        # this is what makes that true (`docs/0036`).
+        api_key, key_env = "proxy-holds-the-credentials", None
     if not api_key and not base_url:
         raise SystemExit(
             f"No API key found for {model}.\n"
