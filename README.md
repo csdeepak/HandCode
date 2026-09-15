@@ -9,7 +9,7 @@ cost-efficient** across changes of provider, account, and model.
 > recoverable, measurable, and cost-efficient.
 
 **Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 462 tests — including a nine-point chaos suite with real process
+verified. 476 tests — including a nine-point chaos suite with real process
 death — plus four end-to-end crash experiments. All green.
 
 ---
@@ -83,6 +83,7 @@ whole correctness core — runs without the proxy.
 ```bash
 agentctl keys --init      # writes keys.env listing every provider + how to get one
 agentctl keys             # what is set, and where to get the rest
+agentctl keys --check     # does every key actually work? costs no tokens
 agentctl dash             # failover, effects, spend, policy on one screen
 ```
 
@@ -165,8 +166,8 @@ blocked rather than resumed cleanly.
 ### Failing over
 
 ```bash
-agentctl proxy --out ./proxy          # config built from the keys you have
-cd ./proxy && litellm --config proxy_config.yaml --port 4000
+agentctl proxy --out ./proxy --verify   # skips providers that cannot serve
+bash ./proxy/start.sh 4000              # or ./proxy/start.ps1 on Windows
 agentctl run "..." --model openai/pool --base-url http://localhost:4000
 ```
 
@@ -297,7 +298,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            462 tests, including the nine-point chaos suite
+tests/            476 tests, including the nine-point chaos suite
 verify.py         one command that proves all of the above
 ```
 

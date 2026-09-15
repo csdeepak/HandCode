@@ -49,3 +49,6 @@ experiments/*/results/*.json
 keys.env
 *.env
 !*.env.template
+
+# Generated proxy config (agentctl proxy). Regenerate, do not commit.
+/proxy/

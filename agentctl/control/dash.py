@@ -86,9 +86,15 @@ def _failover() -> dict:
                   f"leaves {n - 1}; the provider going down takes all of them.")
     else:
         verdict = "READY"
+        # Counts per provider, not 31 labels. A detail line nobody reads is
+        # the same as no detail line.
+        per: dict[str, int] = {}
+        for a in accts:
+            per[a.provider.name] = per.get(a.provider.name, 0) + 1
+        shape = ", ".join(f"{name} x{k}" if k > 1 else name
+                          for name, k in per.items())
         detail = (f"{n} accounts across {len(providers)} providers "
-                  f"({', '.join(a.label for a in accts)}). Survives a cap and "
-                  f"an outage.")
+                  f"({shape}). Survives a cap and an outage.")
     return {"accounts": n, "free_accounts": len(free),
             "providers": len(providers),
             "verdict": verdict, "detail": detail,

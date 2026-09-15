@@ -35,6 +35,8 @@ from pathlib import Path
 # (env var, litellm model, short name, is_free). Order is fallback order:
 # free first, paid last, so degrading never silently costs money.
 POOL = "pool"
+# A separate model group, never an automatic fallback target (`docs/0002` §5).
+PAID = "paid"
 
 
 def available(env: dict | None = None) -> list[tuple[str, str, str, bool]]:
@@ -88,9 +90,39 @@ def accounts(entries: list[tuple[str, str, str, bool]]) -> set[str]:
     return {c[0] for c in entries}
 
 
-def build(env: dict | None = None, telemetry: str | Path | None = None) -> str:
-    """The proxy config, as YAML text."""
+def verified_providers(allow_paid: bool = False) -> tuple[set[str], dict]:
+    """Which providers can actually complete a request right now.
+
+    Authenticating is not the same as being allowed to infer: six Cerebras
+    keys list models happily and every completion returns "Payment required".
+    Those deployments sit in the pool failing ~11% of requests with an HTTP 402
+    that litellm does not treat as retryable, so a pool built from credentials
+    is worse than one built from what works (`docs/0034` §7).
+    """
+    from .probe import LIMITED, LIVE, check_inference
+    from .providers import PROVIDERS
+
+    ok, report = set(), {}
+    for p in PROVIDERS:
+        r = check_inference(p.name, allow_paid=allow_paid)
+        if r is None:
+            continue
+        report[p.name] = r
+        if r.status in (LIVE, LIMITED):
+            ok.add(p.name)
+    return ok, report
+
+
+def build(env: dict | None = None, telemetry: str | Path | None = None,
+          only: set[str] | None = None) -> str:
+    """The proxy config, as YAML text. `only` restricts it to named providers."""
     entries = available(env)
+    if only is not None:
+        from .providers import BY_KEY
+        entries = [e for e in entries
+                   if BY_KEY[e[0].split("_API_KEY")[0] + "_API_KEY"].name in only]
+        if not entries:
+            raise SystemExit("no provider passed verification -- nothing to route to")
     if not entries:
         raise SystemExit(
             "no provider keys in the environment — nothing to route to.\n"
@@ -107,7 +139,7 @@ def build(env: dict | None = None, telemetry: str | Path | None = None) -> str:
     ]
     for env_var, model, short, is_free in entries:
         lines += [
-            f"  - model_name: {POOL}",
+            f"  - model_name: {POOL if is_free else PAID}",
             "    litellm_params:",
             f"      model: {model}",
             f"      api_key: os.environ/{env_var}",
@@ -116,8 +148,7 @@ def build(env: dict | None = None, telemetry: str | Path | None = None) -> str:
             f"      free: {str(is_free).lower()}",
         ]
 
-    # Same order as model_list: free first, paid last.
-    order = ", ".join(f'"{c[2]}"' for c in entries[1:])
+    n_free = sum(1 for c in entries if c[3])
     lines += [
         "",
         "litellm_settings:",
@@ -127,16 +158,28 @@ def build(env: dict | None = None, telemetry: str | Path | None = None) -> str:
         "  drop_params: true",
         "",
         "router_settings:",
+        "  # Every free deployment shares the model_name `pool`, and THAT is",
+        "  # what produces failover: the router retries across deployments in",
+        "  # one model group, cooling down whichever just failed. A key that",
+        "  # hits its daily cap is skipped for `cooldown_time` while the other",
+        f"  # {max(n_free - 1, 0)} keep serving.",
         "  routing_strategy: simple-shuffle",
-        "  num_retries: 2",
+        # Enough retries to leave a capped account and land on another one.
+        f"  num_retries: {min(max(n_free - 1, 2), 5)}",
         "  allowed_fails: 1",
-        "  cooldown_time: 60",
+        "  cooldown_time: 300",
+        "",
+        "  # NO automatic fallback to `paid`. `fallbacks` maps between model",
+        "  # GROUPS, not deployment ids -- litellm's own example is",
+        "  # [{\"azure-gpt-3.5-turbo\": \"openai-gpt-3.5-turbo\"}] -- and an",
+        "  # earlier version of this file pointed it at model_info ids, which",
+        "  # resolve to nothing. It is left out rather than corrected because",
+        "  # `docs/0002` §5 says never silently spend: paid is a group you ask",
+        "  # for by name, not one you arrive at by failing.",
     ]
-    if len(entries) > 1:
+    if any(not c[3] for c in entries):
         lines += [
-            "  # Degrade toward slower, never silently toward billed.",
-            f"  fallbacks: [{{\"{POOL}\": [{order}]}}]"
-            if order else "",
+            "  #   to use it deliberately:  --model openai/paid",
         ]
     lines.append("")
     text = "\n".join(l for l in lines if l is not None)
@@ -163,8 +206,11 @@ def _validate(text: str) -> None:
     models = doc.get("model_list") or []
     assert models, "config has no model_list"
     names = {m["model_name"] for m in models}
-    # One name is what makes them a POOL rather than separate models.
-    assert names == {POOL}, f"deployments must share one model_name, got {names}"
+    # Free deployments must share ONE name. That shared model group is where
+    # failover actually comes from: the router retries across the group and
+    # cools down whichever deployment just failed.
+    assert names <= {POOL, PAID}, f"unexpected model groups: {names}"
+    assert POOL in names or names == {PAID}, "no free pool was built"
     for m in models:
         assert m["litellm_params"].get("api_key", "").startswith("os.environ/"), \
             "a key was inlined instead of referenced from the environment"
@@ -175,10 +221,19 @@ def _validate(text: str) -> None:
     # this once (`docs/0032`).
     ids = [m["model_info"]["id"] for m in models]
     assert len(set(ids)) == len(ids), f"duplicate deployment ids: {ids}"
-    fb = (doc.get("router_settings") or {}).get("fallbacks")
-    if fb:
-        assert isinstance(fb, list) and isinstance(fb[0], dict), \
-            f"fallbacks is malformed: {fb!r}"
+    # If fallbacks are ever reintroduced they must name model GROUPS. An
+    # earlier version pointed them at `model_info.id` values, which resolve to
+    # nothing -- litellm's own example maps one model_name to another.
+    groups = {m["model_name"] for m in models}
+    for entry in (doc.get("router_settings") or {}).get("fallbacks") or []:
+        assert isinstance(entry, dict), f"fallbacks is malformed: {entry!r}"
+        for source, targets in entry.items():
+            assert source in groups, \
+                f"fallback source {source!r} is not a model group"
+            for t in ([targets] if isinstance(targets, str) else targets):
+                assert t in groups, (
+                    f"fallback target {t!r} is not a model group -- litellm "
+                    f"maps groups, not deployment ids")
 
 
 HOOK_MODULE = '''"""Seam A for the proxy. Loaded by `litellm_settings.callbacks`.
@@ -196,11 +251,68 @@ proxy_handler_instance = AgentctlHook(
 '''
 
 
-def write(out_dir: str | Path = ".", env: dict | None = None) -> tuple[Path, Path]:
+def write(out_dir: str | Path = ".", env: dict | None = None,
+          only: set[str] | None = None) -> tuple[Path, Path]:
     d = Path(out_dir)
     d.mkdir(parents=True, exist_ok=True)
     cfg = d / "proxy_config.yaml"
     hook = d / "agentctl_hook.py"
-    cfg.write_text(build(env), encoding="utf-8")
+    cfg.write_text(build(env, only=only), encoding="utf-8")
     hook.write_text(HOOK_MODULE, encoding="utf-8")
+    write_start_scripts(d, Path(__file__).resolve().parent.parent.parent)
     return cfg, hook
+
+
+# The proxy prints a banner containing box-drawing characters. On Windows a
+# redirected stdout defaults to cp1252, `click.echo` raises UnicodeEncodeError
+# inside the startup event, and the server exits with "Application startup
+# failed" -- which looks like a config error and is an encoding one. Fifth
+# occurrence in this project; `docs/0012` §6 already required this and the
+# generated output did not do it (`docs/0034` §8).
+START_SH = """#!/usr/bin/env bash
+# Generated by `agentctl proxy`. Start the pool.
+set -euo pipefail
+export PYTHONUTF8=1
+export PYTHONIOENCODING=utf-8
+export OPENHANDS_SUPPRESS_BANNER=1
+export PYTHONPATH="{root}${{PYTHONPATH:+:$PYTHONPATH}}"
+exec "{litellm}" --config "$(dirname "$0")/proxy_config.yaml" --port "${{1:-4000}}"
+"""
+
+START_PS1 = r"""# Generated by `agentctl proxy`. Start the pool.
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
+$env:OPENHANDS_SUPPRESS_BANNER = "1"
+$env:PYTHONPATH = "{root};$env:PYTHONPATH"
+& "{litellm}" --config "$PSScriptRoot\proxy_config.yaml" --port $(if ($args[0]) {{$args[0]}} else {{4000}})
+"""
+
+
+def _litellm_executable() -> str:
+    """The litellm CLI belonging to THIS interpreter.
+
+    A bare `litellm` only resolves when the virtualenv happens to be active,
+    and a launcher that requires you to have activated something is a launcher
+    that fails the first time you use it — which this one did.
+    """
+    import shutil
+    import sys
+
+    scripts = Path(sys.executable).parent
+    for name in ("litellm.exe", "litellm"):
+        if (candidate := scripts / name).exists():
+            return str(candidate)
+    return shutil.which("litellm") or "litellm"
+
+
+def write_start_scripts(out_dir: str | Path, root: str | Path) -> list[Path]:
+    """Runnable launchers, so the encoding trap cannot be stepped in."""
+    d = Path(out_dir)
+    exe = _litellm_executable().replace("\\", "/")
+    made = []
+    for name, body in (("start.sh", START_SH), ("start.ps1", START_PS1)):
+        p = d / name
+        p.write_text(body.format(root=str(root).replace("\\", "/"), litellm=exe),
+                     encoding="utf-8", newline="\n")
+        made.append(p)
+    return made

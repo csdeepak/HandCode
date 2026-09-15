@@ -323,6 +323,43 @@ def cmd_keys(args) -> int:
             print(f"  ok   {a.label:<15}{tag:<7} {a.env:<26} "
                   f"set ({len(_os.environ.get(a.env, ''))} chars)")
 
+    if args.check:
+        from agentctl.control.probe import check_all, summarise
+
+        print()
+        print("  checking connectivity (metadata endpoints only -- no tokens spent)")
+        results = check_all(accts)
+        mark = {"live": "ok  ", "limited": "!!  ", "no-credit": "$$  ",
+                "rejected": "XX  ", "unreachable": "??  ",
+                "skipped": "--  "}
+        for r in results:
+            print(f"  {mark[r.status]} {r.account.label:<15} {r.status:<12} {r.detail}")
+        sm = summarise(results)
+        print()
+        print(f"  {sm['working']}/{sm['total']} credentials authenticate "
+              f"across {sm['providers_working']} provider(s)")
+
+        # Authenticating is not the same as being allowed to infer. One call
+        # per provider settles it (docs/0034 section 6).
+        from agentctl.control.probe import check_inference
+        print()
+        print("  can they actually infer?  (one completion per provider)")
+        usable = 0
+        for name in sorted({a.provider.name for a in accts}):
+            r = check_inference(name, allow_paid=args.check_paid)
+            if r is None:
+                continue
+            print(f"  {mark.get(r.status, '??  ')} {name:<15} {r.status:<12} "
+                  f"{r.detail}")
+            usable += 1 if r.status in ("live", "limited") else 0
+        print()
+        print(f"  {usable} provider(s) can serve a request right now")
+        broken = [r for r in results if not r.ok]
+        if broken:
+            print(f"  {len(broken)} not usable -- check the console for those")
+            print("  a CDN error is NOT a bad key; the request never reached the API")
+        return 0 if not broken else 1
+
     print()
     print(f"  {len(accts)} account(s) across "
           f"{len({a.provider.name for a in accts})} provider(s).")
@@ -357,12 +394,29 @@ def cmd_dash(args) -> int:
     return 0
 
 
+def _provider_of(env_var: str) -> str:
+    from agentctl.control.providers import BY_KEY
+    base = env_var.split("_API_KEY")[0] + "_API_KEY"
+    return BY_KEY[base].name
+
+
 def cmd_proxy(args) -> int:
     """Generate a proxy config from the keys you actually have."""
     from agentctl.control.proxy import accounts, available, write
 
-    entries = available()
-    cfg, hook = write(args.out)
+    only = None
+    if args.verify:
+        from agentctl.control.proxy import verified_providers
+        print("  verifying providers (one completion each; paid skipped)...")
+        only, report = verified_providers()
+        for name, r in sorted(report.items()):
+            flag = "ok  " if name in only else "--  "
+            print(f"    {flag} {name:<12} {r.status:<11} {r.detail[:54]}")
+        print()
+
+    entries = [e for e in available()
+               if only is None or _provider_of(e[0]) in only]
+    cfg, hook = write(args.out, only=only)
     n_acct = len(accounts(entries))
 
     print(f"wrote {cfg}")
@@ -379,8 +433,9 @@ def cmd_proxy(args) -> int:
         print("    Export a second provider key and re-run this.")
         print()
     print("  start it:")
-    print(f"    cd {args.out}")
-    print("    litellm --config proxy_config.yaml --port 4000")
+    print(f"    bash {args.out}/start.sh 4000        # or: {args.out}/start.ps1")
+    print("    (the launcher forces UTF-8 -- the proxy banner otherwise")
+    print("     kills startup on a redirected Windows console, docs/0034)")
     print()
     print("  then point runs at it (no key needed client-side):")
     print("    agentctl run \"...\" --workspace ./app \\")
@@ -511,7 +566,13 @@ def build_parser() -> argparse.ArgumentParser:
     ky = sub.add_parser("keys", help="provider keys: what is set, where to get more")
     ky.add_argument("--init", action="store_true",
                     help="write a keys.env template listing every provider")
-    ky.add_argument("--file", help=f"path to the keys file (default: keys.env)")
+    ky.add_argument("--file", help="path to the keys file")
+    ky.add_argument("--check-paid", action="store_true",
+                    help="also send one tiny completion to PAID providers. "
+                         "This costs money, so it is off by default.")
+    ky.add_argument("--check", action="store_true",
+                    help="test every key against the provider. Uses metadata "
+                         "endpoints, so it costs no tokens and no quota.")
     ky.set_defaults(fn=cmd_keys)
 
     da = sub.add_parser("dash", help="one screen: providers, effects, spend, policy")
@@ -521,6 +582,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     px = sub.add_parser("proxy", help="generate a LiteLLM proxy config")
     px.add_argument("--out", default=".", help="where to write the config")
+    px.add_argument("--verify", action="store_true",
+                    help="test each provider first and leave out any that "
+                         "cannot currently serve a request")
     px.set_defaults(fn=cmd_proxy)
 
     dr = sub.add_parser("doctor", help="check everything before you run")

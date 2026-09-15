@@ -28,12 +28,41 @@ def test_every_deployment_shares_one_model_name():
     assert len({m["model_name"] for m in d["model_list"]}) == 1
 
 
-def test_fallbacks_parse_as_a_list_of_mappings():
-    """The exact bug: a missing comma made this `["a" "b"]`."""
+def test_there_is_no_automatic_fallback_to_paid():
+    """This test used to require `fallbacks`, and requiring it was wrong twice.
+
+    First, it pointed at `model_info.id` values; litellm maps model GROUPS, so
+    those resolved to nothing. Second, the fix is not to correct the ids --
+    `docs/0002` §5 says never silently spend, so `paid` is a group you ask for
+    by name, not one you arrive at by failing.
+
+    Failover comes from the shared `pool` model group instead: the router
+    retries across its deployments and cools down whichever just failed.
+    """
+    env = {"OPENROUTER_API_KEY": "x", "ANTHROPIC_API_KEY": "y"}
+    d = yaml.safe_load(build(env))
+    assert not d["router_settings"].get("fallbacks")
+
+    groups = {m["model_name"] for m in d["model_list"]}
+    assert groups == {"pool", "paid"}
+    paid = [m for m in d["model_list"] if m["model_name"] == "paid"]
+    assert all("anthropic" in m["litellm_params"]["model"] for m in paid)
+
+
+def test_a_fallback_naming_a_deployment_id_is_rejected():
+    """The bug the generator shipped: ids where groups belong."""
+    injected = '  fallbacks: [{"pool": ["openrouter-a1-m1"]}]\n  routing_strategy:'
+    cfg = build(TWO).replace("  routing_strategy:", injected)
+    with pytest.raises(AssertionError, match="not a model group"):
+        _validate(cfg)
+
+
+def test_free_deployments_all_share_one_group():
+    """That shared group IS the failover mechanism."""
     d = yaml.safe_load(build(TWO))
-    fb = d["router_settings"]["fallbacks"]
-    assert isinstance(fb, list) and isinstance(fb[0], dict)
-    assert all(isinstance(x, str) for x in list(fb[0].values())[0])
+    free = [m for m in d["model_list"] if m["model_name"] == "pool"]
+    assert len(free) == len(d["model_list"])        # TWO has no paid provider
+    assert len({m["model_info"]["id"] for m in free}) == len(free)
 
 
 def test_keys_are_referenced_never_inlined():
@@ -76,7 +105,7 @@ def test_no_keys_at_all_refuses_clearly():
 @pytest.mark.parametrize("text,expect", [
     ("model_list: [{model_name: a, litellm_params: {api_key: 'os.environ/K'}},"
      " {model_name: b, litellm_params: {api_key: 'os.environ/K'}}]",
-     "one model_name"),
+     "unexpected model groups"),
     ("litellm_settings: {}", "no model_list"),
     ("model_list: [{model_name: pool, litellm_params: {api_key: sk-real}}]",
      "inlined"),

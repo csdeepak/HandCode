@@ -74,7 +74,10 @@ PROVIDERS: tuple[Provider, ...] = (
         key="GEMINI_API_KEY", name="gemini",
         console="https://aistudio.google.com/apikey",
         prefix="gemini/",
-        models=("gemini-2.5-flash", "gemini-2.5-flash-lite"),
+        # Verified by a real completion, not by the model list: `models`
+        # still advertises gemini-2.5-flash, and calling it returns "no
+        # longer available to new users" (`docs/0034` §5).
+        models=("gemini-3.6-flash",),
         free_tier=True,
         note="A separate account from OpenRouter, so its quota is independent "
              "— this is the one that makes failover real.",
@@ -87,7 +90,7 @@ PROVIDERS: tuple[Provider, ...] = (
         key="MISTRAL_API_KEY", name="mistral",
         console="https://console.mistral.ai/api-keys",
         prefix="mistral/",
-        models=("mistral-small-latest", "open-mistral-nemo"),
+        models=("ministral-3b-latest", "mistral-small-latest"),
         free_tier=True,
         note="The free tier has historically required opting in to data "
              "training. Read the consent screen before accepting.",
@@ -110,7 +113,9 @@ PROVIDERS: tuple[Provider, ...] = (
         key="GROQ_API_KEY", name="groq",
         console="https://console.groq.com/keys",
         prefix="groq/",
-        models=("llama-3.3-70b-versatile",),
+        # Groq no longer serves Llama on this tier; these are what the
+        # account actually lists AND answers.
+        models=("openai/gpt-oss-20b", "openai/gpt-oss-120b"),
         free_tier=True,
         note="Model availability on the free plan has changed during 2026; "
              "confirm the model id in the console before relying on it.",
