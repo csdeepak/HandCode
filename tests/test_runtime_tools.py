@@ -119,3 +119,52 @@ def test_a_failing_command_is_reported_as_an_error(tmp_path, monkeypatch):
 
     obs = BashExecutor()(BashAction(command="exit 3"))
     assert obs.exit_code == 3 and obs.is_error is True
+
+
+# ── line endings survive an edit (docs/0035) ───────────────────────────
+@pytest.mark.parametrize("before,content,expect_crlf", [
+    (b"a\r\nb\r\n", "a\nB\n",     True),    # CRLF file, model sends LF
+    (b"a\r\nb\r\n", "a\r\nB\r\n", True),    # CRLF file, model sends CRLF
+    (b"a\nb\n",     "a\nB\n",     False),   # LF file, model sends LF
+    (b"a\nb\n",     "a\r\nB\r\n", False),   # LF file, model sends CRLF
+    (b"a\r\nb\r\nc\n", "x\ny\n",  True),    # mixed: the dominant ending wins
+])
+def test_write_preserves_the_files_line_endings(tmp_path, monkeypatch,
+                                                before, content, expect_crlf):
+    """An 8-line change arrived as a 149-line diff on the first real edit.
+
+    `write_file` wrote `\n` over a CRLF file, so every line counted as
+    changed: unreviewable, and it pollutes history in any repo checked out on
+    Windows.
+    """
+    monkeypatch.setenv("AGENTCTL_WORKSPACE", str(tmp_path))
+    from agentctl.runtime.tools import WriteAction, WriteExecutor
+
+    f = tmp_path / "f.txt"
+    f.write_bytes(before)
+    WriteExecutor()(WriteAction(path="f.txt", content=content))
+
+    raw = f.read_bytes()
+    crlf = raw.count(b"\r\n")
+    lf = raw.count(b"\n") - crlf
+    assert (crlf > 0 and lf == 0) is expect_crlf
+    assert b"\r\r" not in raw, "normalise before converting, or CRLF doubles"
+
+
+def test_a_new_file_gets_plain_lf(tmp_path, monkeypatch):
+    monkeypatch.setenv("AGENTCTL_WORKSPACE", str(tmp_path))
+    from agentctl.runtime.tools import WriteAction, WriteExecutor
+
+    WriteExecutor()(WriteAction(path="new.txt", content="x\ny\n"))
+    assert (tmp_path / "new.txt").read_bytes() == b"x\ny\n"
+
+
+def test_the_content_itself_is_unchanged(tmp_path, monkeypatch):
+    """Only the endings may differ -- never the text."""
+    monkeypatch.setenv("AGENTCTL_WORKSPACE", str(tmp_path))
+    from agentctl.runtime.tools import WriteAction, WriteExecutor
+
+    f = tmp_path / "f.txt"
+    f.write_bytes(b"old\r\n")
+    WriteExecutor()(WriteAction(path="f.txt", content="line one\nline two\n"))
+    assert f.read_text(encoding="utf-8").splitlines() == ["line one", "line two"]

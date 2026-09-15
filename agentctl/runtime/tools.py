@@ -176,18 +176,53 @@ class WriteObservation(Observation):
                    is_error=status.startswith("error"))
 
 
+def _existing_newline(path: Path) -> str | None:
+    r"""The line ending a file already uses, or None if it is new.
+
+    A model sends content with `\n`. Writing that over a CRLF file rewrites
+    every line, so an eight-line change arrives as a 149-line diff: unreviewable,
+    and it pollutes the history of any repository checked out on Windows. That
+    happened on the first real edit this tool made to its own repo
+    (`docs/0035`).
+
+    The dominant ending wins rather than the first one found, because a file
+    with a couple of stray endings should not flip the whole file to match its
+    own typo.
+    """
+    try:
+        raw = path.read_bytes()
+    except Exception:                                   # noqa: BLE001
+        return None
+    crlf = raw.count(b"\r\n")
+    lf = raw.count(b"\n") - crlf
+    if crlf == 0 and lf == 0:
+        return None
+    return "\r\n" if crlf > lf else "\n"
+
+
 class WriteExecutor(ToolExecutor):
     """Writes the WHOLE file, which is what makes it IDEMPOTENT_WRITE.
 
     An append would be non-idempotent and would need a probe; replacing the
     entire contents can be repeated safely, so a crash mid-write costs nothing.
+
+    The file's existing line endings are preserved, so editing one rule in a
+    CRLF file produces a one-rule diff.
     """
 
     def __call__(self, action, conversation=None):
         p = _workspace() / action.path
         try:
+            existing = _existing_newline(p) if p.exists() else None
             p.parent.mkdir(parents=True, exist_ok=True)
-            data = action.content.encode("utf-8")
+            # Normalise to `\n` FIRST, always. The model may send either, so
+            # replacing `\n` without stripping `\r` turns `\r\n` into `\r\r\n`
+            # -- and only converting toward CRLF leaves an LF file holding the
+            # CRLF the model happened to send.
+            text = action.content.replace("\r\n", "\n")
+            if existing == "\r\n":
+                text = text.replace("\n", "\r\n")
+            data = text.encode("utf-8")
             p.write_bytes(data)
             return WriteObservation.make("written", len(data))
         except Exception as e:                          # noqa: BLE001

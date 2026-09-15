@@ -74,6 +74,14 @@ tools:
       # `rm file.txt` fell through to the EXTERNAL default and never prompted.
       - match: '(^|[\s;&|])rm\b'
         class: DESTRUCTIVE
+      - match: '^\s*(del|erase)\b'
+        class: DESTRUCTIVE
+      - match: '^\s*(rd|rmdir)\b'
+        class: DESTRUCTIVE
+      - match: '^\s*Remove-Item\b'
+        class: DESTRUCTIVE
+      - match: '^\s*format\s+[A-Za-z]:'
+        class: DESTRUCTIVE
       - match: '(^|[\s;&|])(shred|truncate|mkfs\S*|fdisk)\b'
         class: DESTRUCTIVE
       - match: '\bdd\s+if='
