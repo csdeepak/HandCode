@@ -119,8 +119,10 @@ precisely to keep the prompts meaningful.
 - **Interpreters are opaque.** `python -c "os.remove(...)"` is `EXTERNAL`, and
   no argument inspection will ever see inside it. This is a floor on what
   classification can do — only a sandbox answers it.
-- **Windows shells are unhandled.** No `Remove-Item`, no `del`, no `rd /s`.
-  The runtime targets `bash`, so this is a real gap on the development machine.
+- ~~**Windows shells are unhandled.**~~ Closed in `docs/0035`: `del`, `erase`,
+  `rd`, `rmdir`, `Remove-Item` and `format C:` now classify `DESTRUCTIVE`, with
+  ten corpus cases covering them. The rules were written by the agent itself,
+  running against this repository.
 
 ## 7. Consequences
 

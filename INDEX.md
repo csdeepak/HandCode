@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0034**.
+**The highest number is the newest document.** Current head: **0035**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -40,6 +40,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0032](docs/0032-keys-and-dashboard.md) | One Registry, One Keys File, One Screen | DECISION | ACCEPTED | 2026-09-14 | Where to get every key, one file to hold them, and a screen saying if failover is real |
 | [0033](docs/0033-multi-account.md) | Many Keys, Many Accounts | DECISION | ACCEPTED | 2026-09-14 | The account is the unit, not the provider. And 'outside any repo' was false here |
 | [0034](docs/0034-connectivity.md) | 31 Keys, and Four Ways a Check Can Lie | DECISION | ACCEPTED | 2026-09-15 | A CDN 403 is not a rejected key; a catalogue is not what you can call |
+| [0035](docs/0035-dogfood.md) | The Agent Fixed Its Own Repository | DECISION | ACCEPTED | 2026-09-15 | PASS on a real gap, and an 8-line change arrived as a 149-line diff |
 
 ---
 
@@ -64,7 +65,7 @@ verdicts, current design, then the diagrams. About 40 minutes.
 | **Architecture** | `0008` DRAFT — Q1/Q2/Q3/Q5/Q13/Q15/Q16/Q17 resolved. **Q4 is the last blocker.** §3 needs the `0015` correction. |
 | **Verify** | `python verify.py` — 8 checks, ~4 min, zero cost |
 | **Next action** | **M0-M7 are all complete.** Next: a run against a second provider family to test the `/v1/messages` path, and Q9 -- the read/write ratio by effect class, which decides whether speculative execution is worth building. |
-| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **480 tests green.** |
+| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **497 tests green.** |
 
 ---
 

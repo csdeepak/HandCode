@@ -174,6 +174,30 @@ unlike the runner. What CI does cover is the replay machinery itself —
 `tests/test_replay.py`, 24 tests, everywhere. Recording a Linux cassette would
 close the gap and needs a key in CI, which is not a trade worth making.
 
+### It caught a real regression, unprompted
+
+The first time M6 earned itself was not a test. Fixing `write_file` to preserve
+line endings (`docs/0035`) changed a write from 107 bytes to 111 — four extra
+carriage-return characters — and that byte count appears in the observation the model
+reads:
+
+```
+recorded:  "written (107 bytes)"
+now:       "written (111 bytes)"
+
+cassette miss -- turn 2: message 5 (tool) differs from the recording
+```
+
+`verify.py` went from 10/10 to `INCONCLUSIVE`, naming the turn and the message.
+Nothing else in 497 tests noticed that the fix had altered what the agent sees.
+
+So the invalidation rule is broader than §6 says. A cassette is bound to the
+platform, to the workspace, **and to the behaviour of every tool in the loop**.
+Any change to what a tool returns invalidates every recording that contains it
+— which is exactly the property that makes a miss a regression signal rather
+than an inconvenience. The cassette was re-recorded and committed alongside the
+fix that changed it.
+
 ## 7. What determinism hides
 
 Replay pins `tool_call_id`, because the recorded response carries the one the
