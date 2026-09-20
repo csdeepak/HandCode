@@ -9,7 +9,7 @@ cost-efficient** across changes of provider, account, and model.
 > recoverable, measurable, and cost-efficient.
 
 **Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 502 tests — including a nine-point chaos suite with real process
+verified. 507 tests — including a nine-point chaos suite with real process
 death — plus four end-to-end crash experiments. All green.
 
 ---
@@ -115,8 +115,15 @@ agentctl run "add type hints to utils.py" --workspace ./myproject
 
 `doctor` checks packages, the SDK import chain, git, your provider keys, the
 policy, and whether the workspace has uncommitted changes the agent is about
-to edit. It reports the one thing it cannot know — OpenRouter exposes no
-remaining-free-request counter on any endpoint (`docs/0031`).
+to edit.
+
+> **Correction (2026-09-21).** This paragraph used to say OpenRouter exposes no
+> remaining-free-request counter on any endpoint (`docs/0031`). That is false.
+> `GET /api/v1/key` returns `free_model_daily_requests` with `used`, `limit`
+> and `remaining`, and it costs nothing — measured against six live accounts,
+> all reporting `limit=50`. `probe.py` was already calling the sibling endpoint
+> `/api/v1/auth/key` the whole time. `docs/0038` §9.4 records the measurement;
+> surfacing it is scheduled work.
 
 Real tools (bash, read, write), a real model, every effect classified and
 ledgered. Crash it and re-run with `--resume <id>`: work already done is not
@@ -299,7 +306,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            502 tests, including the nine-point chaos suite
+tests/            507 tests, including the nine-point chaos suite
 verify.py         one command that proves all of the above
 ```
 
