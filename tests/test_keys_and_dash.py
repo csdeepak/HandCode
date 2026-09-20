@@ -296,7 +296,12 @@ def test_the_proxy_builds_one_deployment_per_account_and_model():
     entries = available(MULTI)
     doc = yaml.safe_load(build(MULTI))
     models = doc["model_list"]
-    assert len(models) == len(entries)
+    # Count DEPLOYMENTS, not rows. A source group (`pool-gemini`) is a second
+    # name for deployments already listed under `pool`, so its rows carry the
+    # same ids with an `-only` suffix and must not be counted again
+    # (`docs/0039`). Before source groups existed these were the same number.
+    deployments = {m["model_info"]["id"].removesuffix("-only") for m in models}
+    assert len(deployments) == len(entries)
     # every account is represented
     used = {m["litellm_params"]["api_key"] for m in models}
     assert used == {f"os.environ/{k}" for k in MULTI}

@@ -38,6 +38,10 @@ from pathlib import Path
 POOL = "pool"
 # A separate model group, never an automatic fallback target (`docs/0002` §5).
 PAID = "paid"
+# `pool-openrouter`, `pool-gemini`, ... One source, deliberately narrower than
+# `pool`. The prefix is what makes a source group recognisable as one rather
+# than as some unrelated model group someone hand-added (`docs/0039`).
+SOURCE_PREFIX = "pool-"
 
 
 def available(env: dict | None = None) -> list[tuple[str, str, str, bool]]:
@@ -71,7 +75,10 @@ def available(env: dict | None = None) -> list[tuple[str, str, str, bool]]:
     return out
 
 
-_DEPLOYMENT_ID = re.compile(r"^([a-z][a-z0-9]*)-a(\d+)-m(\d+)$")
+# The optional `-only` suffix marks a source-group copy. It is the SAME
+# deployment under a narrower name, so it parses to the same triple --
+# a caller counting deployments must not count it twice (`docs/0039`).
+_DEPLOYMENT_ID = re.compile(r"^([a-z][a-z0-9]*)-a(\d+)-m(\d+)(?:-only)?$")
 
 
 def parse_deployment_id(short: str) -> tuple[str, int, int] | None:
@@ -109,6 +116,52 @@ def accounts(entries: list[tuple[str, str, str, bool]]) -> set[str]:
     and counting them as one would under-report the failover you actually have.
     """
     return {c[0] for c in entries}
+
+
+def _by_source(entries: list[tuple[str, str, str, bool]]) -> dict[str, list]:
+    """Free deployments grouped by the provider serving them.
+
+    Paid deployments are left out: `paid` is already a group you ask for by
+    name, and a source group that silently included it would turn "route to
+    one provider" into "spend money" (`docs/0002` §5).
+    """
+    out: dict[str, list] = {}
+    for e in entries:
+        if not e[3]:
+            continue
+        parsed = parse_deployment_id(e[2])
+        if parsed is None:
+            continue
+        out.setdefault(parsed[0], []).append(e)
+    return out
+
+
+def sources(env: dict | None = None) -> list[dict]:
+    """What a source picker needs, and the cost of each choice.
+
+    The cost is not decoration. `pool` is 48 deployments across 24 accounts;
+    asking for one source can leave you with six behind a single account-wide
+    daily cap, which is precisely the failure the multi-account design exists
+    to escape (`docs/0033`). A picker that shows only the names is offering a
+    downgrade without saying so, so every row carries what it gives up
+    (`research/phase-10-3-model-selection.md` §6.5).
+
+    Ordered widest-first, so the safe choice reads first.
+    """
+    entries = available(env)
+    total = len([e for e in entries if e[3]])
+    rows = []
+    for name, mine in _by_source(entries).items():
+        rows.append({
+            "source": name,
+            "group": f"{SOURCE_PREFIX}{name}",
+            "deployments": len(mine),
+            "accounts": len({e[0] for e in mine}),
+            "models": sorted({e[1] for e in mine}),
+            "gives_up": total - len(mine),
+        })
+    rows.sort(key=lambda r: (-r["deployments"], r["source"]))
+    return rows
 
 
 def verified_providers(allow_paid: bool = False) -> tuple[set[str], dict]:
@@ -168,6 +221,44 @@ def build(env: dict | None = None, telemetry: str | Path | None = None,
             f"      id: {short}",
             f"      free: {str(is_free).lower()}",
         ]
+
+    # ── the source groups ───────────────────────────────────────────────
+    #
+    # Everything above is one group, `pool`, and that is what makes failover
+    # work. These add a second, narrower way to ask: `pool-openrouter` routes
+    # only to OpenRouter.
+    #
+    # It is a duplicated entry, not a second deployment -- the same key, the
+    # same model, reachable under two names. The id carries `-only` so it
+    # stays unique, because a duplicate id would send a fallback to whichever
+    # entry litellm resolved first (`docs/0032`).
+    #
+    # The cost is real and belongs next to the choice: asking for one source
+    # narrows the pool to that source's share, and an account-wide daily cap
+    # then has nothing to fail over to. `agentctl models` prints what each
+    # choice leaves before you make it (`research/phase-10-3` §6.5).
+    by_source = _by_source(entries)
+    if len(by_source) > 1:
+        lines += ["", "  # ── source groups: narrower on purpose ──"]
+        for source in sorted(by_source):
+            group = f"{SOURCE_PREFIX}{source}"
+            mine = by_source[source]
+            lines += [
+                f"  # {group}: {len(mine)} deployment(s), "
+                f"{len({e[0] for e in mine})} account(s). "
+                f"Choosing it gives up the other "
+                f"{len(entries) - len(mine)}.",
+            ]
+            for env_var, model, short, is_free in mine:
+                lines += [
+                    f"  - model_name: {group}",
+                    "    litellm_params:",
+                    f"      model: {model}",
+                    f"      api_key: os.environ/{env_var}",
+                    "    model_info:",
+                    f"      id: {short}-only",
+                    f"      free: {str(is_free).lower()}",
+                ]
 
     n_free = sum(1 for c in entries if c[3])
     lines += [
@@ -247,7 +338,9 @@ def _validate(text: str) -> None:
     # Free deployments must share ONE name. That shared model group is where
     # failover actually comes from: the router retries across the group and
     # cools down whichever deployment just failed.
-    assert names <= {POOL, PAID}, f"unexpected model groups: {names}"
+    unexpected = {n for n in names
+                  if n not in (POOL, PAID) and not n.startswith(SOURCE_PREFIX)}
+    assert not unexpected, f"unexpected model groups: {unexpected}"
     assert POOL in names or names == {PAID}, "no free pool was built"
     for m in models:
         assert m["litellm_params"].get("api_key", "").startswith("os.environ/"), \

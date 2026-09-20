@@ -84,7 +84,7 @@ def test_measured_prefix_matches_the_constant_doctor_prices_groq_against():
 
 def test_runner_still_requests_the_max_output_tokens_doctor_assumes():
     """`doctor.py` cannot import this value -- `runner.py` has no module-level
-    constant for it, only a literal inside the `LLM(...)` call at line 189.
+    constant for it, only a literal inside the `LLM(...)` call at line 221.
     This test is the sync mechanism: if `runner.py` (owned by another agent)
     changes the literal, this fails here rather than `doctor` silently
     quoting a headroom number nobody meant any more.

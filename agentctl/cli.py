@@ -227,8 +227,30 @@ def cmd_ingest(args) -> int:
 def cmd_run(args) -> int:
     from agentctl.runtime.runner import run
     print("agentctl run")
+
+    model = args.model
+    if args.source:
+        # A source group only exists inside the proxy's config, so asking for
+        # one without a proxy would resolve to nothing. Refuse rather than
+        # silently fall back to the default model, which would run the task on
+        # a provider the user just said not to use.
+        if not args.base_url:
+            print("  --source needs a proxy to route through.")
+            print("    agentctl proxy --out ./proxy --verify")
+            print("    bash ./proxy/start.sh 4000")
+            print("    ... then add --base-url http://localhost:4000")
+            return 2
+        from agentctl.control.proxy import SOURCE_PREFIX, sources
+        known = {r["source"] for r in sources()}
+        if args.source not in known:
+            print(f"  no source called {args.source!r}. "
+                  f"You have: {', '.join(sorted(known)) or 'none'}")
+            print("  `agentctl models` lists them and what each one gives up.")
+            return 2
+        model = f"openai/{SOURCE_PREFIX}{args.source}"
+        print(f"  source        {args.source} (narrower than the full pool)")
     result = run(
-        task=args.task, workspace=args.workspace, model=args.model,
+        task=args.task, workspace=args.workspace, model=model,
         base_url=args.base_url, ledger=args.ledger if args.ledger != DEFAULT_LEDGER
         else None,
         confirm_destructive=not args.allow_destructive,
@@ -385,6 +407,67 @@ def cmd_keys(args) -> int:
         for p in missing():
             if p.free_tier:
                 print(f"    {p.name:<11} {p.console}")
+    return 0
+
+
+def cmd_models(args) -> int:
+    """Choose a source. Every row says what choosing it gives up.
+
+    `pool` is the default and the widest thing you can ask for. A source group
+    is narrower on purpose, and narrower means an account-wide daily cap has
+    less to fail over to -- which is the failure the multi-account design
+    exists to escape (`docs/0033`). So the cost is printed beside every choice
+    rather than left for you to discover at the cap.
+
+    Without `--verify` this reports what is CONFIGURED, not what can serve. It
+    says so, because six Cerebras keys authenticate happily and every
+    completion returns "Payment required" (`docs/0034` §7).
+    """
+    from agentctl.control.proxy import POOL, sources
+
+    rows = sources()
+    if not rows:
+        print("no provider keys in the environment. `agentctl keys --init`")
+        return 1
+
+    live: set[str] | None = None
+    if args.verify:
+        from agentctl.control.proxy import verified_providers
+        print("  checking which sources can actually serve "
+              "(one completion each)...\n")
+        live, _ = verified_providers()
+
+    total = sum(r["deployments"] for r in rows)
+    accts = sum(r["accounts"] for r in rows)
+    print(f"  {POOL:<22} {total:>3} deployments  {accts:>2} accounts   "
+          f"the default: every free source at once")
+    print(f"  {'':<22} {'':>3}              {'':>2}            "
+          f"use this unless you have a reason not to\n")
+
+    for r in rows:
+        mark = "  "
+        note = ""
+        if live is not None:
+            if r["source"] in live:
+                mark = "ok"
+            else:
+                mark, note = "$$", "   cannot serve a request right now"
+        print(f"  {mark} {r['group']:<22} {r['deployments']:>3} deployments  "
+              f"{r['accounts']:>2} accounts   gives up {r['gives_up']}"
+              f" of {total}{note}")
+        for m in r["models"][:3]:
+            print(f"       {m}")
+        if len(r["models"]) > 3:
+            print(f"       ... and {len(r['models']) - 3} more")
+
+    if live is None:
+        print("\n  These are the sources you hold KEYS for, not the ones that")
+        print("  can serve. `agentctl models --verify` sends one completion")
+        print("  each and marks the difference.")
+
+    print(f"\n  Use one:  agentctl run \"...\" --source <name> "
+          f"--base-url http://localhost:4000")
+    print(f"  Or ask for the group directly:  --model openai/{POOL}-<name>")
     return 0
 
 
@@ -557,6 +640,11 @@ def build_parser() -> argparse.ArgumentParser:
                     help="directory the agent works in (default: cwd)")
     rn.add_argument("--model", default="openrouter/nvidia/nemotron-3-super-120b-a12b:free")
     rn.add_argument("--base-url", help="an OpenAI-compatible endpoint, e.g. your proxy")
+    rn.add_argument("--source", metavar="NAME",
+                    help="route this run to ONE provider (see `agentctl "
+                         "models`). Narrower than the default pool, so a "
+                         "daily cap has less to fail over to. Needs "
+                         "--base-url.")
     rn.add_argument("--max-iterations", type=int, default=30)
     rn.add_argument("--max-budget", type=float, help="hard USD ceiling for the run")
     rn.add_argument("--resume", help="conversation id to continue")
@@ -587,6 +675,13 @@ def build_parser() -> argparse.ArgumentParser:
                     help="test every key against the provider. Uses metadata "
                          "endpoints, so it costs no tokens and no quota.")
     ky.set_defaults(fn=cmd_keys)
+
+    mo = sub.add_parser("models", help="sources you can route to, and what "
+                                       "choosing one gives up")
+    mo.add_argument("--verify", action="store_true",
+                    help="send one completion per source to find out which "
+                         "can actually serve. Costs a request each.")
+    mo.set_defaults(fn=cmd_models)
 
     da = sub.add_parser("dash", help="one screen: providers, effects, spend, policy")
     da.add_argument("--html", metavar="OUT",

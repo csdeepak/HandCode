@@ -54,7 +54,7 @@ OK, WARN, BAD = "ok", "!!", "XX"
 # either has drifted from the constant pinned here:
 _FIXED_PREFIX_TOKENS = 3_593         # 3,208 system prompt + 385 tool schemas
 _PREFIX_MEASURED = "2026-09-20, openhands-sdk 1.45.0"
-_RUNNER_MAX_OUTPUT_TOKENS = 4_096    # mirrors runtime/runner.py:189 -- not
+_RUNNER_MAX_OUTPUT_TOKENS = 4_096    # mirrors runtime/runner.py:221 -- not
                                       # importable, no constant exists there;
                                       # the same test pins this one too.
 #
@@ -83,7 +83,15 @@ def _groq_headroom(accts: list) -> tuple[str, str, str] | None:
         return None
 
     n_groq = len(groq) * len(groq[0].provider.models)
-    n_total = sum(len(a.provider.models) for a in accts)
+    # Deployments in the POOL, not credentials held. Counting every
+    # account folds in providers that cannot serve -- six Cerebras
+    # keys that 402 on every completion, one paid Anthropic key that
+    # is never called -- and hides them inside the reassuring
+    # remainder ("the other N carry no such limit"). That is the
+    # accounts-held-vs-deployments-served conflation `docs/0038` 9.4
+    # was written to diagnose, reappearing one file over (`docs/0039`).
+    n_total = sum(len(a.provider.models) for a in accts
+                  if a.provider.free_tier)
     headroom = _GROQ_TPM_CEILING - _RUNNER_MAX_OUTPUT_TOKENS - _FIXED_PREFIX_TOKENS
 
     only = (" Groq is the only provider you have configured — there is no "

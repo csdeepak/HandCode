@@ -325,8 +325,18 @@ def _failover() -> dict:
             per[a.provider.name] = per.get(a.provider.name, 0) + 1
         shape = ", ".join(f"{name} x{k}" if k > 1 else name
                           for name, k in per.items())
+        # "Accounts you HOLD", never "accounts that work". Six Cerebras keys
+        # authenticate happily and every completion returns "Payment
+        # required" (`docs/0034` §7), so a banner counting credentials as
+        # capacity overstates the pool by however many of those you have --
+        # and it sits directly above a capacity panel that scrupulously
+        # answers UNKNOWN. One honest panel under one confident wrong one is
+        # worse than neither (`docs/0039`).
         detail = (f"{n} accounts across {len(providers)} providers "
-                  f"({shape}). Survives a cap and an outage.")
+                  f"({shape}) are CONFIGURED -- that is a count of keys, not "
+                  f"of what can serve. Enough shape to survive a cap and an "
+                  f"outage; whether it does is what `agentctl keys --check` "
+                  f"and `agentctl models --verify` answer.")
     return {"accounts": n, "free_accounts": len(free),
             "providers": len(providers),
             "verdict": verdict, "detail": detail,

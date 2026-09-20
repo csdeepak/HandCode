@@ -23,10 +23,19 @@ def test_the_output_is_valid_yaml():
     assert yaml.safe_load(build(ONE))
 
 
-def test_every_deployment_shares_one_model_name():
-    """That is what makes them a pool rather than separate models."""
+def test_every_free_deployment_is_in_the_pool():
+    """That shared group is what makes them a pool rather than separate models.
+
+    Source groups (`pool-gemini`) added a SECOND name for some of these, so
+    the assertion is no longer "one group exists" but the property that
+    always mattered: nothing free is missing from `pool` (`docs/0039`).
+    """
     d = yaml.safe_load(build(TWO))
-    assert len({m["model_name"] for m in d["model_list"]}) == 1
+    free = {m["model_info"]["id"] for m in d["model_list"] if m["model_info"]["free"]}
+    pooled = {m["model_info"]["id"] for m in d["model_list"]
+              if m["model_name"] == "pool"}
+    assert free and pooled
+    assert {i.removesuffix("-only") for i in free} == pooled,         "a free deployment reachable only through a source group cannot fail over"
 
 
 def test_there_is_no_automatic_fallback_to_paid():
@@ -62,7 +71,10 @@ def test_free_deployments_all_share_one_group():
     """That shared group IS the failover mechanism."""
     d = yaml.safe_load(build(TWO))
     free = [m for m in d["model_list"] if m["model_name"] == "pool"]
-    assert len(free) == len(d["model_list"])        # TWO has no paid provider
+    # TWO has no paid provider, so every row is free -- but some rows are now
+    # source-group copies, which carry the same deployment under `-only`.
+    rows = {m["model_info"]["id"].removesuffix("-only") for m in d["model_list"]}
+    assert rows == {m["model_info"]["id"] for m in free}
     assert len({m["model_info"]["id"] for m in free}) == len(free)
 
 
