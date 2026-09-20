@@ -410,6 +410,87 @@ def cmd_keys(args) -> int:
     return 0
 
 
+EXAMPLE_SUBAGENT = """---
+name: reviewer
+description: Reads code and reports what it finds. Cannot change anything.
+model: inherit
+tools:
+  - read_file
+max_iteration_per_run: 15
+---
+
+You are a careful reader. You can open files and nothing else -- no shell, no
+writes. Answer the question you were asked, cite `path:line` for every claim,
+and say plainly when you could not determine something rather than guessing.
+"""
+
+
+def cmd_subagent(args) -> int:
+    """List or run read-only subagents.
+
+    Read-only is the whole design, not a starter limitation. A subagent that
+    cannot produce an effect needs none of the lease, ledger, probe and
+    handoff work that multi-agent was priced at (`docs/0038` §4.2), which is
+    why this one exists and a writing one does not.
+    """
+    from agentctl.runtime.subagent import (
+        AGENTS_DIR, READ_ONLY_TOOLS, discover, rejection,
+    )
+
+    ws = Path(args.workspace)
+    if args.init:
+        d = ws / AGENTS_DIR
+        d.mkdir(parents=True, exist_ok=True)
+        f = d / "reviewer.md"
+        if f.exists():
+            print(f"{f} already exists; leaving it alone")
+            return 0
+        f.write_text(EXAMPLE_SUBAGENT, encoding="utf-8")
+        print(f"wrote {f}")
+        print(f"  run it:  agentctl subagent reviewer \"what does the gate do?\"")
+        return 0
+
+    defns = discover(ws)
+    if not defns:
+        print(f"no subagents in {ws / AGENTS_DIR}")
+        print("  agentctl subagent --init   writes an example")
+        return 0
+
+    if not args.name:
+        print(f"read-only subagents in {ws / AGENTS_DIR}\n")
+        for d in defns:
+            why = rejection(d)
+            print(f"  {'--' if why else 'ok'}  {d.name:<18} "
+                  f"{(d.description or '')[:46]}")
+            if why:
+                print(f"      REFUSED: {why.splitlines()[0]}")
+        print(f"\n  They may hold only {sorted(READ_ONLY_TOOLS)} — no shell, no")
+        print("  writes, no MCP. That is what lets them run outside the effect")
+        print("  ledger: there is no effect to record.")
+        return 0
+
+    match = next((d for d in defns if d.name == args.name), None)
+    if match is None:
+        print(f"no subagent called {args.name!r}. "
+              f"Have: {', '.join(d.name for d in defns)}", file=sys.stderr)
+        return 2
+    if (why := rejection(match)):
+        print(why, file=sys.stderr)
+        return 2
+    if not args.task:
+        print("give it something to do: agentctl subagent "
+              f"{args.name} \"<question>\"", file=sys.stderr)
+        return 2
+
+    from agentctl.runtime.subagent import run as run_subagent
+    print(f"agentctl subagent {match.name}")
+    out = run_subagent(match, args.task, workspace=ws, model=args.model,
+                       base_url=args.base_url)
+    print()
+    print(out)
+    return 0
+
+
 def cmd_models(args) -> int:
     """Choose a source. Every row says what choosing it gives up.
 
@@ -675,6 +756,17 @@ def build_parser() -> argparse.ArgumentParser:
                     help="test every key against the provider. Uses metadata "
                          "endpoints, so it costs no tokens and no quota.")
     ky.set_defaults(fn=cmd_keys)
+
+    sa = sub.add_parser("subagent", help="read-only subagents: list one, run one")
+    sa.add_argument("name", nargs="?", help="which one (omit to list)")
+    sa.add_argument("task", nargs="?", help="what to ask it")
+    sa.add_argument("--workspace", type=Path, default=Path("."),
+                    help="directory it reads from (default: cwd)")
+    sa.add_argument("--init", action="store_true",
+                    help="write an example definition and exit")
+    sa.add_argument("--model", help="model for a definition saying `inherit`")
+    sa.add_argument("--base-url", help="an OpenAI-compatible endpoint")
+    sa.set_defaults(fn=cmd_subagent)
 
     mo = sub.add_parser("models", help="sources you can route to, and what "
                                        "choosing one gives up")
