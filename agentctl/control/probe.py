@@ -260,22 +260,73 @@ def check_inference(provider_name: str,
 
     warnings.filterwarnings("ignore")
     os.environ.setdefault("LITELLM_LOG", "ERROR")
-    try:
-        import litellm
-        litellm.suppress_debug_info = True
-        litellm.completion(model=p.default_model, max_tokens=4,
-                           api_key=accts[0].value,
-                           messages=[{"role": "user", "content": "ok"}])
-        return Result(accts[0], LIVE, f"inference ok ({p.models[0]})")
-    except Exception as e:                              # noqa: BLE001
-        msg = str(e).replace(accts[0].value, "<REDACTED>")
-        low = msg.lower()
-        if "payment" in low or "credit" in low or "billing" in low:
-            return Result(accts[0], NO_CREDIT,
-                          "authenticates, but inference needs payment")
-        if "rate limit" in low or "429" in msg:
-            return Result(accts[0], LIMITED, "rate limited (usable later)")
-        if "not found" in low or "404" in msg:
-            return Result(accts[0], UNREACHABLE,
-                          f"model id rejected: {p.models[0]}")
-        return Result(accts[0], UNREACHABLE, msg.splitlines()[0][:80])
+
+    # Ask each ACCOUNT until one serves, and stop there.
+    #
+    # This used to call `accts[0]` once and rule for the provider, on the
+    # reasoning that "the tier is an account-level property" -- which is the
+    # argument AGAINST doing that, not for it. A daily cap is account-level
+    # too, so one capped key spoke for five working ones and `--verify`
+    # dropped all eighteen of that provider's deployments (`docs/0039`).
+    #
+    # The cost concern behind the original was real and is preserved: a
+    # healthy provider still costs exactly one call, because the loop stops
+    # at the first success. Only a provider that is actually failing pays for
+    # more, which is when you want to know.
+    best: Result | None = None
+    for acct in accts:
+        try:
+            import litellm
+            litellm.suppress_debug_info = True
+            litellm.completion(model=p.default_model, max_tokens=4,
+                               api_key=acct.value,
+                               messages=[{"role": "user", "content": "ok"}])
+            note = f"inference ok ({p.models[0]})"
+            if acct is not accts[0]:
+                note += f" via {acct.label}"
+            return Result(acct, LIVE, note)
+        except Exception as e:                          # noqa: BLE001
+            best = _worse_of(best, _classify_inference(e, acct, p))
+    assert best is not None
+    return best
+
+
+#: Most usable first. A LIMITED provider is still in the pool; a NO_CREDIT one
+#: is not, so collapsing the two loses a working provider.
+_RANK = (LIMITED, NO_CREDIT, UNREACHABLE)
+
+
+def _worse_of(a: "Result | None", b: "Result") -> "Result":
+    """Keep the most *encouraging* verdict seen across a provider's accounts.
+
+    If one key is rate limited and another has no credit, the provider is
+    rate limited -- the capped key will come back. Reporting the bleaker of
+    the two would drop a provider that works tomorrow.
+    """
+    if a is None:
+        return b
+    rank = {s: i for i, s in enumerate(_RANK)}
+    return a if rank.get(a.status, 9) <= rank.get(b.status, 9) else b
+
+
+def _classify_inference(e: Exception, acct, p) -> "Result":
+    """Why a completion failed, from the provider's own words.
+
+    **Rate limiting is checked before payment, and the order is the point.**
+    OpenRouter's daily-cap error reads *"Rate limit exceeded:
+    free-models-per-day. Add 10 credits to unlock 1000 free model requests
+    per day"* -- it contains the word `credits`, so a payment-first match
+    classified a temporary cap as a billing failure and removed the provider
+    from the pool for the rest of the day. A fifth way a check can lie
+    (`docs/0034`).
+    """
+    msg = str(e).replace(acct.value, "<REDACTED>")
+    low = msg.lower()
+    if "rate limit" in low or "429" in msg or "quota" in low:
+        return Result(acct, LIMITED, "rate limited (usable later)")
+    if "payment" in low or "credit" in low or "billing" in low:
+        return Result(acct, NO_CREDIT,
+                      "authenticates, but inference needs payment")
+    if "not found" in low or "404" in msg:
+        return Result(acct, UNREACHABLE, f"model id rejected: {p.models[0]}")
+    return Result(acct, UNREACHABLE, msg.splitlines()[0][:80])

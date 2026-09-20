@@ -57,9 +57,18 @@ PROVIDERS: tuple[Provider, ...] = (
         key="OPENROUTER_API_KEY", name="openrouter",
         console="https://openrouter.ai/settings/keys",
         prefix="openrouter/",
+        # `deepseek/deepseek-chat-v3.1:free` was here and is gone: absent from
+        # `/api/v1/models` entirely, and a call returns 404 "This model is
+        # unavailable for free. The paid version is available now". Six of the
+        # eighteen OpenRouter deployments pointed at it (2026-09-21).
+        #
+        # Its replacement was chosen by a real completion, not by the
+        # catalogue — `thinkingmachines/inkling:free` is listed and 403s,
+        # which is `docs/0034`'s "a catalogue is not what you can call"
+        # happening again on the same provider.
         models=("nex-agi/nex-n2.5-pro:free",
                 "nvidia/nemotron-3-super-120b-a12b:free",
-                "deepseek/deepseek-chat-v3.1:free"),
+                "nvidia/nemotron-3-ultra-550b-a55b:free"),
         free_tier=True,
         note="One account-wide cap covers every `:free` model, so extra "
              "OpenRouter models add resilience to outages but not to the "
