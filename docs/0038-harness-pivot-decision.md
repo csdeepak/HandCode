@@ -124,6 +124,14 @@ subagents a SKIP. Both stand, now with evidence rather than instinct.
 
 ### 4.1 The budget does not allow it
 
+> **Superseded by measurement, 2026-09-21 (§9.4).** The paragraph below read
+> the *generated config* and concluded the owner did not hold Gemini or
+> Cerebras keys. He holds both. Gemini is live and was simply missing from a
+> stale config. `0037` was right about what he holds and wrong about what the
+> config contained; this section made the opposite error. The corrected pool is
+> **48 deployments across 24 accounts**, and the ceiling below is not the whole
+> allowance.
+
 The pool is smaller than this project believed. `proxy_config.yaml` contains
 **OpenRouter, Mistral and Groq only** — no Gemini, no Cerebras. `0037` asserted
 otherwise; that assertion was wrong and is corrected here.
@@ -389,3 +397,51 @@ budget, which is the weaker half.
 
 It further noted that the **read-only subagent** — described at §4.4 as the
 affordable slice of the owner's ask — was described and then not scheduled.
+
+
+### 9.4 The keys file, and what the config was hiding
+
+The owner supplied `~/.agentctl/keys.env`, which closed §9.2's open unknown and
+opened a larger one. `agentctl keys --check`, 2026-09-21:
+
+```
+31/31 credentials authenticate across 6 provider(s)
+
+  gemini     6 accounts   live, inference ok (gemini-3.6-flash)
+  cerebras   6 accounts   authenticates, but inference needs payment
+  openrouter 6 accounts   live, free tier
+  mistral    6 accounts   live, inference ok
+  groq       6 accounts   live, inference ok
+  anthropic  1 account    paid, not called
+```
+
+**Two findings, and the second is the one that matters.**
+
+*The 300/day ceiling is confirmed.* All six OpenRouter accounts report
+`free_model_daily_requests limit=50` from `GET /api/v1/key`. §9.2's partial
+measurement is now complete: 6 × 50 = 300/day for OpenRouter. The audit's
+suspicion that the owner might be on the 1,000/day credited tier is closed
+negative.
+
+*But OpenRouter was never the whole allowance.* **Six live Gemini accounts were
+being held and were absent from the generated config** — so §4.1's "the whole
+practical allowance is OpenRouter's 300 requests/day" was false, not because
+the 300 was wrong but because the sentence assumed the config described the
+keys. It did not; it was stale. Regenerating with `agentctl proxy --verify`
+produces **48 deployments across 24 accounts** (18 openrouter, 12 mistral,
+12 groq, 6 gemini).
+
+This matters beyond arithmetic. Twelve of those deployments are Groq, which
+§4.1 establishes cannot carry a conversation past turn 1. `gemini-3.6-flash`
+has no such limit. So the pool did not merely grow by six — it gained its first
+free capacity that can sustain a long agent loop, while the config the whole
+budget argument was computed over did not know Gemini existed.
+
+Cerebras is correctly excluded: six accounts authenticate and none can infer
+without payment, which is exactly what `providers.py`'s docstring predicted
+would happen to a free tier and why it records no quota numbers.
+
+**Consequence for §4.** The safety half of the multi-agent SKIP is untouched —
+four invariants still assume a single writer, and that decides it at any
+budget. The budget half is now materially weaker than this document claimed,
+and the audit was right that it was the weaker half to lead with.
