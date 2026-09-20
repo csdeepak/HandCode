@@ -3,10 +3,18 @@ Phase 10.4 — What to delete.
 Frozen 2026-09-21. Static analysis only. No provider API call was made for
 this document. Zero quota spent.
 
-Repo state: main @ 093fb26 (`fix: one capped key spoke for five working ones`),
-on top of 2ab2a74 (`feat: a subagent that cannot produce an effect`) and
-b040b72 (`feat: pick a source, and be told what picking it costs`).
-593 tests collected locally via `pytest tests/ -q --collect-only`.
+Repo state: main @ b061b05 (`fix: a subagent could read another workspace,
+and un-gate Seam C`), on top of 093fb26, 2ab2a74, and b040b72.
+595 tests collected locally via `pytest tests/ -q --collect-only`.
+
+Note on method: this document's own research pass (reading the newly-frozen
+`research/phase-10-5-subagent-orchestration.md`) surfaced a live confidentiality
+bug in `runtime/subagent.py`. Between that reading and this document being
+finalized, `b061b05` landed and fixed it — in the same repository, the same
+day, independently of this document. §2 V7 and §6 record both the bug this
+phase found and the fact that it no longer needs a §6 action, because it was
+already taken. The draft is not rewritten to hide that sequence; it is the
+most concrete evidence in this document for the executive answer.
 -->
 
 # Phase 10.4 — What to Delete
@@ -38,11 +46,17 @@ now in `main`. What *is* left to delete is one precisely-scoped policy
 sub-feature that was flagged as unconsumed in `docs/0030` (the M7 decision
 document itself, eight documents before `docs/0038`) and has stayed
 unconsumed through 17 commits and every document since. Separately, this
-phase found something more
-important than a deletion: `runtime/subagent.py`, the newest module in the
-tree, ships with a confirmed cross-workspace confidentiality bug and a
-default example that crashes before it reaches the network — not grounds to
-delete it, but grounds to stop advertising it as ready.
+phase's own research pass surfaced something more consequential than a
+deletion: `runtime/subagent.py`, the newest module in the tree, shipped with
+a confirmed cross-workspace confidentiality bug and a default example that
+crashed before it reached the network. Between that finding and this document
+being finalized, both were fixed on `main` (`b061b05`) — not by this
+document's own action, but by the same day's work this phase's reading was
+part of. §2 V7 keeps the finding rather than deleting it, because the fact
+that it was real, found, and closed within a day is itself the strongest
+evidence in this document that the codebase is actively maintained rather
+than accumulating exactly the kind of dead weight Phase 10.4 was convened to
+find.
 
 ---
 
@@ -51,7 +65,10 @@ delete it, but grounds to stop advertising it as ready.
 Every item below is direct observation of source in this repository, or of
 the installed SDK at `.venv/Lib/site-packages/openhands/`, or a test/CI
 artifact already in the repo (T1). File:line citations are exact as of
-`093fb26`.
+`093fb26`, except where V7 explicitly re-checks against `b061b05` (HEAD) —
+`subagent.py` and `tools.py` changed substantially between the two, and V7
+names both states so a citation is never left pointing at superseded code
+without saying so.
 
 **V1 — `control/matrix/` as a Python package is empty; the data beside it is
 not.** `agentctl/control/matrix/__init__.py` is a zero-byte file. Nothing
@@ -148,54 +165,100 @@ work list*, now also landed: the source picker (`b040b72`;
 `control/proxy.py:44,139-165` `sources()`/`SOURCE_PREFIX`; `cli.py:227-250`
 `cmd_run --source`; `cli.py:494-554` `cmd_models`; `tests/test_source_picker.py`,
 10 tests) and the read-only subagent (`2ab2a74`; `runtime/subagent.py`;
-`cli.py:428-493` `cmd_subagent`; `tests/test_subagent.py`, 13 tests). A ninth
-change, `093fb26`, hardened `control/probe.py::check_inference` to poll every
-account instead of one and fixed a payment/rate-limit misclassification order
-bug — not on `0038`'s list, found by the owner's own dogfooding of `agentctl
-proxy --verify`. Nothing in the tree is scaffolding waiting to be finished;
-the things that were are now built.
+`cli.py:428-493` `cmd_subagent`; `tests/test_subagent.py`, 13 tests at that
+commit). A ninth change, `093fb26`, hardened `control/probe.py::check_inference`
+to poll every account instead of one and fixed a payment/rate-limit
+misclassification order bug — not on `0038`'s list, found by the owner's own
+dogfooding of `agentctl proxy --verify`. Nothing left unaddressed by the
+seven-item list was left as scaffolding; the things that were unfinished are
+now built. A tenth change, `b061b05`, landed *during this phase's research*
+and is treated separately at V7 because of that timing.
 
-**V6 — `runtime/subagent.py` is reachable and covered by mocked tests, not by
-`verify.py`, and not by a live model.** Reachable from `agentctl subagent
-<name> "<task>"` (`cli.py:428-493`). 13 tests in `tests/test_subagent.py`
-cover `validate()`, `discover()`, `rejection()`, and — via monkeypatching
-`runner._build_agent` — that the tool list handed to the agent comes from the
-`READ_ONLY_TOOLS` constant, never from `definition.tools`
-(`test_subagent.py:71-86`). `subagent` does not appear in `verify.py`'s
-`CHECKS` list (`grep -n "subagent" verify.py` — no output), unlike every
-other milestone verify.py names (V5's table: M0, M1, M2a, M2b, M4, M6, M7,
-plus the nine-point suite and the full-stack check), each of which has a
-dedicated zero-cost experiment script. The
-module is exercised by `verify.py`'s "unit tests" check only insofar as
-`tests/test_subagent.py` runs under `pytest tests/`, and every one of those
-tests stubs the LLM/Conversation boundary — no test in the repository drives
-`subagent.run()` to a real or even a locally-mocked-HTTP completion.
+**V6 — `runtime/subagent.py` is reachable, covered by 15 tests including two
+that are mutation-checked, but still not exercised by `verify.py` or against
+a live model.** Reachable from `agentctl subagent <name> "<task>"`
+(`cli.py:428-493`). `tests/test_subagent.py` (15 tests as of `b061b05`, up
+from 13) covers `validate()`, `discover()`, `rejection()`, that the tool list
+handed to the agent comes from the `READ_ONLY_TOOLS` constant rather than
+`definition.tools` (`test_subagent.py:71-86`), and — new in `b061b05` — that
+`register_all(overwrite=False)` cannot clobber an existing (gated)
+registration, and that the scoped workspace is restored on every exit path,
+including a raise inside `_build_agent` before a `Conversation` exists. The
+commit message states one of the older tests "passed for the wrong reason":
+it compared the scoped workspace to a value an earlier test in the same file
+had already leaked to the same path, so it stayed green whether or not the
+fix under test worked at all (the shape `docs/0024` names). It was rewritten
+against a sentinel value instead. Unchanged by any of this: `subagent` still
+does not appear in `verify.py`'s `CHECKS` list (`grep -n "subagent" verify.py`
+— no output), unlike every other milestone `verify.py` names (V5's table: M0,
+M1, M2a, M2b, M4, M6, M7, plus the nine-point suite and the full-stack
+check), each of which has a dedicated zero-cost experiment script. Every test
+in `test_subagent.py` stubs the LLM/Conversation boundary; no test in the
+repository drives `subagent.run()` to a real or even a locally-mocked-HTTP
+completion, and the mutation-checked tests prove the *fix* holds, not that
+the feature works end to end.
 
-**V7 — a already-frozen research document found `runtime/subagent.py` broken
-as shipped, including a real confidentiality bug.**
+**V7 — a bug this phase's own reading surfaced was real, and was fixed on
+`main` before this document was finalized.**
 `research/phase-10-5-subagent-orchestration.md` (frozen 2026-09-21, nine local
-zero-cost experiments E1-E9, CONVENTIONS.md-frozen, T1 for this document) found:
+zero-cost experiments E1-E9, CONVENTIONS.md-frozen, T1 for this document)
+found three defects in `runtime/subagent.py` as it stood at `093fb26`.
+Checked again just now against the current `subagent.py` and `tools.py`: all
+three are fixed, in `b061b05`, whose own commit message independently
+describes the same two-agent, local-stub-provider experiment method
+`phase-10-5` used, and lands the same three fixes `phase-10-5` §5.4 specified
+almost line for line.
 
-- **The shipped `--init` example cannot run.** `EXAMPLE_SUBAGENT`
-  (`cli.py:398`, via `phase-10-5` §2.1) declares `model: inherit`;
-  `subagent.py:161-162` collapses `inherit` to `model=chosen` where `chosen =
-  model if declared in ("inherit","",None) else declared`; `cli.py`'s
-  `subagent` argument parser sets no `--model` default (unlike `cmd_run`,
-  which defaults it at `cli.py:719` and `runner.py:37`). Running exactly the
-  command the tool tells you to run — `agentctl subagent reviewer "what does
-  the gate do?"` (`cli.py:467`) — raises a pydantic `ValidationError` before
-  any network call (E5, `phase-10-5` §2.1).
-- **`AGENTCTL_WORKSPACE` is a process-global that leaks between workspaces,
-  confirmed with two real agents and a local stub provider (E7).** Agent
-  `alpha` (workspace containing `ALPHA-ONLY-SECRET`) reported
-  `BRAVO-ONLY-SECRET` when run concurrently with agent `bravo`. No exception,
-  no warning — a confident report of the wrong workspace's file contents
-  (`phase-10-5` §2.6). The same leak reproduces sequentially with no threads
-  at all (E4): a parent's own workspace is silently repointed to a
-  subagent's after the subagent returns, because `runner.py:132` and
-  `subagent.py:155` both set the same env var and neither restores it.
-  `tests/conftest.py:24` snapshots and restores it between test cases, which
-  is exactly why no existing test in `tests/` catches this.
+- **The shipped `--init` example could not run (E5) — fixed.** At `093fb26`,
+  `EXAMPLE_SUBAGENT`'s `model: inherit` collapsed to `LLM(model=None)` with no
+  `--model` default, raising a pydantic `ValidationError` before any network
+  call. Current `subagent.py:194-195`: `chosen = (model or DEFAULT_MODEL) if
+  declared in ("inherit", "", None) else declared`, falling back to
+  `runner.DEFAULT_MODEL` (`runner.py:37`,
+  `"openrouter/nvidia/nemotron-3-super-120b-a12b:free"`). No `--model` is
+  needed for the command `--init` prints to run.
+- **`AGENTCTL_WORKSPACE` leaked between workspaces, confirmed with two real
+  agents and a local stub provider (E7) — fixed.** At `093fb26`, `subagent.py`
+  set the process-global `os.environ[WORKSPACE_ENV]` and never restored it,
+  so a concurrent subagent scoped to one workspace read another's file and
+  reported it with no error, and the same leak reproduced sequentially with
+  no threads at all (E4). Current `tools.py:60-69` defines
+  `_scoped_workspace: ContextVar[str | None]`, checked by `_workspace()`
+  before falling back to the env var; current `subagent.py:162-170` sets it
+  with `rt._scoped_workspace.set(str(ws))` inside a `try`/`finally` that
+  resets it on every exit path, "even when construction fails" per its own
+  comment — closing exactly the gap `phase-10-5` §5.4's Fix A specified (a
+  bare `try/finally` around the body, not just around `conv.run()`).
+  `tests/test_subagent.py::test_the_subagent_workspace_does_not_leak_back_to_the_parent`
+  now guards it, deliberately raising inside `_build_agent` to prove the
+  `finally` fires before a `Conversation` exists.
+- **`rt.register_all()` un-gated Seam C's tools under the same names (E8) —
+  fixed.** At `093fb26`, `register_all()` took no arguments and
+  unconditionally re-registered plain tool classes, silently overwriting
+  whatever `protect()` had registered under the same names, because the SDK's
+  `register_tool` replaces a duplicate with only a log warning (its own
+  source carries a `TODO` to raise instead, per the fix commit's own
+  description). Current `subagent.py:151`: `rt.register_all(overwrite=False)`;
+  current `tools.py:324`: `def register_all(overwrite: bool = True) -> list[str]`,
+  skipping any name already registered when `overwrite=False`. Guarded by
+  `tests/test_subagent.py::test_registering_plain_tools_never_un_gates_seam_c`.
+- **No key discovery, no proxy placeholder (E6) — fixed, plus `--source`
+  landed (matching `phase-10-5` §7's step 4, not merely step 1).** Current
+  `subagent.py:196-206` calls `runner._key_for(chosen)` when no `base_url` is
+  given, and substitutes `"proxy-holds-the-credentials"` when one is —
+  mirroring `runner.py:154-164`'s own logic, which `093fb26`-era `subagent.py`
+  did not call at all. `cli.py`'s `subagent` parser now takes `--source`
+  (`cli.py`, the `sa.add_argument("--source", ...)` block), the same
+  provider-pinned-with-failover mechanism `cmd_run --source` already used
+  (V5), which `phase-10-5` §7's build order priced as step 4, after the
+  blockers.
+
+**What this means for §5 and §6:** none of V7's four fixed items changes
+`runtime/subagent.py`'s verdict — it was KEEP before this phase and remains
+KEEP. What it does mean is that the DELETE #2 this document originally drafted
+("stop advertising `agentctl subagent` as ready") was overtaken by events
+between being drafted and being finalized, and is recorded at §6 as resolved
+rather than removed from the record.
 - **`rt.register_all()` un-gates Seam C's tools under the same names
   `protect()` gated (E8).** Latent today because `agentctl run` finishes
   registering before a subagent could run, and `Agent` locks its tool list
@@ -389,7 +452,7 @@ Test counts are `grep -c "^def test_"` per file, current checkout.
 | `runner.py` | **KEEP** | `agentctl run`'s implementation; 493 lines; the thing every other module ultimately serves. |
 | `tools.py` | **KEEP**, secondary **EXTRACT AS LIBRARY** flag | The minimal bash/read/write toolset, deliberately not `openhands-tools` (avoids ~55 transitive dependencies per its own docstring). Load-bearing here; also generically useful to any `openhands-sdk` user who wants a lean toolset independent of the ledger/gate. Not proposed for removal from this repo — flagged as a candidate for its own package once this project has spare capacity, the same "not this project's job, eventually" logic `docs/0013` §7 applies to the kernel. |
 | `doctor.py` | **KEEP** | `agentctl doctor`, preflight checks including the Groq headroom warning added in `17207c3`. 312 lines; 29+2 tests. |
-| `subagent.py` | **KEEP, do not advertise as ready** | Reachable via `agentctl subagent` (`cli.py:428-493`); 13 mocked tests; absent from `verify.py`'s `CHECKS` (V6); confirmed to ship with a crashing default example and a real cross-workspace confidentiality leak, both already frozen in `research/phase-10-5-subagent-orchestration.md` with a costed ~130-line fix (V7). The architecture is correct and matches `docs/0038` §4.4's "affordable slice" verdict; the current CLI-level presentation overstates its readiness. |
+| `subagent.py` | **KEEP** | Reachable via `agentctl subagent` (`cli.py:428-493`); 15 mocked tests including 2 mutation-checked ones. `research/phase-10-5-subagent-orchestration.md` found a crashing default example, a cross-workspace confidentiality leak, and a Seam-C gate bypass at `093fb26`; all three were fixed at `b061b05`, landed during this phase's own research (V7). Still absent from `verify.py`'s `CHECKS` and still never driven against a live or locally-mocked completion (V6) — the one gap this phase leaves open rather than closes. The architecture matches `docs/0038` §4.4's "affordable slice" verdict. |
 
 ### `experiments/` (11 directories)
 
@@ -428,7 +491,9 @@ not primary verdict): 2** (`kernel/` correctness core, `runtime/tools.py`).
 ## 6. The DELETE list
 
 Ordered by confidence. Every item accounts for the tests that go with it, per
-the standing constraint.
+the standing constraint. Two items are live recommendations; the middle slot
+is kept as a resolved item rather than renumbered away — see its entry for
+why.
 
 ### DELETE #1 — the `tiering` policy sub-feature and the two inert
 `escalation.when` fields (HIGH confidence)
@@ -465,44 +530,43 @@ edit. `policy.yaml` is not a numbered `docs/` document — `CONVENTIONS.md`'s
 `escalation.pool`/`.require_confirmation`. Those are read, tested, and
 exercised end to end by the M7 `verify.py` check (V3).
 
-### DELETE #2 — stop advertising `agentctl subagent` as ready (MEDIUM-HIGH
-confidence; a reachability change, not a code deletion)
+### DELETE #2 (RESOLVED before this document was finalized) — was: stop
+advertising `agentctl subagent` as ready
 
-**What:** the implicit promise in `cli.py:467`'s printed hint ("run it:
-`agentctl subagent reviewer "what does the gate do?"`") and in `cmd_subagent`
-generally, that the command is ready to use today.
+**What this originally targeted:** the implicit promise in `cli.py`'s
+`--init` hint and in `cmd_subagent` generally, that the command was ready to
+use today, given V7's findings against `093fb26`: a confirmed cross-workspace
+confidentiality leak and a default example that crashed before it reached the
+network.
 
-**Why:** V7's confirmed cross-workspace confidentiality leak (E7) is a real
-defect class this project has treated as disqualifying everywhere else — the
-whole effect-ledger design exists because "an already-landed effect is
-blocked rather than resumed cleanly" was judged unacceptable (README, "How it
-works"). A read tool that silently reports a different workspace's file
-contents is the read-only analogue of that same failure shape, and it is
-confirmed, not theoretical. Layering on top: the shipped `--init` example
-cannot even reach the point of leaking, because it crashes on `model:
-inherit` with no `--model` default (E5).
+**Why it is not a live recommendation:** by the time this document was
+finalized, `b061b05` had fixed all three defects V7 found (workspace leak,
+Seam-C gate bypass, the crashing default) and shipped two mutation-checked
+regression tests for the first two. There is nothing left to hide behind a
+"do not advertise" caveat — re-verified directly against the current source
+in V7, not assumed from the commit message. This slot is kept, rather than
+silently dropped, because a document about drift should show its own drift
+being caught and closed rather than erase the trace.
 
-**What is lost:** nothing that currently works. The command is already
-non-functional for its own documented example. This costs zero working
-capability and removes a false signal of readiness.
+**What remains, and is not itself a DELETE:** `runtime/subagent.py` still has
+no `verify.py` check and has never been driven to a real or locally-mocked
+completion end to end (V6). That is a coverage gap to close with a new
+zero-cost `verify.py` entry, in the shape of `experiments/0008-m6-replay`
+against a stub endpoint — not a deletion, and not scoped further here because
+it was not this phase's question.
 
-**Cost of the removal:** effectively zero — this is a matter of not printing
-"ready to use" language until `research/phase-10-5` §7's steps 0-3 (workspace
-fix, registry fix, key-discovery fix; ~50 lines + 2 tests per that document's
-own estimate) land. `subagent.py`, `test_subagent.py`, and the `cmd_subagent`
-plumbing itself are **not** proposed for deletion (§5 verdicts them KEEP);
-only the "try it now" framing is.
+### DELETE #3 — the stale test-count claim in `README.md` (LOW confidence as
+a priority, HIGH confidence as correct)
 
-### DELETE #3 — the stale "507 tests" claim (LOW confidence as a priority,
-HIGH confidence as correct)
+**What:** `README.md:12` and `README.md:309`, both currently reading "507
+tests."
 
-**What:** `README.md:12` and `README.md:309`.
-
-**Why:** V8 — measured 593 tests on this checkout; HEAD's own commit message
-(`093fb26`) already said 592. `README.md` is
-`LIVING`, not a numbered `docs/` document, so `CONVENTIONS.md`'s edit
-restriction does not apply and there is no reason for the number to be stale
-at all.
+**Why:** V8 — measured 593 tests against `093fb26`, rising to 595 against
+`b061b05` (HEAD's own commit message says 594) purely from the fixes and
+tests landed *during this phase*. `README.md` is `LIVING`, not a numbered
+`docs/` document, so `CONVENTIONS.md`'s edit restriction does not apply and
+there is no reason for the number to be stale at all — nor, evidently, to
+stay accurate for more than a few hours in a repository moving this fast.
 
 **Cost:** two one-line edits. Included in this list because it is the exact
 shape of claim `docs/0038` §9 was built to catch, and a "what to delete"
@@ -551,23 +615,28 @@ one of two questions, and this document answers both:
    genuinely unused at that point in the project's life. This project is
    38 documents further along, and the gaps `0007`-style deletion would have
    found have, in the day between `docs/0038`'s draft and this phase running,
-   already been closed by 8 landed commits (`git rev-list --count
-   2f534d3..HEAD`, from the research-and-decision commit through `093fb26`;
-   V5 accounts for what each one fixed) rather than left to be found here.
+   already been closed by 9 landed commits (`git rev-list --count
+   2f534d3..HEAD`, from the research-and-decision commit through `b061b05`;
+   V5 and V7 account for what each one fixed, including one landed while this
+   phase was running) rather than left to be found here.
 
 2. **"Call less of the SDK's own surface."** This is already true almost
    everywhere, not because anyone deleted anything, but because `agentctl`
    never opted in. `docs/0038` §2's own table lists four SDK capabilities
    ("Pre-tool hook that can refuse," "Claude Code plugin manifests,"
    "Parallel tool execution," and the subagent *runtime* as opposed to its
-   format) that ship in the dependency and are wired into `agentctl` nowhere
-   — confirmed unchanged by this phase (`grep -rn "PRE_TOOL_USE\|HookDecision\|
-   parallel_executor" agentctl/` still returns zero hits outside the SDK's own
-   installed copy). The one exception, and the only SDK surface this project
-   has *grown into* since `0038` was drafted, is `AgentDefinition` /
-   `load_agents_from_dir`, now called by `runtime/subagent.py:107` for the
-   read-only subagent — a single, narrow, deliberately-scoped opt-in, not a
-   drift toward using more of the SDK than needed.
+   format) that ship in the dependency and are called from `agentctl` nowhere
+   — re-checked at HEAD: `grep -rn "PRE_TOOL_USE\|HookDecision\|claude_code"
+   agentctl/` returns zero hits, and `parallel_executor` returns exactly one,
+   `runtime/tools.py:55`, which is a comment explaining *why* the workspace
+   fix (V7) uses a `ContextVar` — "the SDK's parallel executor copies the
+   calling context into each worker thread" — not a call into that executor.
+   Reading about a capability to explain a design choice is not calling it.
+   The one actual opt-in, and the only SDK surface this project has *grown
+   into* since `0038` was drafted, is `AgentDefinition` / `load_agents_from_dir`,
+   called by `runtime/subagent.py` for the read-only subagent — a single,
+   narrow, deliberately-scoped opt-in, not a drift toward using more of the
+   SDK than needed.
 
 There is no third reading under which the owner's ask points at code that
 exists and is safe to delete. The owner's intuition that something should be
@@ -578,7 +647,7 @@ target it was pointed at does not exist in this repository.
 
 ## 8. Sources
 
-### T1 — source code, this repo @ `093fb26`
+### T1 — source code, this repo @ `093fb26` (unchanged by `b061b05`)
 `agentctl/kernel/classify.py:1-67`; `agentctl/kernel/gate.py:1-30`;
 `agentctl/kernel/policy.py:1-164`; `agentctl/kernel/paths.py`;
 `agentctl/kernel/reconcile/__init__.py`, `base.py`, `external.py`,
@@ -591,9 +660,16 @@ policy/data/policy.yaml:1-46`; `agentctl/control/probe.py:1-333`;
 17-290`; `agentctl/adapters/litellm/hook.py`, `recorder.py:1-31`;
 `agentctl/adapters/openhands/__init__.py`, `handoff.py`, `seam_c.py:35`;
 `agentctl/runtime/runner.py:37,40-65,132,142-164,177,191,268,283-285,309,
-340-433`; `agentctl/runtime/subagent.py:1-230`; `agentctl/cli.py:227-670,
-719,755-775,823`; `pyproject.toml:1-46`; `.github/workflows/ci.yml`;
+340-433`; `pyproject.toml:1-46`; `.github/workflows/ci.yml`;
 `verify.py:25-56`; `README.md:1-355`; `tests/test_boundaries.py`.
+
+### T1 — source code, this repo @ `b061b05` (HEAD; re-checked specifically
+for V6/V7 because these two files changed materially)
+`agentctl/runtime/subagent.py:127-227` (full `run`/`_run_scoped`); `agentctl/
+runtime/tools.py:38-69,324` (`_scoped_workspace`, `_workspace`,
+`register_all`); `agentctl/cli.py:227-670,719,755-775,823` (the `--source`
+argument on the `subagent` parser is new here); `tests/test_subagent.py`
+(full, 15 tests); `git show b061b05` (commit message and diffstat).
 
 ### T1 — this repo's own frozen documents
 `docs/0001-project-charter.md`; `docs/0007-phase-0-decision-record.md`
@@ -617,9 +693,17 @@ repeating and reconfirming `docs/0038` §2's own check rather than trusting it.
 ### Method note
 
 Every claim above that names a file:line was produced by running the `grep`
-or reading the file, in this session, against the checkout at `093fb26` — not
-inferred from what an earlier document said the code did. Three items in this
-document (V3's `escalation.when` fields, V9's packaging risk, V7's whole
-content) were not named anywhere in the brief that requested this phase; they
-were found by treating "run the greps" as the actual instruction rather than
-a formality.
+or reading the file, in this session, against the checkout current at the
+time of writing — `093fb26` for most of the tree, re-checked against `b061b05`
+(HEAD) wherever `subagent.py`/`tools.py` were cited, per the sources note
+above — not inferred from what an earlier document said the code did. Three
+items in this document (V3's `escalation.when` fields, V9's packaging risk,
+V7's whole content) were not named anywhere in the brief that requested this
+phase; they were found by treating "run the greps" as the actual instruction
+rather than a formality. V7 additionally required re-running those same greps
+a second time, late in this document's drafting, because the repository
+changed under it — `b061b05` landed between this document's first pass over
+`subagent.py` and its last. The alternative (leaving the first pass's
+findings uncorrected, or quietly deleting the record of a bug that got fixed
+before publication) would have made this document exactly the kind of stale
+artifact `docs/0038` §9 exists to catch.

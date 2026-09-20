@@ -218,18 +218,27 @@ def _effects(raw: dict, problems: list[str]) -> dict[str, str]:
 
 
 def _tiering(raw: dict, problems: list[str]) -> dict[str, str]:
-    tiering = raw.get("tiering") or {}
-    if not isinstance(tiering, dict):
-        problems.append("`tiering` must be a mapping")
-        return {}
-    out = {}
-    for activity, spec in tiering.items():
-        tier = spec.get("min_tier") if isinstance(spec, dict) else spec
-        if not tier:
-            problems.append(f"tiering.{activity} needs a `min_tier`")
-            continue
-        out[str(activity)] = str(tier)
-    return out
+    """`tiering:` is refused, not compiled. Removed by Phase 10.4.
+
+    It used to compile into the artifact, validate cleanly, and be read by
+    nothing. `docs/0030` -- M7's own decision document -- recorded that at the
+    time: *"declarations ... recorded, not acted on"*, on the understanding
+    that `control/proxy.py` would grow a routing loop to consume them. It
+    never did, and 17 commits later `Policy.min_tier()` still had no caller.
+
+    A block that compiles and validates reads like protection. This document's
+    own title is that a policy failing open is worse than no policy, so the
+    honest handling of a declaration nothing enforces is to refuse it at
+    compile time -- where the user is watching -- rather than accept it and
+    quietly do nothing. Silently dropping it would be the same lie with less
+    evidence.
+    """
+    if raw.get("tiering"):
+        problems.append(
+            "`tiering` is not implemented and nothing routes by it. It was "
+            "compiled but never read (`docs/0030`, Phase 10.4); accepting it "
+            "would look like protection you do not have. Remove the block.")
+    return {}
 
 
 def _nearest(word: str, candidates: set[str]) -> str | None:

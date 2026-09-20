@@ -231,3 +231,31 @@ def test_the_budget_guard_is_given_the_spend_never_fetches_it():
     import inspect
     sig = inspect.signature(Policy.check_budget)
     assert "spent_usd" in sig.parameters and "coverage" in sig.parameters
+
+
+# ══ Phase 10.4: a declaration nothing enforces ═══════════════════════
+def test_tiering_is_refused_rather_than_compiled_into_nothing():
+    """It used to compile, validate, and be read by no one.
+
+    `docs/0030` recorded that at the time, expecting `control/proxy.py` to
+    grow a routing loop that consumed it. It never did. A block that compiles
+    cleanly reads like protection, and M7's own title is that a policy
+    failing open is worse than no policy — so the honest handling is to
+    refuse it where the user is watching.
+    """
+    import pytest
+
+    from agentctl.control.policy.compile import compile_policy
+
+    with pytest.raises(Exception) as e:
+        compile_policy({"tiering": {"planning": {"min_tier": "frontier"}}})
+    assert "tiering" in str(e.value).lower()
+    assert "not implemented" in str(e.value).lower()
+
+
+def test_a_policy_without_tiering_still_compiles():
+    """Refusing the dead key must not break every other policy."""
+    from agentctl.control.policy.compile import compile_policy
+
+    out = compile_policy({"budget": {"daily_usd": 1.0}})
+    assert out["tiering"] == {}

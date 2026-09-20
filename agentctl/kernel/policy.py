@@ -154,9 +154,6 @@ class Policy:
     def escalation(self) -> dict[str, Any]:
         return dict((self._d.get("routing") or {}).get("escalation") or {})
 
-    def min_tier(self, activity: str) -> str | None:
-        return (self._d.get("tiering") or {}).get(activity)
-
     @property
     def source_sha256(self) -> str:
         """Which policy.yaml this was compiled from. For `agentctl policy show`."""
