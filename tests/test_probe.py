@@ -152,3 +152,89 @@ def test_summarise_counts_usable_not_merely_present():
           probe.Result(a, probe.BAD_KEY)]
     s = probe.summarise(rs)
     assert s["total"] == 3 and s["working"] == 2
+
+
+# ── the one honest quota number ─────────────────────────────────────────
+def _body(d: dict) -> bytes:
+    return __import__("json").dumps(d).encode()
+
+
+class _HTTPOK:
+    def __init__(self, body: bytes):
+        self._body = body
+
+    def read(self, n=None):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_openrouter_quota_reads_the_measured_shape(monkeypatch):
+    """The exact shape measured live against six accounts on 2026-09-21
+    (`docs/0038` §9.2): `free_model_daily_requests: {used, limit, remaining}`,
+    wrapped in a top-level `data`, matching the sibling `/api/v1/auth/key`."""
+    monkeypatch.setenv("OPENROUTER_API_KEY", SECRET)
+    payload = _body({"data": {"is_free_tier": True,
+                              "free_model_daily_requests":
+                                  {"used": 0, "limit": 50, "remaining": 50}}})
+    monkeypatch.setattr(probe.urllib.request, "urlopen",
+                        lambda *a, **k: _HTTPOK(payload))
+    q = probe.openrouter_quota(_acct("openrouter"))
+    assert q.ok is True
+    assert (q.used, q.limit, q.remaining) == (0, 50, 50)
+    assert q.checked_at > 0
+
+
+def test_openrouter_quota_also_accepts_an_unwrapped_body(monkeypatch):
+    """Defensive: only `/api/v1/auth/key` was directly observed wrapping in
+    `data`; do not assume the sibling endpoint necessarily matches."""
+    monkeypatch.setenv("OPENROUTER_API_KEY", SECRET)
+    payload = _body({"free_model_daily_requests":
+                     {"used": 3, "limit": 50, "remaining": 47}})
+    monkeypatch.setattr(probe.urllib.request, "urlopen",
+                        lambda *a, **k: _HTTPOK(payload))
+    q = probe.openrouter_quota(_acct("openrouter"))
+    assert q.ok is True and q.remaining == 47
+
+
+def test_openrouter_quota_never_calls_the_network_for_an_empty_key(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    def _explode(*a, **k):
+        raise AssertionError("should not have made a request")
+    monkeypatch.setattr(probe.urllib.request, "urlopen", _explode)
+    q = probe.openrouter_quota(_acct("openrouter"))
+    assert q.ok is False and q.detail == "empty"
+
+
+def test_openrouter_quota_never_echoes_the_key_on_error(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", SECRET)
+    monkeypatch.setattr(probe.urllib.request, "urlopen",
+                        lambda *a, **k: (_ for _ in ()).throw(
+                            _HTTPError(403, f"bad key {SECRET} rejected")))
+    q = probe.openrouter_quota(_acct("openrouter"))
+    assert q.ok is False
+    assert SECRET not in q.detail
+
+
+def test_openrouter_quota_handles_a_paid_key_gracefully(monkeypatch):
+    """A paid key has no `free_model_daily_requests` at all -- not a crash,
+    not an invented zero."""
+    monkeypatch.setenv("OPENROUTER_API_KEY", SECRET)
+    payload = _body({"data": {"is_free_tier": False, "usage": 1.23}})
+    monkeypatch.setattr(probe.urllib.request, "urlopen",
+                        lambda *a, **k: _HTTPOK(payload))
+    q = probe.openrouter_quota(_acct("openrouter"))
+    assert q.ok is False and q.remaining is None
+    assert "free_model_daily_requests" in q.detail
+
+
+def test_openrouter_quota_survives_unparseable_json(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", SECRET)
+    monkeypatch.setattr(probe.urllib.request, "urlopen",
+                        lambda *a, **k: _HTTPOK(b"not json"))
+    q = probe.openrouter_quota(_acct("openrouter"))
+    assert q.ok is False and "not JSON" in q.detail

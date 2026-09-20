@@ -133,22 +133,139 @@ def test_report_returns_nonzero_only_for_blocking_problems(capsys):
     assert "blocking" in capsys.readouterr().out
 
 
-def test_the_quota_check_admits_what_it_cannot_know(monkeypatch):
-    """OpenRouter exposes no remaining-request counter on any free endpoint.
-
-    Probed `auth/key` and `credits`: neither returns rate-limit headers. A
-    preflight that guessed would be worse than one that says so.
+def test_the_quota_check_reports_what_it_actually_fetches(monkeypatch):
+    """This check calls `/api/v1/auth/key`, which reports free-tier status
+    but not the remaining count. It must say that plainly -- and must not
+    claim the number is unknowable, which was checked and found false
+    (`probe.py::openrouter_quota` reads it from `/api/v1/key`, live, on
+    2026-09-21).
     """
     import agentctl.runtime.doctor as d
     monkeypatch.setenv("OPENROUTER_API_KEY", "x")
     monkeypatch.setattr(d, "_openrouter",
                         lambda: (WARN, "openrouter quota",
                                  "FREE TIER: 50 model requests/day, "
-                                 "account-wide. The remaining count is not "
-                                 "exposed by any endpoint."))
+                                 "account-wide. This check reports free-tier "
+                                 "status only; the live remaining count is "
+                                 "exposed separately by "
+                                 "probe.py::openrouter_quota."))
     rows = d.check_all(probe_network=True)
     quota = [r for r in rows if r[1] == "openrouter quota"]
-    assert quota and "not exposed" in quota[0][2]
+    assert quota and "exposed separately" in quota[0][2]
+    assert "not exposed by any endpoint" not in quota[0][2]
+
+
+def test_the_false_unknowable_quota_claim_is_gone():
+    """`doctor` used to assert OpenRouter's remaining count is 'not exposed
+    by any endpoint.' That was checked again on 2026-09-21 and found false --
+    `/api/v1/key` exposes it. Neither the module docstring nor the real
+    `_openrouter` check's own source may repeat the claim.
+    """
+    import inspect
+
+    import agentctl.runtime.doctor as d
+
+    text = (d.__doc__ or "") + inspect.getsource(d._openrouter)
+    assert "not exposed by any endpoint" not in text
+    assert "not exposed by any free endpoint" not in text
+    assert "you find out at the 50th request" not in text
+
+
+# ── Groq's turn-2 ceiling (item 3, `docs/0038` §4.1) ────────────────────
+def _clear_all_providers(monkeypatch):
+    from agentctl.runtime.doctor import PROVIDERS
+    for env, _, _ in PROVIDERS:
+        monkeypatch.delenv(env, raising=False)
+
+
+def test_groq_headroom_is_silent_without_a_groq_key(monkeypatch):
+    """No noise for a user who has never touched Groq."""
+    _clear_all_providers(monkeypatch)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "x")
+    rows = check_all(probe_network=False)
+    assert not any(s == "groq headroom" for _, s, _ in rows)
+
+
+def test_groq_headroom_warns_when_groq_is_configured(monkeypatch):
+    _clear_all_providers(monkeypatch)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "x")
+    monkeypatch.setenv("GROQ_API_KEY", "y")
+    rows = check_all(probe_network=False)
+    hits = [r for r in rows if r[1] == "groq headroom"]
+    assert hits and hits[0][0] == WARN
+    assert "413" in hits[0][2]
+
+
+def test_groq_headroom_needs_no_network(monkeypatch):
+    """The arithmetic is offline -- it must appear whether or not
+    `probe_network` is set, unlike `openrouter quota`, which does need it.
+    """
+    _clear_all_providers(monkeypatch)
+    monkeypatch.setenv("GROQ_API_KEY", "y")
+    off = [r for r in check_all(probe_network=False) if r[1] == "groq headroom"]
+    on = [r for r in check_all(probe_network=True) if r[1] == "groq headroom"]
+    assert off and on
+
+
+def test_groq_headroom_counts_scale_with_configured_accounts(monkeypatch):
+    from agentctl.control.providers import BY_NAME
+
+    _clear_all_providers(monkeypatch)
+    monkeypatch.setenv("GROQ_API_KEY", "a")
+    monkeypatch.setenv("GROQ_API_KEY_2", "b")
+    rows = check_all(probe_network=False)
+    hits = [r for r in rows if r[1] == "groq headroom"]
+    assert hits
+    n = 2 * len(BY_NAME["groq"].models)
+    assert f"{n} of {n} configured deployment(s) are Groq" in hits[0][2]
+
+
+def test_groq_headroom_says_so_when_groq_is_the_only_provider(monkeypatch):
+    """The ruling: stay WARN, but the reader with ONLY Groq needs the
+    sentence, not a different colour."""
+    _clear_all_providers(monkeypatch)
+    monkeypatch.setenv("GROQ_API_KEY", "y")
+    rows = check_all(probe_network=False)
+    hits = [r for r in rows if r[1] == "groq headroom"]
+    assert hits and hits[0][0] == WARN
+    assert "only provider you have configured" in hits[0][2]
+
+
+def test_groq_headroom_does_not_clear_the_other_providers(monkeypatch):
+    """A reader must not walk away thinking the rest of the pool is
+    confirmed fine -- `providers.py` records no rate limits for anyone, so
+    silence about Mistral/OpenRouter/Gemini is absence of evidence, not a
+    clearance. Also must not read as 'the whole pool is broken.'
+    """
+    _clear_all_providers(monkeypatch)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "x")
+    monkeypatch.setenv("MISTRAL_API_KEY", "y")
+    monkeypatch.setenv("GROQ_API_KEY", "z")
+    rows = check_all(probe_network=False)
+    hits = [r for r in rows if r[1] == "groq headroom"]
+    assert hits
+    detail = hits[0][2]
+    assert "not the same as a clean bill of health" in detail
+    assert "only provider you have configured" not in detail
+
+
+def test_groq_headroom_cites_its_sources_and_dates(monkeypatch):
+    _clear_all_providers(monkeypatch)
+    monkeypatch.setenv("GROQ_API_KEY", "y")
+    rows = check_all(probe_network=False)
+    detail = next(d for _, s, d in rows if s == "groq headroom")
+    assert "console.groq.com" in detail and "2026-09-20" in detail
+    assert "INFERRED" in detail
+    assert "Unconfirmed by a live call" in detail
+
+
+def test_groq_headroom_is_never_blocking(monkeypatch):
+    """Turn 1 works; the failure is inferred, not observed from this repo.
+    WARN, never BAD -- BAD means 'this will not work.'"""
+    _clear_all_providers(monkeypatch)
+    monkeypatch.setenv("GROQ_API_KEY", "y")
+    rows = check_all(probe_network=False)
+    assert not any(s == "groq headroom" and st == BAD for st, s, _ in rows)
 
 
 # ── usability flaws found by actually using it (docs/0031 §9) ──────────

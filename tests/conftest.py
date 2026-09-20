@@ -22,7 +22,7 @@ import os
 import pytest
 
 MARKERS = ("_API_KEY", "AGENTCTL_KEYS", "AGENTCTL_WORKSPACE",
-           "AGENTCTL_TELEMETRY", "_BASE_URL")
+           "AGENTCTL_TELEMETRY", "_BASE_URL", "AGENTCTL_PROXY_URL")
 
 
 def _snapshot() -> dict[str, str]:

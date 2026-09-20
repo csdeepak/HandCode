@@ -392,7 +392,8 @@ def cmd_dash(args) -> int:
     """Providers, failover, effects, spend and policy on one screen."""
     from agentctl.control.dash import collect, render, to_html
 
-    data = collect(ledger=args.ledger, cost_ledger=args.cost_ledger)
+    data = collect(ledger=args.ledger, cost_ledger=args.cost_ledger,
+                   refresh_quota=args.refresh_quota)
     if args.html:
         out = Path(args.html)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -590,6 +591,11 @@ def build_parser() -> argparse.ArgumentParser:
     da = sub.add_parser("dash", help="one screen: providers, effects, spend, policy")
     da.add_argument("--html", metavar="OUT",
                     help="write a self-contained HTML page instead")
+    da.add_argument("--refresh-quota", action="store_true",
+                    help="also call openrouter.ai for each OpenRouter "
+                         "account's remaining free-tier quota. One metadata "
+                         "request per account, zero tokens -- never done "
+                         "automatically, only on this flag.")
     da.set_defaults(fn=cmd_dash)
 
     px = sub.add_parser("proxy", help="generate a LiteLLM proxy config")

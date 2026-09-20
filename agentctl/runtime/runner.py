@@ -37,6 +37,39 @@ from pathlib import Path
 DEFAULT_MODEL = "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
 
 
+def _build_agent(llm, tools):
+    """Construct the Agent with `tool_concurrency_limit` pinned to 1.
+
+    `agentctl/runtime/tools.py` implements `declared_resources()` on none of
+    its three tools, so the SDK's `ParallelToolExecutor` falls back to a
+    per-*tool-name* mutex (`declared=False` -> lock key `f"tool:{name}"`).
+    That lets `bash` -- which can `git commit` -- run concurrently with
+    `write_file` the moment the limit rises above 1, racing a ledger and a
+    git probe that both assume a single writer, and racing them *silently*:
+    every ledger write happens on the agent thread, so there is no exception
+    to notice (`docs/0038` §4.3).
+
+    Pinned explicitly here rather than relying on the SDK's own default
+    (currently 1, but not ours to depend on), and checked immediately after
+    construction so a future SDK upgrade, or an edit that drops the kwarg,
+    fails loudly instead of letting tools race unnoticed. This is the only
+    place in `agentctl/` allowed to construct an `Agent` -- see
+    `tests/test_tool_concurrency_pin.py`.
+    """
+    from openhands.sdk import Agent, Tool
+
+    agent = Agent(llm=llm, tools=[Tool(name=n) for n in tools],
+                  tool_concurrency_limit=1, include_default_tools=[])
+    if agent.tool_concurrency_limit != 1:
+        raise RuntimeError(
+            "tool_concurrency_limit did not pin to 1. agentctl's tools do "
+            "not implement declared_resources(), so running them "
+            "concurrently can silently corrupt the effect ledger and the "
+            "git probe (docs/0038 §4.3). Refusing to start rather than run "
+            "unsafely.")
+    return agent
+
+
 def _key_for(model: str) -> tuple[str | None, str | None]:
     """Find a key for this model without ever printing it."""
     for prefix, env in (("openrouter/", "OPENROUTER_API_KEY"),
@@ -90,8 +123,7 @@ def run(
     """
     from agentctl.adapters.openhands import protect
     from agentctl.runtime import tools as rt
-    from openhands.sdk import LLM, Agent, Conversation
-    from openhands.sdk.tool import Tool
+    from openhands.sdk import LLM, Conversation
 
     ws = Path(workspace).resolve()
     ws.mkdir(parents=True, exist_ok=True)
@@ -187,9 +219,7 @@ def run(
     llm = LLM(model=model, api_key=api_key, base_url=base_url,
               service_id="agentctl-run", temperature=0.0,
               num_retries=2, max_output_tokens=4096)
-    agent = Agent(llm=llm,
-                  tools=[Tool(name=n) for n in rt.TOOLS],
-                  include_default_tools=[])
+    agent = _build_agent(llm, rt.TOOLS)
 
     conv = Conversation(
         agent=agent, workspace=str(ws),

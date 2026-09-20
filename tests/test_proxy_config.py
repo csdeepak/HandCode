@@ -11,7 +11,8 @@ from __future__ import annotations
 import pytest
 import yaml
 
-from agentctl.control.proxy import accounts, available, build, write, _validate
+from agentctl.control.proxy import (accounts, available, build, write,
+                                    parse_deployment_id, _validate)
 
 
 ONE = {"OPENROUTER_API_KEY": "x"}
@@ -124,3 +125,57 @@ def test_write_puts_both_files_down(tmp_path, monkeypatch):
     cfg, hook = write(tmp_path)
     assert cfg.exists() and hook.exists()
     assert "proxy_handler_instance" in hook.read_text(encoding="utf-8")
+
+
+# ── modify_params: true (`docs/0038` §5.1, item 5) ─────────────────────
+def test_modify_params_is_enabled():
+    """Without it, a stale/orphaned tool_call_id 400s on a cross-provider hop
+
+    instead of being repaired: `sanitize_messages_for_tool_calling` returns
+    the message list untouched unless this is set
+    (`research/phase-10-3-model-selection.md` §2.1 V6).
+    """
+    d = yaml.safe_load(build(ONE))
+    assert d["litellm_settings"]["modify_params"] is True
+
+
+def test_drop_params_and_modify_params_coexist():
+    """Two independent settings; one must not crowd the other out of a future
+
+    edit to this block.
+    """
+    d = yaml.safe_load(build(ONE))
+    assert d["litellm_settings"]["drop_params"] is True
+    assert d["litellm_settings"]["modify_params"] is True
+
+
+# ── the id format and its parser are one contract ──────────────────────
+def test_every_generated_id_parses_back_to_its_triple():
+    """`dash` reads `/model/info` and must recover (provider, account, model)
+    from `model_info.id` alone (`research/phase-10-3` §6.1). One test ties
+    the generator and the parser together so they cannot drift apart."""
+    env = {"OPENROUTER_API_KEY": "x", "OPENROUTER_API_KEY_2": "y",
+           "MISTRAL_API_KEY": "z"}
+    for env_var, _model, short, _free in available(env):
+        parsed = parse_deployment_id(short)
+        assert parsed is not None, short
+        provider, n, i = parsed
+        assert short == f"{provider}-a{n}-m{i}"
+
+
+def test_parse_deployment_id_rejects_what_it_does_not_recognise():
+    """A foreign or malformed id must come back `None`, never a guess."""
+    for bad in ("", "openrouter", "openrouter-a1", "openrouter-a1-mX",
+                "openrouter_a1_m0", "OPENROUTER-a1-m0", "pool", "paid"):
+        assert parse_deployment_id(bad) is None, bad
+
+
+def test_modify_params_carries_a_rationale_comment():
+    """`docs/0038`: 'a setting with no rationale is a setting nobody can
+
+    review later.' Comments do not survive `yaml.safe_load`, so this checks
+    the raw text rather than the parsed document.
+    """
+    text = build(ONE)
+    assert "sanitize_messages_for_tool_calling" in text
+    assert "synthesises a placeholder result" in text

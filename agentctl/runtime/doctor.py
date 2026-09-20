@@ -8,16 +8,17 @@ problem was.
 Everything here is free and offline except the provider probe, which reads your
 own account status and costs no model request.
 
-## The one thing it cannot tell you
+## What this check fetches, and what it doesn't
 
-OpenRouter's free-model daily allowance is **not exposed by any free endpoint.**
-`auth/key` reports dollar usage and free-tier status; the remaining-request
-counter appears only in the `X-RateLimit-Remaining` header of a 429, which you
-get by hitting the wall. Probed both `auth/key` and `credits`: no rate-limit
-headers on either.
-
-So this reports what is knowable and says plainly that the quota is not. A
-check that guessed would be worse than one that admits the gap.
+This module's own OpenRouter check calls `/api/v1/auth/key`, which reports
+dollar usage and free-tier status but not the remaining daily count. That was
+recorded here as unknowable by any free endpoint -- checked again on
+2026-09-21 and found false. The sibling endpoint `/api/v1/key` exposes it
+directly, at the same cost (zero) and with the same auth
+(`probe.py::openrouter_quota`, `free_model_daily_requests:
+{used, limit, remaining}`, confirmed live across six accounts). This check
+still does not call it -- that number belongs in `agentctl dash`, not in a
+preflight -- but it no longer claims the number cannot be known.
 """
 from __future__ import annotations
 
@@ -41,6 +42,70 @@ def _provider_rows() -> list[tuple[str, str, str]]:
 PROVIDERS = _provider_rows()
 
 OK, WARN, BAD = "ok", "!!", "XX"
+
+
+# ── Groq's turn-2 ceiling (`docs/0038` §4.1, `research/phase-10-2` V3-V5, I1) ──
+# Three separately-dated facts. The conclusion below is COMPUTED from them,
+# never written down as a bare number, so updating one fact updates the
+# conclusion instead of leaving a stale headline behind.
+#
+# VERIFIED, in this repo, reproducible offline with no network and no key --
+# `tests/test_doctor_groq_prefix.py` re-measures both live and fails if
+# either has drifted from the constant pinned here:
+_FIXED_PREFIX_TOKENS = 3_593         # 3,208 system prompt + 385 tool schemas
+_PREFIX_MEASURED = "2026-09-20, openhands-sdk 1.45.0"
+_RUNNER_MAX_OUTPUT_TOKENS = 4_096    # mirrors runtime/runner.py:189 -- not
+                                      # importable, no constant exists there;
+                                      # the same test pins this one too.
+#
+# INFERRED, external to this repo, and NOT re-checked by the test suite --
+# dated so it is visibly different in kind from the two facts above. Source
+# tier T3 (issue trackers + one article): Groq's own rate-limits page frames
+# TPM as a budget but does not state the prompt+max_tokens mechanism in so
+# many words. This can go stale or turn out wrong without this repo noticing.
+_GROQ_TPM_CEILING = 8_000
+_GROQ_TPM_SOURCE = "console.groq.com/docs/rate-limits, checked 2026-09-20"
+
+
+def _groq_headroom(accts: list) -> tuple[str, str, str] | None:
+    """How much of Groq's TPM ceiling is left for conversation, and whether
+    Groq is all the user has.
+
+    Returns None when no Groq account is configured — nothing to warn about.
+    Status is WARN, never BAD: turn 1 does work, and the failure mode is
+    INFERRED, not observed from this repo (`docs/0038` §4.1, confirmed by an
+    independent re-check at §9.3, not yet confirmed by an actual `agentctl
+    run` against Groq). BAD means "this will not work"; this means "it likely
+    won't work past turn 1," a different claim.
+    """
+    groq = [a for a in accts if a.provider.name == "groq"]
+    if not groq:
+        return None
+
+    n_groq = len(groq) * len(groq[0].provider.models)
+    n_total = sum(len(a.provider.models) for a in accts)
+    headroom = _GROQ_TPM_CEILING - _RUNNER_MAX_OUTPUT_TOKENS - _FIXED_PREFIX_TOKENS
+
+    only = (" Groq is the only provider you have configured — there is no "
+            "other deployment in your pool that carries a real conversation."
+            if len(groq) == len(accts) else "")
+
+    detail = (
+        f"{n_groq} of {n_total} configured deployment(s) are Groq.{only} "
+        f"Groq's published free-tier limit ({_GROQ_TPM_CEILING:,} tok/min, "
+        f"metered on prompt+max_tokens — {_GROQ_TPM_SOURCE}, INFERRED "
+        f"mechanism, not this repo's own test) leaves ~{headroom} tokens of "
+        f"conversation after this repo's measured {_FIXED_PREFIX_TOKENS:,}-"
+        f"tok system prompt + tool schemas ({_PREFIX_MEASURED}) and "
+        f"runner.py's max_output_tokens={_RUNNER_MAX_OUTPUT_TOKENS} — turn 2 "
+        f"of most real tasks will 413. The other {n_total - n_groq} "
+        f"deployment(s) carry no documented version of this limit, which is "
+        f"not the same as a clean bill of health — providers.py deliberately "
+        f"records no rate limits for anyone. Unconfirmed by a live call from "
+        f"this repo — falsify: agentctl run --model "
+        f"groq/openai/gpt-oss-120b <a trivial task>, watch turn 2."
+    )
+    return (WARN, "groq headroom", detail)
 
 
 def check_all(workspace: str | Path | None = None,
@@ -135,6 +200,10 @@ def _providers(probe: bool) -> list[tuple[str, str, str]]:
                      f"{next(iter(providers))} — survives a cap, not the "
                      f"provider going down."))
 
+    # Offline, no network — runs regardless of `probe`.
+    if (row := _groq_headroom(accts)) is not None:
+        rows.append(row)
+
     if probe and os.environ.get("OPENROUTER_API_KEY"):
         rows.append(_openrouter())
     return rows
@@ -157,8 +226,10 @@ def _openrouter() -> tuple[str, str, str]:
     if d.get("is_free_tier"):
         return (WARN, "openrouter quota",
                 "FREE TIER: 50 model requests/day, account-wide across every "
-                "`:free` model. The remaining count is not exposed by any "
-                "endpoint — you find out at the 50th request.")
+                "`:free` model. This check reports free-tier status only; "
+                "the live remaining count is exposed separately by "
+                "`probe.py::openrouter_quota` (GET /api/v1/key) for callers "
+                "that want it.")
     return (OK, "openrouter quota",
             f"paid key, ${float(d.get('usage') or 0):.4f} used")
 

@@ -30,6 +30,7 @@ toward *billed*. `docs/0002` §5: never silently spend.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 # (env var, litellm model, short name, is_free). Order is fallback order:
@@ -68,6 +69,26 @@ def available(env: dict | None = None) -> list[tuple[str, str, str, bool]]:
             out.append((acct.env, f"{acct.provider.prefix}{model}", short,
                         acct.provider.free_tier))
     return out
+
+
+_DEPLOYMENT_ID = re.compile(r"^([a-z][a-z0-9]*)-a(\d+)-m(\d+)$")
+
+
+def parse_deployment_id(short: str) -> tuple[str, int, int] | None:
+    """The inverse of the `short` id `available()` builds above: one place
+    defines the format, this parses it, and a round-trip test ties them
+    together so they cannot drift apart silently.
+
+    Returns `(provider_name, account_ordinal, model_index)`, 1-indexed for
+    the account to match the id text itself (`a1` -> `1`). `None` for
+    anything that does not match -- callers must not guess at a foreign or
+    malformed id, only count it as unrecognised.
+    """
+    m = _DEPLOYMENT_ID.match(short)
+    if not m:
+        return None
+    provider, n, i = m.groups()
+    return provider, int(n), int(i)
 
 
 # Kept for callers that want the catalogue rather than what is configured.
@@ -155,7 +176,24 @@ def build(env: dict | None = None, telemetry: str | Path | None = None,
         "  # Seam A. Cost attribution and turn affinity; it cannot block a",
         "  # request (`docs/0021`).",
         "  callbacks: agentctl_hook.proxy_handler_instance",
+        "  # A provider config's supported params differ (`tools`,",
+        "  # `parallel_tool_calls`, ...) and the pool changes providers on every",
+        "  # retry. Without this an unsupported param 400s the whole request",
+        "  # instead of being silently omitted for that one deployment",
+        "  # (`research/phase-10-3-model-selection.md` §2.1 V7).",
         "  drop_params: true",
+        "  # Repairs cross-provider tool-call history when a turn hops",
+        "  # providers: drops an orphaned tool result, dedups a duplicated",
+        "  # one, and synthesises a placeholder result for an orphaned tool",
+        "  # call -- gates `sanitize_messages_for_tool_calling` (litellm",
+        "  # 1.100.0). Schema/role translation and thought-signature handling",
+        "  # already run unconditionally either way; this only turns on those",
+        "  # three repairs (`research/phase-10-3-model-selection.md` §2.1 V6,",
+        "  # `docs/0038` §5.1). The synthesised placeholder is content the",
+        "  # agent never produced -- Seam A already pins a turn to one",
+        "  # deployment to keep this rare (`kernel/hook.py::TurnAffinity`),",
+        "  # but does not eliminate it.",
+        "  modify_params: true",
         "",
         "router_settings:",
         "  # Every free deployment shares the model_name `pool`, and THAT is",

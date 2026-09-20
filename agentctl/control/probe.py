@@ -19,6 +19,7 @@ Two rules this module keeps:
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -120,6 +121,67 @@ def _describe(account: Account, body: bytes) -> str:
         if isinstance(d.get(field), list):
             return f"{len(d[field])} models"
     return "ok"
+
+
+# ── the one honest quota number (`research/phase-10-3` §2.3, §5.3) ─────
+@dataclass
+class Quota:
+    account: Account
+    ok: bool
+    checked_at: float
+    used: int | None = None
+    limit: int | None = None
+    remaining: int | None = None
+    detail: str = ""
+
+
+def openrouter_quota(account: Account) -> Quota:
+    """`GET /api/v1/key` -- the sibling of `check()`'s `/api/v1/auth/key`,
+    same header discipline, same never-echo-the-key rule.
+
+    Every other provider in the registry exposes nothing usable to an
+    ordinary inference key (`docs/0038` §5.3, `research/phase-10-3-model-
+    selection.md` §2.3): this is the only function in this module that
+    returns a quota NUMBER rather than a connectivity verdict, and it exists
+    only for `openrouter`. Measured live against six accounts on 2026-09-21:
+    `free_model_daily_requests: {"used": 0, "limit": 50, "remaining": 50}`
+    for every one of them.
+
+    Callers decide when this runs. Nothing in this module calls it on its
+    own, and it must never be polled -- one explicit call per refresh.
+    """
+    now = time.time()
+    key = account.value
+    if not key:
+        return Quota(account, False, now, detail="empty")
+
+    req = urllib.request.Request(
+        "https://openrouter.ai/api/v1/key",
+        headers={"Authorization": f"Bearer {key}", "User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as fh:
+            body = fh.read(20_000)
+    except urllib.error.HTTPError as e:
+        detail = _safe_body(e, key) or f"HTTP {e.code}"
+        return Quota(account, False, now, detail=detail[:80])
+    except Exception as e:                                  # noqa: BLE001
+        return Quota(account, False, now, detail=type(e).__name__)
+
+    try:
+        d = json.loads(body)
+    except Exception:                                       # noqa: BLE001
+        return Quota(account, False, now, detail="response was not JSON")
+
+    # The sibling `/api/v1/auth/key` wraps its payload in "data" (see
+    # `_describe` above); defend against either shape rather than assume.
+    data = d.get("data", d) if isinstance(d, dict) else {}
+    fmdr = data.get("free_model_daily_requests") if isinstance(data, dict) else None
+    if not isinstance(fmdr, dict):
+        return Quota(account, False, now,
+                     detail="no free_model_daily_requests in the response "
+                            "(paid key, or the shape changed)")
+    return Quota(account, True, now, used=fmdr.get("used"),
+                limit=fmdr.get("limit"), remaining=fmdr.get("remaining"))
 
 
 def check_all(accounts: list[Account] | None = None,
