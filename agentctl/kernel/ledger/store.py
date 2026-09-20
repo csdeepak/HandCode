@@ -157,6 +157,38 @@ class LedgerStore:
         ).fetchall()
         return [_to_record(r) for r in rows]
 
+    def committed_since(self, conversation_id: str, since: float,
+                        exclude_tool_call_id: str) -> list[EffectRecord]:
+        """Effects in this conversation that landed at or after `since`.
+
+        WHY THIS EXISTS (`docs/0038` §3). A probe that reasons from world state
+        — HEAD moved, therefore my commit landed — is only sound while this
+        call is the sole writer. A sibling call that executed after this one
+        was fingerprinted breaks that, and the probe cannot see siblings: it is
+        handed one record and asked about the world.
+
+        The gate can see them. This is the query that lets it check the
+        assumption before trusting a verdict built on it.
+
+        The comparison is against `committed_at`, not `started_at`: what
+        threatens a fingerprint is a sibling whose effect *landed* after it was
+        taken, not one that was merely decided earlier in the same batch. A
+        sibling that committed *before* this call was fingerprinted is already
+        part of the world that fingerprint describes, and is no threat at all.
+
+        `>=` rather than `>`: two records can share a timestamp, and counting a
+        simultaneous sibling as concurrent costs a human decision, while
+        missing one costs a dropped effect.
+        """
+        rows = self._db.execute(
+            "SELECT * FROM effect_record WHERE conversation_id=? AND state=? "
+            "AND COALESCE(committed_at, started_at)>=? AND tool_call_id!=? "
+            "ORDER BY committed_at",
+            (conversation_id, EffectState.COMMITTED.value, since,
+             exclude_tool_call_id),
+        ).fetchall()
+        return [_to_record(r) for r in rows]
+
     def blocked(self, conversation_id: str | None = None) -> list[EffectRecord]:
         """Effects awaiting a human decision (`docs/0013` §3, Panel 3)."""
         if conversation_id:
@@ -214,6 +246,34 @@ class LedgerStore:
         rec = self.lookup(call.tool_call_id)
         assert rec is not None
         return rec
+
+    def refresh_pre_state(self, tool_call_id: str, pre_state: str | None) -> None:
+        """Re-fingerprint the world immediately before this call executes.
+
+        WHY THIS EXISTS (`docs/0038` §3). The gate decides at Seam B, which the
+        harness runs for *every* call in an assistant message before it
+        executes *any* of them. So a batch of calls all carry a fingerprint of
+        the world as it was before the first one ran — and the git probe's
+        LANDED rule ("HEAD moved, and there is a single writer, so it was our
+        commit") is then wrong about every call but the first.
+
+        Seam C is the only place that sees a call at its own execution moment.
+        Refreshing here makes each fingerprint describe the world that call
+        actually acts on.
+
+        Deliberately narrow: `pre_state` and `started_at` only. The state
+        machine is untouched and `attempt` is not incremented, because this is
+        not a new attempt — it is the same attempt, finally about to run.
+        A record that has left INTENT is not refreshed: it has already
+        executed, and its fingerprint is evidence rather than a prediction.
+        """
+        if pre_state is None:
+            return
+        self._db.execute(
+            "UPDATE effect_record SET pre_state=?, started_at=? "
+            "WHERE tool_call_id=? AND state=?",
+            (pre_state, time.time(), tool_call_id, EffectState.INTENT.value),
+        )
 
     def commit(self, tool_call_id: str, observation: bytes | None = None) -> None:
         """The effect landed. Durable on return."""

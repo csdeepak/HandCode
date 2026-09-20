@@ -152,6 +152,14 @@ class SeamB:
 
         if decision.verdict is Verdict.EXECUTE:
             self._pending[str(event.id)] = call.tool_call_id
+            if self.handoff is not None:
+                # The fingerprint just taken describes the world before this
+                # whole batch. Let Seam C refresh it at the moment this call
+                # actually runs (`docs/0038` §3). Without Seam C the batch
+                # hazard remains, and the gate's `_sole_writer` check is what
+                # keeps that failing closed rather than silently wrong.
+                self.handoff.arm(event.action, call,
+                                 lambda c=call: self.gate.recapture(c))
 
         elif decision.verdict in (Verdict.BLOCK, Verdict.ESCALATE):
             reason = decision.reason or "blocked by agentctl"

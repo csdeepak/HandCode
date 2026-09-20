@@ -69,6 +69,12 @@ class GatedExecutor(ToolExecutor):
             )
 
         # No claim means Seam B said EXECUTE. Seam C never decides.
+        #
+        # It does, however, re-fingerprint: Seam B decided for the whole batch,
+        # and this is the only point at which a call is seen at its own
+        # execution moment (`docs/0038` §3). Still no decision -- the kernel
+        # captures, this only says when.
+        self._handoff.before_execute(action, self._tool_name, _args(action))
         return self._inner(self._stamp_idempotency_key(action), conversation)
 
     def _stamp_idempotency_key(self, action):

@@ -148,6 +148,16 @@ class EffectGate:
                 log.exception("probe %s raised", getattr(probe, "name", "?"))
                 verdict = INCONCLUSIVE
 
+            if verdict == LANDED and not self._sole_writer(rec):
+                # The probe reasoned from world state, but this call was not
+                # the only thing writing to that world. The change it saw may
+                # be a sibling's (`docs/0038` §3). Downgrade rather than
+                # attribute: a dropped effect recorded as COMMITTED is the one
+                # outcome this system exists to prevent.
+                log.warning("%s probe said LANDED, but a sibling effect "
+                            "committed inside the window; not attributing", probe.name)
+                verdict = INCONCLUSIVE
+
             if verdict == LANDED:
                 self.store.reconcile(rid, verdict, landed=True)
                 return GateDecision(
@@ -182,6 +192,49 @@ class EffectGate:
                   f"executed ({detail})")
         self.store.block(rid, reason)
         return GateDecision(Verdict.BLOCK, cls, reason=reason)
+
+    def _sole_writer(self, rec) -> bool:
+        """Was this call the only thing writing the world its probe just read?
+
+        A probe that reasons from world state — HEAD moved, so my commit
+        landed — is sound only under that assumption, and it is the probe's
+        own stated one. It holds across conversations. It does not hold inside
+        a batch, where a sibling can execute after this call was fingerprinted
+        (`docs/0038` §3).
+
+        Only effects that can change the world count; a read cannot. And when
+        the question cannot be answered, the answer is no: a world-state
+        verdict we cannot justify is exactly what must not be trusted.
+        """
+        try:
+            siblings = self.store.committed_since(
+                rec.conversation_id, rec.started_at, rec.tool_call_id)
+        except Exception:                               # noqa: BLE001
+            log.exception("could not check for concurrent effects on %s",
+                          rec.tool_call_id)
+            return False
+        return not any(not s.effect_class.replay_safe for s in siblings)
+
+    def recapture(self, call: ToolCall) -> None:
+        """Re-fingerprint the world for `call`, immediately before it runs.
+
+        Called from Seam C, the only seam that sees a call at its own execution
+        moment. Seam B decided for the whole batch; by the time this call is
+        actually about to execute, its siblings may already have changed the
+        world its probe will later reason about (`docs/0038` §3).
+
+        Never raises and never decides. A failure here costs a stale
+        fingerprint, which the probe reads as INCONCLUSIVE and the gate fails
+        closed on — the same direction as every other unknown in this system.
+        """
+        try:
+            cls = self.classifier.classify(call)
+            if cls.replay_safe:
+                return
+            self.store.refresh_pre_state(call.tool_call_id,
+                                         self._capture(call, cls))
+        except Exception:                               # noqa: BLE001
+            log.exception("recapture failed for %s", call.tool_call_id)
 
     def _capture(self, call: ToolCall, cls: EffectClass) -> str | None:
         """Fingerprint the world before acting, so a probe can compare later.

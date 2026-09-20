@@ -45,6 +45,9 @@ class SubstitutionHandoff:
         # call. The stored action is never read except to compare identity.
         self._by_identity: dict[int, tuple[Any, Any, bytes | None]] = {}
         self._by_fingerprint: dict[str, deque] = defaultdict(deque)
+        #: Calls cleared to execute, awaiting a re-capture at Seam C. Holds the
+        #: action for the same reason as `_by_identity` above.
+        self._armed: dict[int, tuple[Any, Any, Any]] = {}
         self._lock = threading.Lock()
 
     def offer(self, action: Any, call, observation: bytes | None) -> None:
@@ -52,6 +55,46 @@ class SubstitutionHandoff:
         with self._lock:
             self._by_identity[id(action)] = (action, call, observation)
             self._by_fingerprint[call.intent_hash()].append((call, observation))
+
+    def arm(self, action: Any, call, recapture: Any) -> None:
+        """Seam B: this call was cleared to run; let Seam C refresh it first.
+
+        Seam B decides for every call in an assistant message before any of
+        them executes, so the fingerprint it took is the world *before the
+        batch*, not the world this call will act on (`docs/0038` §3). Seam C is
+        the only place that sees a call at its own execution moment.
+
+        What is stored is a bound thunk, not the gate: Seam C still decides
+        nothing, and all knowledge of the kernel stays on this side of the
+        mailbox.
+        """
+        with self._lock:
+            self._armed[id(action)] = (action, call, recapture)
+
+    def before_execute(self, action: Any, tool_name: str, args: dict) -> bool:
+        """Seam C: re-fingerprint the world for this call, if it was armed.
+
+        Consumed on read, and matched by the same identity-then-fingerprint
+        discipline as `claim` — a recycled address must read as a miss.
+        Returns whether a re-capture ran, for logging and tests.
+        """
+        with self._lock:
+            entry = self._armed.get(id(action))
+            if entry is not None and entry[0] is action:
+                del self._armed[id(action)]
+                recapture = entry[2]
+            else:
+                fp = _fingerprint(tool_name, args)
+                hit = next(((k, e) for k, e in self._armed.items()
+                            if e[1].intent_hash() == fp), None)
+                if hit is None:
+                    return False
+                del self._armed[hit[0]]
+                recapture = hit[1][2]
+        # Outside the lock: a re-capture shells out to git, and holding the
+        # mailbox lock across a subprocess would serialise unrelated calls.
+        recapture()
+        return True
 
     def claim(self, action: Any, tool_name: str, args: dict) -> tuple | None:
         """Seam C: is there a substitution waiting for this action?
