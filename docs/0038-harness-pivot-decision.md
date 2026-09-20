@@ -20,8 +20,11 @@ answer them:
 - `research/phase-10-2-multiagent-cost-and-safety.md` (1,177 lines)
 - `research/phase-10-3-model-selection.md` (1,198 lines)
 
-**Status is DRAFT until the owner accepts it.** Nothing in `agentctl/` changes
-before that.
+**Status is DRAFT until the owner accepts it.** That rule was written to mean
+no code moves on this document's authority alone. Item 1 (§3) has since
+landed in `c8113f3` — the owner authorised it directly, not via this
+document — and the blanket sentence that stood here was false the moment it
+did. Items 2-7 remain unaccepted.
 
 ---
 
@@ -47,17 +50,33 @@ a live bug (§3).
 
 ---
 
-## 2. The features were already in the dependency
+## 2. The features are in the dependency — and none of them are wired up
+
+**Corrected by the checkpoint-0 drift audit (§9).** An earlier draft of this
+section said these features were "already present," and then treated that as
+though the owner had them. He does not.
+
+```
+$ grep -rn "PRE_TOOL_USE\|HookDecision\|AgentDefinition\|subagent\|claude_code" agentctl/
+$                                                    # zero hits
+```
+
+Every capability below ships in a library this project depends on and does not
+call. "Available" is not "built," and the distinction is the whole difference
+between the owner's ask and this document's answer to it.
 
 Verified against the installed SDK at `.venv/Lib/site-packages/openhands/`,
 version 1.45.0:
 
-| Asked for | Already present |
-|---|---|
-| Pre-tool hook that can refuse | `sdk/hooks/types.py:39` `HookDecision.DENY`; `executor.py:67` |
-| Claude-Code-style subagents | `sdk/subagent/schema.py::AgentDefinition` — Markdown frontmatter, `model` (incl. `inherit`), `tools` allowlist, `max_budget_per_run`, hooks, condenser |
-| Claude Code plugin manifests | `sdk/plugin/format/claude_code.py` |
-| Parallel tool execution | `sdk/agent/parallel_executor.py` + `resource_lock_manager.py` |
+| Asked for | Ships in the SDK at | Wired into `agentctl` |
+|---|---|---|
+| Pre-tool hook that can refuse | `sdk/hooks/types.py:39` `HookDecision.DENY`; `executor.py:67` | **no** |
+| Claude-Code-style subagents | `sdk/subagent/schema.py::AgentDefinition` — Markdown frontmatter, `model` (incl. `inherit`), `tools` allowlist, `max_budget_per_run`, hooks, condenser | **no** |
+| Claude Code plugin manifests | `sdk/plugin/format/claude_code.py` | **no** |
+| Parallel tool execution | `sdk/agent/parallel_executor.py` + `sdk/conversation/resource_lock_manager.py` | **no** |
+
+`10-1a`:56 said the pivot budget should be spent on exactly these. §7 as
+originally written spent it on none of them.
 
 Two qualifications, both material:
 
@@ -82,7 +101,7 @@ Two verified premises compose into it:
    every `capture()` therefore runs **before** any tool in the batch executes.
 2. `write_intent` asserts the fence only when a record already exists —
    `prev = self.lookup(...)`, then `if prev is not None`
-   ([`store.py:194`](../agentctl/kernel/ledger/store.py)). A fresh
+   (`store.py::write_intent`; the line moved when the fix landed). A fresh
    `tool_call_id` skips the fence entirely.
 
 So two HEAD-moving tool calls in one assistant message both fingerprint the
@@ -122,7 +141,7 @@ requests/day** (6 accounts × 50, account-wide).
 | supervisor + 3 workers, clean | 32 | 9.4 | 10.7% |
 | + SDK subagent defaults (condensers) | 35–41 | 7.3–8.6 | ~12% |
 | at Anthropic's measured 3.75× | 52 | 5.8 | 17.3% |
-| at the Illusion paper's 10× (SWE-Bench Lite) | 140 | 2.1 | **46.7%** |
+| **automatic MAS** @ the Illusion paper's 10× (SWE-Bench Lite) | 140 | 2.1 | **46.7%** |
 
 At 10×, one task costs 3.35M tokens. Structural overhead is the cause, not
 waste: 26,713 tokens of re-read shared files, and the fixed prefix paid 32
@@ -285,9 +304,15 @@ In order. Roughly four days, none of it multi-agent.
 | 6 | **`dash` reads `/model/info`** (§5.2) | Reports what is loaded, not what is implied |
 | 7 | **OpenRouter quota in `dash`** (§5.3) | The only honest quota number available |
 
-Items 5–7 are the owner's original ask, and together they are smaller than the
-research that scoped them. That is the intended outcome of a Phase 0, and it is
-the second time this project has had it (`0007`).
+Items 5–7 are **not** the owner's original ask, though an earlier draft of this
+document claimed they were. They are a LiteLLM flag, a dashboard read and a
+quota number. His ask was a section in which you *choose a source* — which
+`research/phase-10-3-model-selection.md` §6.5 specifies in full, and which §7
+omitted without declining it. Corrected by the checkpoint-0 audit (§9), which
+also found asks #3 and #5 dropped.
+
+A Phase 0 is supposed to shrink the work (`0007`). It is not supposed to shrink
+the *ask*, and the difference is the thing this document got wrong.
 
 ---
 
@@ -306,3 +331,61 @@ Recorded because the method requires it:
   lets a recorded result be substituted. Every Python challenger persists after
   the call returns, leaving no `tool_call_id` to match. Porting would not fix
   `0014`'s bug; it would make it undetectable.
+
+
+---
+
+## 9. Checkpoint-0 drift audit
+
+An independent audit was run against this document with one question: *has the
+owner's ask been quietly replaced with something easier?* It was told to verify
+rather than trust, including everything here. Its findings, accepted:
+
+### 9.1 What it falsified
+
+| Claim | Verdict |
+|---|---|
+| §2 "already present" | **Overclaim.** `grep` over `agentctl/` for those SDK symbols returns zero hits. Available is not built. §2 rewritten |
+| §7 "items 5-7 are the owner's original ask" | **False.** §7 rewritten |
+| `sdk/agent/resource_lock_manager.py` | Wrong path; it is `sdk/conversation/`. Fixed |
+| `store.py:194` | Stale after `c8113f3`. Re-anchored to the symbol |
+| 10× row | Scope qualifier "automatic MAS" had been deleted from the research's own label. Restored |
+| "Nothing in `agentctl/` changes before that" | Broken by this document's own first work item. Amended above |
+
+It also found that **three of the owner's six asks are not on the work list**:
+stripping unneeded features (`0037` Phase 10.4, never run and never declined),
+the source picker (specified in full at `10-3` §6.5, omitted from §7), and the
+Claude-Code harness surface (`10-1a`:56 named three SDK features to spend the
+pivot budget on; §7 spent it on none).
+
+### 9.2 The number that decides §4.1, now measured
+
+The audit's sharpest finding was that **300 requests/day was assumed, never
+measured**, while OpenRouter documents 50/day below $10 lifetime credit and
+1,000/day above it — a 20× swing on the number the multi-agent verdict rests
+on, one free HTTP call away, with the auth path already shipping in
+`control/probe.py:54`.
+
+Measured on 2026-09-21, `GET /api/v1/key`:
+
+```
+is_free_tier             : True
+free_model_daily_requests: {"used": 0, "limit": 50, "remaining": 50}
+```
+
+**The assumption holds** for the one account reachable from this environment.
+`keys.env` is absent here, so five of the six OpenRouter accounts were not
+measured; 300/day stands only if they share the tier. Recorded as a
+partially-closed unknown rather than a confirmed fact.
+
+### 9.3 What the audit did not overturn
+
+The STAY verdict, the pool composition, the Groq 311-token arithmetic, and the
+four broken invariants were each re-checked against source and held. The audit's
+own conclusion on multi-agent: **skip the supervisor-and-workers topology, but
+lead with the safety argument, not the budget** — four correctness mechanisms
+assume one writer, and that would decide it at any budget. §4 leads with the
+budget, which is the weaker half.
+
+It further noted that the **read-only subagent** — described at §4.4 as the
+affordable slice of the owner's ask — was described and then not scheduled.

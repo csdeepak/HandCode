@@ -52,3 +52,6 @@ keys.env
 
 # Generated proxy config (agentctl proxy). Regenerate, do not commit.
 /proxy/
+
+# Agent worktrees are transient checkouts, never content.
+.claude/worktrees/
