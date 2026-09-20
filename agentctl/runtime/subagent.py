@@ -139,27 +139,71 @@ def run(definition: Any, task: str, *, workspace: str | Path = ".",
     from .runner import _build_agent
 
     validate(definition)
-    # The SDK resolves tools by name from a global registry, so they must be
-    # registered before an Agent naming them is constructed. `agentctl run`
-    # does this on its own path; a subagent started straight from the CLI has
-    # no parent run to have done it.
-    rt.register_all()
+    # The SDK resolves tools by name from a process-global registry, so they
+    # must be registered before an Agent naming them is constructed.
+    # `agentctl run` does this on its own path; a subagent started straight
+    # from the CLI has no parent run to have done it.
+    #
+    # `overwrite=False` is load-bearing. Seam C registers GATED tools under
+    # these same names, and a plain re-registration silently replaces them --
+    # un-gating every effect the parent's guard was wrapping, with nothing
+    # failing to say so. Never clobber a registration that already exists.
+    rt.register_all(overwrite=False)
 
     ws = Path(workspace).resolve()
-    # `read_file` resolves paths against this env var, NOT against the
-    # Conversation's workspace argument -- deliberately, since it is
-    # configuration and never model input (`docs/0023` §3). Setting only the
-    # latter left the subagent hunting for `/gate.py` and `/workspace/gate.py`
-    # and, to its credit, refusing to guess.
-    import os
-    os.environ[rt.WORKSPACE_ENV] = str(ws)
+    # `read_file` resolves against this, not against the Conversation's
+    # workspace argument -- deliberately, since it is configuration and never
+    # model input (`docs/0023` §3). Setting only the latter left the subagent
+    # hunting for `/gate.py` and, to its credit, refusing to guess.
+    #
+    # Scoped to this task, not the process: the env var version leaked a file
+    # from one workspace into a subagent scoped to another, and leaked the
+    # subagent's workspace back to the parent after it returned.
+    token = rt._scoped_workspace.set(str(ws))
+    try:
+        return _run_scoped(definition, task, ws, model, api_key, base_url,
+                           max_iterations)
+    finally:
+        # Even when construction fails. A subagent that raised before it ever
+        # reached the model must not leave the parent's next `read_file`
+        # resolving against the subagent's workspace.
+        rt._scoped_workspace.reset(token)
+
+
+def _run_scoped(definition, task, ws, model, api_key, base_url,
+                max_iterations) -> str:
+    """The body of `run`, with the workspace already scoped.
+
+    Split out so the scope is released by one `finally` covering every failure
+    path -- including `_build_agent` and `LLM(...)` construction, which is
+    where a broken model id or a missing key actually raises.
+    """
+    from openhands.sdk import LLM, Conversation
+
+    from .runner import _build_agent
 
     # NOT `definition.tools`. See the module docstring: the allowlist is the
     # mechanism, the validation is the check.
     tools = sorted(READ_ONLY_TOOLS)
 
     declared = getattr(definition, "model", "inherit")
-    chosen = model if declared in ("inherit", "", None) else declared
+    # `inherit` means "whatever the parent is using". Run straight from the
+    # CLI there is no parent, and handing `None` to a validated `LLM` raised a
+    # pydantic traceback from the very command `--init` tells you to type.
+    # Fall back to the same default `agentctl run` uses.
+    from .runner import DEFAULT_MODEL
+    chosen = (model or DEFAULT_MODEL) if declared in ("inherit", "", None)         else declared
+
+    if api_key is None and not base_url:
+        # Direct calls need the key for THIS model's provider. Without this
+        # the subagent inherited whatever litellm happened to find, which is
+        # the wrong account as often as not. A proxy run needs no key at all:
+        # the proxy holds them (`docs/0038` §5.2).
+        from .runner import _key_for
+        api_key, _ = _key_for(chosen)
+    if base_url and api_key is None:
+        # litellm still wants something; the proxy ignores it.
+        api_key = "proxy-holds-the-credentials"
 
     llm = LLM(model=chosen, api_key=api_key, base_url=base_url,
               service_id=f"agentctl-subagent-{definition.name}",

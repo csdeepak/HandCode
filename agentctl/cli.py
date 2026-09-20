@@ -482,9 +482,24 @@ def cmd_subagent(args) -> int:
               f"{args.name} \"<question>\"", file=sys.stderr)
         return 2
 
+    model = args.model
+    if args.source:
+        if not args.base_url:
+            print("  --source needs a proxy to route through. "
+                  "`agentctl models` explains the trade.", file=sys.stderr)
+            return 2
+        from agentctl.control.proxy import SOURCE_PREFIX, sources
+        known = {r["source"] for r in sources()}
+        if args.source not in known:
+            print(f"  no source called {args.source!r}. "
+                  f"You have: {', '.join(sorted(known)) or 'none'}",
+                  file=sys.stderr)
+            return 2
+        model = f"openai/{SOURCE_PREFIX}{args.source}"
+
     from agentctl.runtime.subagent import run as run_subagent
     print(f"agentctl subagent {match.name}")
-    out = run_subagent(match, args.task, workspace=ws, model=args.model,
+    out = run_subagent(match, args.task, workspace=ws, model=model,
                        base_url=args.base_url)
     print()
     print(out)
@@ -766,6 +781,10 @@ def build_parser() -> argparse.ArgumentParser:
                     help="write an example definition and exit")
     sa.add_argument("--model", help="model for a definition saying `inherit`")
     sa.add_argument("--base-url", help="an OpenAI-compatible endpoint")
+    sa.add_argument("--source", metavar="NAME",
+                    help="route it to ONE provider through the proxy, with "
+                         "failover across that provider's accounts. Needs "
+                         "--base-url. See `agentctl models`.")
     sa.set_defaults(fn=cmd_subagent)
 
     mo = sub.add_parser("models", help="sources you can route to, and what "

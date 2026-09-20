@@ -21,6 +21,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Sequence
 
@@ -39,8 +40,32 @@ TIMEOUT_ENV = "AGENTCTL_BASH_TIMEOUT"
 MAX_OUTPUT = 30_000
 
 
+#: A workspace scoped to the current task rather than the whole process.
+#:
+#: The env var below is the configured default and stays that way. This exists
+#: because a *subagent* runs on its own workspace, and setting the process-wide
+#: variable to say so leaked both ways: concurrently, a subagent scoped to one
+#: workspace read a file from another and reported its contents without error
+#: — read-only bounds what an agent can change, not what it can see, so that
+#: is a confidentiality failure, not an inconvenience. Sequentially, the
+#: parent's next `read_file` resolved against the subagent's workspace.
+#:
+#: A `ContextVar` is the right shape because the SDK's parallel executor
+#: copies the calling context into each worker thread
+#: (`sdk/agent/parallel_executor.py` imports `contextvars`), so a value set
+#: here follows the task rather than the process.
+#:
+#: `tests/conftest.py` restores `AGENTCTL_WORKSPACE` between tests, which is
+#: exactly why the suite never caught this.
+_scoped_workspace: ContextVar[str | None] = ContextVar(
+    "agentctl_workspace", default=None)
+
+
 def _workspace() -> Path:
     """Where work happens. Configuration, never model input (`docs/0023` §3)."""
+    scoped = _scoped_workspace.get()
+    if scoped:
+        return Path(scoped).resolve()
     return Path(os.environ.get(WORKSPACE_ENV, ".")).resolve()
 
 
@@ -296,7 +321,30 @@ TOOLS: dict[str, type] = {
 }
 
 
-def register_all() -> list[str]:
+def register_all(overwrite: bool = True) -> list[str]:
+    """Register the plain tools. Returns the names registered.
+
+    `overwrite=False` is not a convenience — it closes a silent gate bypass.
+
+    Seam C installs GATED versions of these three under the SAME names
+    (`adapters/openhands/seam_c.py::install`), and the SDK's registry is a
+    process-global whose `register_tool` replaces a duplicate with only a
+    log warning; its own source carries a TODO saying it should raise. So a
+    later plain registration silently un-gates every tool the guard had
+    wrapped, and nothing fails — the next effect simply goes ungated.
+
+    That is the hazard shape this project keeps finding: correct-looking,
+    silent, and only visible by reading two files at once (`docs/0038` §4.3
+    closed the same shape for the concurrency pin).
+    """
+    registered = []
+    existing = set()
+    if not overwrite:
+        from openhands.sdk.tool import list_registered_tools
+        existing = set(list_registered_tools())
     for name, cls in TOOLS.items():
+        if name in existing:
+            continue
         register_tool(name, cls)
-    return list(TOOLS)
+        registered.append(name)
+    return registered

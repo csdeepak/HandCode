@@ -170,3 +170,67 @@ def test_persisted_dict_content_is_read_too():
 def test_finding_nothing_is_distinguishable_from_never_running():
     """A caller splicing this into a parent's context must be able to tell."""
     assert "no readable transcript" in subagent._final_text(_Conv([]))
+
+
+# ══ two bugs a concurrency experiment found ══════════════════════════
+def test_registering_plain_tools_never_un_gates_seam_c():
+    """The silent gate bypass.
+
+    Seam C registers GATED tools under the same names as the plain ones, in
+    the SDK's process-global registry. `register_tool` replaces a duplicate
+    with only a log warning — its own source carries a TODO saying it should
+    raise. So a later plain registration un-gates every effect the guard had
+    wrapped, and nothing fails to say so.
+    """
+    from openhands.sdk.tool import list_registered_tools, register_tool
+
+    from agentctl.runtime import tools as rt
+
+    class Sentinel(rt.ReadFileTool):
+        """Stands in for the gated version Seam C installs."""
+
+    register_tool("read_file", Sentinel)
+    from openhands.sdk.tool.registry import get_tool_module_qualnames
+    before = get_tool_module_qualnames().get("read_file")
+
+    newly = rt.register_all(overwrite=False)
+
+    assert "read_file" not in newly, "clobbered an existing registration"
+    assert get_tool_module_qualnames().get("read_file") == before, \
+        "a plain re-registration replaced the gated tool -- gate bypassed"
+    assert "read_file" in list_registered_tools()
+
+
+def test_the_subagent_workspace_does_not_leak_back_to_the_parent(
+        monkeypatch, tmp_path):
+    """The scoped workspace must be restored even when the run raises.
+
+    The env-var version leaked both ways: concurrently a subagent scoped to
+    one workspace read another's file and reported it, and sequentially the
+    parent's next `read_file` resolved against the subagent's workspace.
+
+    `_build_agent` is where this bites — it raises *before* the conversation
+    exists, on a bad model id or a missing key, which is exactly the path an
+    inner `try` around `conv.run()` would miss.
+    """
+    from agentctl.runtime import runner
+    from agentctl.runtime import tools as rt
+
+    def boom(llm, tools):
+        raise RuntimeError("the run failed after the workspace was scoped")
+
+    monkeypatch.setattr(runner, "_build_agent", boom)
+
+    # A KNOWN sentinel, not the ambient value. The first version of this test
+    # compared against whatever was already set and passed because an earlier
+    # test in this file leaked the same path — green, and testing nothing
+    # (`docs/0024`).
+    sentinel = rt._scoped_workspace.set("/parent/workspace")
+    try:
+        with pytest.raises(RuntimeError, match="the run failed"):
+            subagent.run(defn(), "anything", workspace=tmp_path,
+                         model="openrouter/x", api_key="k")
+        assert rt._scoped_workspace.get() == "/parent/workspace", \
+            "a failed subagent left its own workspace scoped for the parent"
+    finally:
+        rt._scoped_workspace.reset(sentinel)
