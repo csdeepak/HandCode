@@ -127,3 +127,70 @@ safety rather than budget — which the checkpoint-2 audit said was the stronger
 half to lead with, and which this document is another reason to believe. The
 budget half has now been re-derived twice and moved by an order of magnitude
 both times.
+
+---
+
+## 6. Postscript — the number, and what it revealed
+
+*Added 2026-09-21, after this document was accepted. §1–§5 stand as written.*
+
+**Gemini's free tier is 250 RPD.** The owner read it in AI Studio.
+
+Against §1's table that lands at **35.7 tasks/day, ×1.55** — above the 162
+break-even, well below the 700 that would restore ×4.33. So the headline
+answer to "redo the arithmetic" is **×1.55, not ×4.33**.
+
+### 6.1 But the even split was the wrong shape
+
+§1 modelled six files per scout because that is how §6.3 split the corpus.
+With a real number the asymmetry becomes obvious and the even split is
+badly suboptimal: **Gemini is the scarce leg, so it should carry the fewest
+files.** Mistral has six independent quotas and absorbs the rest.
+
+| gemini files | gemini req | mistral req | mistral RPD needed | tasks/day | vs single |
+|---:|---:|---:|---:|---:|---|
+| 1 | 2 | 12 | 200 | **100.0** | **×4.33** |
+| 2 | 3 | 11 | 153 | 83.3 | ×3.61 |
+| 3 | 4 | 10 | 104 | 62.5 | ×2.71 |
+| 6 *(§1's model)* | 7 | 7 | 42 | 35.7 | ×1.55 |
+
+At one file the Gemini leg costs 2 requests, `250/2 = 125`, and OpenRouter's
+`300/3 = 100` binds instead — the original ×4.33, recovered without more quota.
+
+**Allocate work inversely to quota scarcity, not evenly.** That rule is the
+durable finding here; ×1.55 versus ×4.33 is entirely a scheduling choice.
+
+### 6.2 Mistral, measured
+
+One call, and its response headers answer what its console would not:
+
+```
+x-ratelimit-limit-req-minute      750
+x-ratelimit-limit-tokens-minute   1,300,000
+```
+
+**No daily or monthly limit is exposed.** Against the 1-file-to-Gemini split
+at 100 tasks/day:
+
+| | load | limit | |
+|---|---|---|---|
+| requests | 0.14/min per key | 750/min | not close |
+| tokens | 16,771/min | 1,300,000/min | not close |
+| peak request | 36,845 | — | not close |
+
+**No per-minute limit binds, by three orders of magnitude.** So the ×4.33 row
+is achievable on today's measurements, and the only thing that could take it
+away is an undisclosed daily or monthly cap — the monthly draw would be
+**0.72B tokens across six keys, 0.12B per key**, which is the figure to watch
+if Mistral publishes one.
+
+### 6.3 Status of the two thresholds
+
+§1 said the honest statement was *"between ×0.31 and ×4.33, and which end
+depends on a number we have not looked up."* The number is 250. The corrected
+statement:
+
+> **×1.55 as the corpus was split, ×4.33 if it is split by scarcity** — with
+> the second resting on Mistral having no daily cap, which is now the last
+> unmeasured input rather than the first.
+
