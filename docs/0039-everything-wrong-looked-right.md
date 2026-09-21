@@ -275,3 +275,44 @@ What it costs: the ×4.33 was computed with Gemini as six allowances and needs
 redoing. The fan-out still stands on Mistral, but Groq is near-useless at 311
 tokens of headroom, so the honest expectation is materially lower than 4.33 and
 currently unquantified. Recorded as open rather than re-estimated here.
+
+### The fourteenth and fifteenth: the first live fan-out
+
+*2026-09-21.* `agentctl recon` was run against the real pool for the first
+time — nine source files, two sources, eleven requests. It found two things,
+and the second is worse than the first.
+
+| # | What it claimed | What was true |
+|---|---|---|
+| 14 | A proxy serving 96 deployments | It held **no credentials**. Every request returned "Invalid API Key" |
+| 15 | *"The lease TTL is enforced in `hook.py` ... `900.0` seconds ... cited at `hook.py:13`"* | The lease TTL is `store.py:63`, **60.0 seconds**. `hook.py`'s 900.0 is the turn-affinity pin, an unrelated timer. The line number was wrong too |
+
+**#14 is the ordinary kind.** The generated launcher exported four environment
+variables and never loaded `keys.env` — which is read by `agentctl`'s own
+Python and by nothing else. So `api_key: os.environ/MISTRAL_API_KEY` resolved
+to nothing, the proxy started clean, served happily, and failed every request
+with an upstream error that reads like a *bad* key rather than an *absent*
+one. Fixed; both launchers now source the keys file, and a test asserts it.
+
+**#15 is a different animal, and it is the one to think about.** Nothing
+malfunctioned. The scout was handed eight files including `store.py`, read
+them, found *a* `ttl_s`, and reported it as *the* `ttl_s` — with a citation,
+in the format its system prompt demanded. Citation discipline did not help:
+it cited confidently and wrongly, including a line number it did not check.
+
+The honest leg was the poor one. Gemini held a single file, `gate.py`, found
+nothing relevant in it, and said so: *"it cannot be determined ... looking
+only at `gate.py`."* **The scarce leg was the one that refused to guess**,
+because it had nothing to guess from.
+
+That is a limitation of read-only fan-out that no amount of arithmetic
+predicted, and it is not fixed by allocation, by more quota, or by a better
+prompt. A scout summarising a corpus it has only partly understood returns
+something shaped exactly like an answer. `docs/0040` measured what fan-out
+costs and what it saves; it did not ask whether the reports are *true*, and
+on the first live run one of two was not.
+
+**Consequence.** The orchestrator presents leg reports verbatim under a
+heading. It should present them as unverified claims from a scout — and
+anything built on top of it should verify a citation before acting on it.
+Recorded as a design constraint, not fixed here.

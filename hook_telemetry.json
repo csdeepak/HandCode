@@ -1,0 +1,120 @@
+{
+  "calls": [
+    {
+      "model": "pool-mistral",
+      "n_messages": 1,
+      "mid_turn": false,
+      "turn": null,
+      "trace_id": "unknown:turn0",
+      "ts": 1789981513.1854887
+    },
+    {
+      "model": "pool-gemini",
+      "n_messages": 1,
+      "mid_turn": false,
+      "turn": null,
+      "trace_id": "unknown:turn0",
+      "ts": 1789981514.214567
+    },
+    {
+      "model": "pool-gemini",
+      "n_messages": 2,
+      "mid_turn": false,
+      "turn": null,
+      "trace_id": "unknown:turn0",
+      "ts": 1789981548.0271058
+    },
+    {
+      "model": "pool-gemini",
+      "n_messages": 4,
+      "mid_turn": false,
+      "turn": "call_2337239__thought__EpIECo8EAWkUfRN0uWEc2HtbmO3x2Javw2slIpY7UmRkKbypnclIP2Ky5/eezJZFvXa+0oKM5X5udWpC8WxplVwyUqUo92PHXWcCagnPWv1ux4747Kyeq6cpZsgPeHTHEzuYNs1KW4ZA3lkVlr/WNSsntkOtwbPlggtome/olWVJSNiLHbGqwPYWX+2poAMGUb3JRA7qc5gPo00IixXhVpNumiC4ZY6pL89WIc9DYu2iHyd0sdfrha+4zO7fN226u7S3dkGMfXC6iKhfOicasErE2XE0ZO5cFsObFzy+GCdysn2R31tnVin4+v03srV83jMN/RmXBxutT3oG1s3qkHzuaN8vPX/5Km3PHT6H7QgNrmq9iJetNvHI4RjP2EKhbAj6cqfIQV5peH8PJ3AUVbd9TqIRA3QqUMDcGxC4D7IvYyM0uXOTznWFYmXvq1R2l4P6mGYQ69L+wgwWtwwwFxs6QcKBsgPVxyIIH5WSkWdPHxYn2EyheupvJisPqN0ilmw1ph1ygyPF2xddUXeraP3LItkGpD1F1NX/dW96KK1TOoW/bDb4h5MIHV29acLiA70q2+JXtlflWlJnRxWOqA2fgCWEvNmBU4hX/HmOobuygow5wPSPMsPuIRWaSE+TIsMSWIE/AitD+VzwODe0NJkDPyMiyX7UhY+LCnRfKYk8U3Aegq3dkRsfvTzLSWdwvhrALdk=",
+      "trace_id": "unknown:call_2337239__thought__EpIECo8EAWkUfRN0uWEc2HtbmO3x2Javw2slIpY7UmRkKbypnclIP2Ky5/eezJZFvXa+0oKM5X5udWpC8WxplVwyUqUo92PHXWcCagnPWv1ux4747Kyeq6cpZsgPeHTHEzuYNs1KW4ZA3lkVlr/WNSsntkOtwbPlggtome/olWVJSNiLHbGqwPYWX+2poAMGUb3JRA7qc5gPo00IixXhVpNumiC4ZY6pL89WIc9DYu2iHyd0sdfrha+4zO7fN226u7S3dkGMfXC6iKhfOicasErE2XE0ZO5cFsObFzy+GCdysn2R31tnVin4+v03srV83jMN/RmXBxutT3oG1s3qkHzuaN8vPX/5Km3PHT6H7QgNrmq9iJetNvHI4RjP2EKhbAj6cqfIQV5peH8PJ3AUVbd9TqIRA3QqUMDcGxC4D7IvYyM0uXOTznWFYmXvq1R2l4P6mGYQ69L+wgwWtwwwFxs6QcKBsgPVxyIIH5WSkWdPHxYn2EyheupvJisPqN0ilmw1ph1ygyPF2xddUXeraP3LItkGpD1F1NX/dW96KK1TOoW/bDb4h5MIHV29acLiA70q2+JXtlflWlJnRxWOqA2fgCWEvNmBU4hX/HmOobuygow5wPSPMsPuIRWaSE+TIsMSWIE/AitD+VzwODe0NJkDPyMiyX7UhY+LCnRfKYk8U3Aegq3dkRsfvTzLSWdwvhrALdk=",
+      "ts": 1789981555.4986775
+    },
+    {
+      "model": "pool-mistral",
+      "n_messages": 2,
+      "mid_turn": false,
+      "turn": null,
+      "trace_id": "unknown:turn0",
+      "ts": 1789981571.178316
+    },
+    {
+      "model": "pool-mistral",
+      "n_messages": 10,
+      "mid_turn": false,
+      "turn": "J7o0pYsAs",
+      "trace_id": "unknown:J7o0pYsAs",
+      "ts": 1789981573.211097
+    }
+  ],
+  "records": [
+    {
+      "model": "ministral-3b-latest",
+      "deployment": "mistral-a5-m0-only",
+      "trace_id": "unknown:turn0",
+      "prompt_tokens": 5,
+      "completion_tokens": 5,
+      "cached_tokens": 0,
+      "cost": 1e-06,
+      "latency_s": 0.6933188438415527,
+      "ts": 1789981513.8934898
+    },
+    {
+      "model": "gemini-3.6-flash",
+      "deployment": "gemini-a3-m0-only",
+      "trace_id": "unknown:turn0",
+      "prompt_tokens": 3,
+      "completion_tokens": 1,
+      "cached_tokens": null,
+      "cost": 6e-06,
+      "latency_s": 6.616006851196289,
+      "ts": 1789981520.8434038
+    },
+    {
+      "model": "gemini-3.6-flash",
+      "deployment": "gemini-a5-m0-only",
+      "trace_id": "unknown:turn0",
+      "prompt_tokens": 3702,
+      "completion_tokens": 152,
+      "cached_tokens": null,
+      "cost": 0.0033464999999999996,
+      "latency_s": 7.324132919311523,
+      "ts": 1789981555.3601525
+    },
+    {
+      "model": "gemini-3.6-flash",
+      "deployment": "gemini-a1-m0-only",
+      "trace_id": "unknown:call_2337239__thought__EpIECo8EAWkUfRN0uWEc2HtbmO3x2Javw2slIpY7UmRkKbypnclIP2Ky5/eezJZFvXa+0oKM5X5udWpC8WxplVwyUqUo92PHXWcCagnPWv1ux4747Kyeq6cpZsgPeHTHEzuYNs1KW4ZA3lkVlr/WNSsntkOtwbPlggtome/olWVJSNiLHbGqwPYWX+2poAMGUb3JRA7qc5gPo00IixXhVpNumiC4ZY6pL89WIc9DYu2iHyd0sdfrha+4zO7fN226u7S3dkGMfXC6iKhfOicasErE2XE0ZO5cFsObFzy+GCdysn2R31tnVin4+v03srV83jMN/RmXBxutT3oG1s3qkHzuaN8vPX/5Km3PHT6H7QgNrmq9iJetNvHI4RjP2EKhbAj6cqfIQV5peH8PJ3AUVbd9TqIRA3QqUMDcGxC4D7IvYyM0uXOTznWFYmXvq1R2l4P6mGYQ69L+wgwWtwwwFxs6QcKBsgPVxyIIH5WSkWdPHxYn2EyheupvJisPqN0ilmw1ph1ygyPF2xddUXeraP3LItkGpD1F1NX/dW96KK1TOoW/bDb4h5MIHV29acLiA70q2+JXtlflWlJnRxWOqA2fgCWEvNmBU4hX/HmOobuygow5wPSPMsPuIRWaSE+TIsMSWIE/AitD+VzwODe0NJkDPyMiyX7UhY+LCnRfKYk8U3Aegq3dkRsfvTzLSWdwvhrALdk=",
+      "prompt_tokens": 7530,
+      "completion_tokens": 713,
+      "cached_tokens": null,
+      "cost": 0.00832125,
+      "latency_s": 15.473665952682495,
+      "ts": 1789981570.9798415
+    },
+    {
+      "model": "ministral-3b-latest",
+      "deployment": "mistral-a6-m0-only",
+      "trace_id": "unknown:turn0",
+      "prompt_tokens": 3670,
+      "completion_tokens": 206,
+      "cached_tokens": 0,
+      "cost": 0.0003876,
+      "latency_s": 1.3020179271697998,
+      "ts": 1789981572.7783446
+    },
+    {
+      "model": "ministral-3b-latest",
+      "deployment": "mistral-a3-m0-only",
+      "trace_id": "unknown:J7o0pYsAs",
+      "prompt_tokens": 18736,
+      "completion_tokens": 107,
+      "cached_tokens": 0,
+      "cost": 0.0018843,
+      "latency_s": 1.4018208980560303,
+      "ts": 1789981575.879879
+    }
+  ]
+}

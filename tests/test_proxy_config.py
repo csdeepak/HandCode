@@ -191,3 +191,34 @@ def test_modify_params_carries_a_rationale_comment():
     text = build(ONE)
     assert "sanitize_messages_for_tool_calling" in text
     assert "synthesises a placeholder result" in text
+
+
+# ══ the launcher must carry the keys ═════════════════════════════════
+def test_the_launchers_load_the_keys_file():
+    """Found by the first live fan-out.
+
+    The config says `api_key: os.environ/MISTRAL_API_KEY`, and litellm
+    resolves that against the environment of the process it is started in.
+    The keys live in `keys.env`, read by `agentctl`'s Python and by nothing
+    else -- so a launcher that does not load it starts a proxy holding no
+    credentials at all.
+
+    It does not fail at startup. It serves, and every request returns
+    "Invalid API Key" from the upstream, which reads like a bad key rather
+    than an absent one.
+    """
+    from agentctl.control.proxy import START_PS1, START_SH
+
+    for name, tpl in (("start.sh", START_SH), ("start.ps1", START_PS1)):
+        assert "keys.env" in tpl, f"{name} starts a proxy with no credentials"
+        assert ".agentctl" in tpl, f"{name} does not look in the home keys file"
+
+
+def test_the_bash_launcher_prefers_a_local_keys_file():
+    """Matching `agentctl keys`, which reads local before home."""
+    from agentctl.control.proxy import START_SH
+
+    home = START_SH.index("$HOME/.agentctl/keys.env")
+    local = START_SH.index('"./keys.env"')
+    assert home < local, "later assignments win when sourcing, so local must " \
+                         "be sourced second to take precedence"

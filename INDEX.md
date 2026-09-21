@@ -44,7 +44,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0036](docs/0036-live-demo.md) | A Timeout That Did Not Time Out | DECISION | ACCEPTED | 2026-09-15 | A live demo fixed a real bug and found three defects in the tool running it |
 | [0037](docs/0037-harness-pivot-research-brief.md) | Harness Pivot — Research Brief | GUIDELINE | LIVING | 2026-09-20 | Phase 10 prompts: which harness, whether multi-agent is affordable, model selection, what to delete |
 | [0038](docs/0038-harness-pivot-decision.md) | The Pivot That Was Already Built | DECISION | ACCEPTED | 2026-09-20 | No pivot. The SDK already ships the features; multi-agent does not fit the budget; a live single-agent bug found. §10 records completion at acceptance |
-| [0039](docs/0039-everything-wrong-looked-right.md) | Everything That Was Wrong Looked Right | DECISION | ACCEPTED | 2026-09-21 | Thirteen defects. The suite found none on the machine that wrote them; §7 adds the one CI caught and the one that defeated its own guard |
+| [0039](docs/0039-everything-wrong-looked-right.md) | Everything That Was Wrong Looked Right | DECISION | ACCEPTED | 2026-09-21 | Fifteen defects. The suite found none on the machine that wrote them; §7 adds CI's catch, the guard that defeated itself, and a scout that was confidently wrong |
 | [0040](docs/0040-the-fan-out-rests-on-one-unmeasured-number.md) | The Fan-Out Rests on One Unmeasured Number | DECISION | ACCEPTED | 2026-09-21 | ×4.33 was a range. Gemini measured at 250 RPD → ×1.55 evenly split, ×4.33 split by scarcity. §6 has the number |
 
 ---
@@ -70,7 +70,7 @@ verdicts, current design, then the diagrams. About 40 minutes.
 | **Architecture** | `0008` DRAFT — Q1/Q2/Q3/Q5/Q13/Q15/Q16/Q17 resolved. **Q4 is the last blocker.** §3 needs the `0015` correction. |
 | **Verify** | `python verify.py` — 8 checks, ~4 min, zero cost |
 | **Next action** | **M0-M7 are all complete.** Next: a run against a second provider family to test the `/v1/messages` path, and Q9 -- the read/write ratio by effect class, which decides whether speculative execution is worth building. |
-| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **623 tests green.** |
+| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **625 tests green.** |
 
 ---
 
