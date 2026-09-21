@@ -563,10 +563,19 @@ def cmd_recon(args) -> int:
             base_url=args.base_url, on_leg=announce)
 
     print()
+    from agentctl.runtime.citations import describe as describe_cites
+    from agentctl.runtime.citations import verify as verify_cites
+
     for leg in legs:
         if leg.report:
             print(f"---- {leg.source} ({len(leg.items)} item(s)) ----")
             print(leg.report)
+            # A scout's report is a claim, not a finding. The first live run
+            # returned a confident, cited, wrong answer (`docs/0039` §7), so
+            # every citation is resolved against the workspace before the
+            # report is presented as anything.
+            print()
+            print(describe_cites(verify_cites(leg.report, ws)))
             print()
     missing = [lg.source for lg in legs if lg.items and not lg.report]
     if missing:

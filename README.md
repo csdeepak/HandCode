@@ -9,7 +9,7 @@ cost-efficient** across changes of provider, account, and model.
 > recoverable, measurable, and cost-efficient.
 
 **Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 625 tests — including a nine-point chaos suite with real process
+verified. 637 tests — including a nine-point chaos suite with real process
 death — plus four end-to-end crash experiments. All green.
 
 ---
@@ -367,7 +367,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            625 tests, including the nine-point chaos suite
+tests/            637 tests, including the nine-point chaos suite
 verify.py         one command that proves all of the above
 ```
 
