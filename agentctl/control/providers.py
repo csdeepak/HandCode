@@ -87,6 +87,26 @@ PROVIDERS: tuple[Provider, ...] = (
         # still advertises gemini-2.5-flash, and calling it returns "no
         # longer available to new users" (`docs/0034` §5).
         models=("gemini-3.6-flash",),
+        # UNVERIFIED FOR THIS ACCOUNT SET, and it matters more here than
+        # anywhere else in this file. Google's rate-limit documentation
+        # (ai.google.dev/gemini-api/docs/rate-limits, read 2026-09-21) states:
+        #
+        #     "Rate limits are applied per project, not per API key."
+        #
+        # Every other provider in this registry bills a quota per KEY, which
+        # is the entire premise of the multi-account design (`docs/0033`): a
+        # second key at the same provider buys a second quota. For Gemini that
+        # premise may simply be false. Six keys minted inside ONE AI Studio
+        # project share ONE quota, and `accounts_for()` would then report six
+        # where there is one -- overstating failover by 6x on the dashboard
+        # and filling the pool with six deployments that all die together.
+        #
+        # This is not asserted either way, because it is not measured. It
+        # depends on how the keys were created, which only the owner can see:
+        # aistudio.google.com/apikey lists each key's project. The free tier's
+        # per-model numbers are no longer published at all -- the docs now
+        # say to read them at aistudio.google.com/rate-limit, which needs a
+        # Google sign-in.
         free_tier=True,
         note="A separate account from OpenRouter, so its quota is independent "
              "— this is the one that makes failover real.",
