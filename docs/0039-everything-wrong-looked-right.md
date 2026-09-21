@@ -173,3 +173,59 @@ Subtraction: `tiering`, deleted by Phase 10.4 (`099edf7`) — the phase
 
 `0038` remains **DRAFT** and its §9 records the two audits that corrected it.
 It should not be accepted until someone other than its author reads it.
+
+---
+
+## 7. Postscript — the twelfth, found after this was accepted
+
+*Added 2026-09-21, after this document was committed as ACCEPTED at `610f347`.
+`CONVENTIONS.md` rule 4 says an accepted document is not edited in place, and
+this appends rather than revises for that reason: §1–§6 stand exactly as they
+were written, and everything below happened afterwards. A document arguing
+against confident revision should not quietly revise itself.*
+
+Within the hour of `610f347` being pushed, CI went red on all three Linux jobs.
+
+| # | What it claimed | What was true |
+|---|---|---|
+| 12 | `_FIXED_PREFIX_TOKENS = 3593`, measured | 3,593 on Windows, **3,591 on Linux**. Same commit, same SDK, same encoding |
+
+It is the same shape as the other eleven — a measured constant, correct where
+it was measured, asserted everywhere. And **the cause is still not
+identified**: neither the system prompt nor the tool schemas contain an OS
+string or a path, and the Linux side is not reproducible from the machine that
+wrote it. That is recorded as unexplained rather than guessed at, which is §4's
+rule applied to this document's own subject matter.
+
+### What it changes about §3
+
+§3 says the suite found none of the eleven. This one **the suite did catch** —
+and the row it belongs in is the useful part:
+
+| Found by | Defects |
+|---|---|
+| The suite, **run on a machine that did not write the code** | 12 |
+
+So the claim in §3 was true and slightly too flattering to itself. The precise
+version: *the suite found none of them **on the machine where they were
+written***. Every local run was green. The badge is not decoration; it is the
+only part of the arrangement that tested a different environment, and it
+earned its place inside an hour.
+
+### The sub-lesson
+
+The tripwire was written well. Its docstring said *"do not widen this test
+instead"* — correct, and aimed at drift over **time**, which is what a stale
+constant usually means. It did not anticipate drift across **environment**,
+where no single constant satisfies both platforms and updating it only moves
+the failure to the other one.
+
+**A guard written against one axis of change will be silent, or wrong, on
+another.** The repair was to widen the band to 32 tokens — chosen against the
+~130 that gaining or losing one tool would move, so it still catches what it
+was built for — and to add a second test asserting the *conclusion* rather
+than the constant: that measured headroom still lands where "turn 2 will 413"
+is the right thing to tell the user. A tolerance band is only honest if the
+thing it protects is insensitive across it.
+
+Fixed in `c1ed32f`. 606 tests, seven CI jobs green.
