@@ -509,6 +509,84 @@ def cmd_subagent(args) -> int:
     return 0
 
 
+def cmd_recon(args) -> int:
+    """Fan a read-only question out across sources, split by scarcity.
+
+    The split is the feature. An even one lets a source with a single quota
+    set the pace for sources with six, which on this pool is the difference
+    between x1.55 and x4.33 recon jobs per day (`docs/0040` sec 6.1). The plan
+    is printed before anything is spent.
+    """
+    from agentctl.runtime.orchestrate import allocate, describe, fan_out
+    from agentctl.runtime.subagent import discover, rejection
+
+    ws = Path(args.workspace)
+    defns = [d for d in discover(ws) if rejection(d) is None]
+    match = next((d for d in defns if d.name == args.name), None)
+    if match is None:
+        have = ", ".join(d.name for d in defns) or "none"
+        print(f"no read-only subagent called {args.name!r}. Have: {have}",
+              file=sys.stderr)
+        return 2
+
+    items = [i for i in args.items if i.strip()]
+    if not items:
+        print("give it something to look at", file=sys.stderr)
+        return 2
+
+    sources = args.source or []
+    if not sources:
+        print("--source is required, at least twice -- a fan-out over one "
+              "source is just a subagent.\n  `agentctl models` lists them.",
+              file=sys.stderr)
+        return 2
+    if not args.base_url:
+        print("--base-url is required: source groups live in the proxy's "
+              "config.", file=sys.stderr)
+        return 2
+
+    legs = allocate(items, sources, ratio=_parse_ratio(args.ratio))
+    print(f"agentctl recon {match.name}  ({len(items)} item(s))\n")
+    print(describe(legs))
+    total = sum(lg.requests for lg in legs)
+    print(f"\n  {total} request(s) total, none of them effects.\n")
+    if args.dry_run:
+        print("  --dry-run: nothing dispatched.")
+        return 0
+
+    def announce(leg):
+        mark = "!!" if leg.error else "ok"
+        print(f"  {mark}  {leg.source:<14} "
+              f"{leg.error or 'reported ' + str(len(leg.report or '')) + ' chars'}")
+
+    fan_out(match, args.question, legs, workspace=str(ws),
+            base_url=args.base_url, on_leg=announce)
+
+    print()
+    for leg in legs:
+        if leg.report:
+            print(f"---- {leg.source} ({len(leg.items)} item(s)) ----")
+            print(leg.report)
+            print()
+    missing = [lg.source for lg in legs if lg.items and not lg.report]
+    if missing:
+        print(f"  INCOMPLETE: no report from {', '.join(missing)}. "
+              f"The findings above cover only what the other legs read.")
+    return 0
+
+
+def _parse_ratio(raw: list[str] | None) -> dict[str, int] | None:
+    """`--ratio gemini=1 --ratio mistral=6`, for a caller who measured."""
+    if not raw:
+        return None
+    out = {}
+    for pair in raw:
+        name, _, n = pair.partition("=")
+        if n.isdigit():
+            out[name.strip()] = int(n)
+    return out or None
+
+
 def cmd_plugins(args) -> int:
     """What a Claude Code plugin would contribute, and what is refused.
 
@@ -835,6 +913,23 @@ def build_parser() -> argparse.ArgumentParser:
                     help="test every key against the provider. Uses metadata "
                          "endpoints, so it costs no tokens and no quota.")
     ky.set_defaults(fn=cmd_keys)
+
+    rc = sub.add_parser("recon", help="fan a read-only question across "
+                                     "sources, split by quota scarcity")
+    rc.add_argument("name", help="which read-only subagent")
+    rc.add_argument("question", help="what to find out")
+    rc.add_argument("items", nargs="*", help="files or areas to divide up")
+    rc.add_argument("--source", action="append", metavar="NAME",
+                    help="a source to use. Repeat it; see `agentctl models`.")
+    rc.add_argument("--ratio", action="append", metavar="NAME=N",
+                    help="override a source's share, if you have measured "
+                         "its real limits today")
+    rc.add_argument("--workspace", type=Path, default=Path("."))
+    rc.add_argument("--base-url", help="the proxy. Required: source groups "
+                                       "live in its config.")
+    rc.add_argument("--dry-run", action="store_true",
+                    help="print the plan and dispatch nothing")
+    rc.set_defaults(fn=cmd_recon)
 
     pl = sub.add_parser("plugins", help="what a Claude Code plugin would "
                                        "contribute, and what is refused")
