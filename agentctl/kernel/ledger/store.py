@@ -32,6 +32,36 @@ class StaleFence(RuntimeError):
     """A superseded holder tried to write. Its lease was taken over."""
 
 
+class AmbiguousPrefix(LookupError):
+    """More than one effect starts with this. Carries the candidates."""
+
+    def __init__(self, prefix: str, matches: list[str]):
+        self.prefix, self.matches = prefix, matches
+        super().__init__(f"{prefix!r} matches {len(matches)} effects")
+
+
+#: Enough of a `tool_call_id` to show a human.
+#:
+#: The id is minted by the *model*, and Gemini smuggles a **thought signature**
+#: through it (`research/phase-10-3` V4). A real one from a live run is over
+#: 300 characters of base64. The ledger keys on that id, so `agentctl resolve`
+#: was asking a human to retype 300 characters to answer a blocked effect --
+#: which makes the human half of fail-closed unusable at exactly the moment it
+#: is needed (`docs/0013` §3, Panel 3).
+#:
+#: So ids print short and are accepted by prefix, the way git takes a SHA. The
+#: distinguishing part is early (`call_2524396__thought__...`), and an
+#: ambiguous prefix is reported rather than guessed at.
+SHORT_ID = 12
+
+
+def short_id(tool_call_id: str) -> str:
+    """The displayable form, marked when it is not the whole id."""
+    if len(tool_call_id) <= SHORT_ID:
+        return tool_call_id
+    return tool_call_id[:SHORT_ID] + "..."
+
+
 class LedgerStore:
     """SQLite-backed effect ledger.
 
@@ -121,6 +151,32 @@ class LedgerStore:
             "SELECT * FROM effect_record WHERE tool_call_id=?", (tool_call_id,)
         ).fetchone()
         return _to_record(row) if row else None
+
+    def resolve_id(self, prefix: str) -> str | None:
+        """An exact id, or the one effect whose id starts with `prefix`.
+
+        Exact match wins outright — a full id must never be re-interpreted as
+        a prefix, or a short id that happens to prefix a longer one would
+        resolve to the wrong effect.
+
+        Raises `AmbiguousPrefix` rather than picking. This is the command that
+        decides whether an effect is recorded as having happened; guessing
+        between two candidates is the one thing it must not do.
+        """
+        if self.lookup(prefix) is not None:
+            return prefix
+        rows = self._db.execute(
+            "SELECT tool_call_id FROM effect_record WHERE tool_call_id LIKE ? "
+            "ESCAPE '\\' ORDER BY started_at",
+            (prefix.replace("\\", "\\\\").replace("%", "\\%")
+                   .replace("_", "\\_") + "%",),
+        ).fetchall()
+        ids = [r["tool_call_id"] for r in rows]
+        if not ids:
+            return None
+        if len(ids) > 1:
+            raise AmbiguousPrefix(prefix, ids)
+        return ids[0]
 
     def find_by_intent(self, conversation_id: str, intent_hash: str,
                        exclude_tool_call_id: str | None = None) -> EffectRecord | None:

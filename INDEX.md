@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0040**.
+**The highest number is the newest document.** Current head: **0041**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -46,6 +46,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0038](docs/0038-harness-pivot-decision.md) | The Pivot That Was Already Built | DECISION | ACCEPTED | 2026-09-20 | No pivot. The SDK already ships the features; multi-agent does not fit the budget; a live single-agent bug found. §10 records completion at acceptance |
 | [0039](docs/0039-everything-wrong-looked-right.md) | Everything That Was Wrong Looked Right | DECISION | ACCEPTED | 2026-09-21 | Fifteen defects. The suite found none on the machine that wrote them; §7 adds CI's catch, the guard that defeated itself, and a scout that was confidently wrong |
 | [0040](docs/0040-the-fan-out-rests-on-one-unmeasured-number.md) | The Fan-Out Rests on One Unmeasured Number | DECISION | ACCEPTED | 2026-09-21 | ×4.33 was a range. Gemini measured at 250 RPD → ×1.55 evenly split, ×4.33 split by scarcity. §6 has the number |
+| [0041](docs/0041-the-first-live-validation.md) | The First Live Validation | DECISION | ACCEPTED | 2026-09-21 | The harness works end to end against real APIs. Three defects no mock could show: a dead deployment ending a run, a pool that would not route around it, an unusable resolve |
 
 ---
 
@@ -70,7 +71,7 @@ verdicts, current design, then the diagrams. About 40 minutes.
 | **Architecture** | `0008` DRAFT — Q1/Q2/Q3/Q5/Q13/Q15/Q16/Q17 resolved. **Q4 is the last blocker.** §3 needs the `0015` correction. |
 | **Verify** | `python verify.py` — 8 checks, ~4 min, zero cost |
 | **Next action** | **M0-M7 are all complete.** Next: a run against a second provider family to test the `/v1/messages` path, and Q9 -- the read/write ratio by effect class, which decides whether speculative execution is worth building. |
-| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **637 tests green.** |
+| **Code written** | `agentctl/` — ledger, classifier, gate, Seams B and C, probes, CLI. **643 tests green.** |
 
 ---
 

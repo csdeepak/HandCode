@@ -222,3 +222,40 @@ def test_the_bash_launcher_prefers_a_local_keys_file():
     local = START_SH.index('"./keys.env"')
     assert home < local, "later assignments win when sourcing, so local must " \
                          "be sourced second to take precedence"
+
+
+# ══ a pool must route around a deployment that cannot serve ══════════
+def test_deployment_shaped_errors_retry_across_the_pool():
+    """A live run died when ONE deployment returned 402 (`docs/0041`).
+
+    litellm gives AuthenticationError and BadRequestError zero retries, which
+    is right for a single endpoint and wrong for a pool: here the deployments
+    are interchangeable, so a 401/402 means THAT KEY is bad and a 404 means
+    THAT MODEL ID is gone. Neither says anything about the request.
+    """
+    import yaml
+    rs = yaml.safe_load(build(TWO))["router_settings"]
+    rp = rs["retry_policy"]
+    assert rp["AuthenticationErrorRetries"] >= 1, \
+        "one bad key ends the run instead of moving to the next deployment"
+    assert rp["BadRequestErrorRetries"] >= 1, \
+        "one dead model id ends the run"
+
+
+def test_a_malformed_request_is_not_retried_across_the_whole_pool():
+    """BadRequest can also mean the REQUEST is wrong, and that fails
+    everywhere. The budget must cross a dead model id without spending the
+    pool on a bad payload."""
+    import yaml
+    rp = yaml.safe_load(build(TWO))["router_settings"]["retry_policy"]
+    assert rp["BadRequestErrorRetries"] <= 3
+
+
+def test_a_key_that_cannot_authenticate_is_cooled_down_immediately():
+    """It will not start working on the next request, so a second attempt
+    is a wasted one. Rate limits keep the default, because those recover."""
+    import yaml
+    rs = yaml.safe_load(build(TWO))["router_settings"]
+    afp = rs["allowed_fails_policy"]
+    assert afp["AuthenticationErrorAllowedFails"] == 0
+    assert "RateLimitErrorAllowedFails" not in afp

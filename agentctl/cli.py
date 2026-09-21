@@ -33,7 +33,12 @@ from pathlib import Path
 
 from agentctl.control.cost import CostLedger
 from agentctl.kernel.ledger.models import EffectState
-from agentctl.kernel.ledger.store import LedgerStore
+from agentctl.kernel.ledger.store import (
+    SHORT_ID,
+    AmbiguousPrefix,
+    LedgerStore,
+    short_id,
+)
 
 DEFAULT_LEDGER = Path("ledger.db")
 DEFAULT_COST_LEDGER = Path("cost.db")
@@ -57,6 +62,25 @@ def _open(path: Path) -> LedgerStore:
         print(f"no ledger at {path}", file=sys.stderr)
         raise SystemExit(2)
     return LedgerStore(path, holder="cli")
+
+
+
+def _resolve_id(store: LedgerStore, given: str) -> str | None:
+    """An id the user typed -- exact, or an unambiguous prefix.
+
+    Gemini's `tool_call_id` carries a thought signature and runs past 300
+    characters (`research/phase-10-3` V4), so nobody is retyping one. An
+    ambiguous prefix is refused with the candidates rather than guessed at:
+    this is the path that records an effect as having happened.
+    """
+    try:
+        return store.resolve_id(given)
+    except AmbiguousPrefix as e:
+        print(f"{given!r} matches {len(e.matches)} effects:", file=sys.stderr)
+        for m in e.matches:
+            print(f"  {short_id(m)}   ({m[:40]}...)", file=sys.stderr)
+        print("  give more characters.", file=sys.stderr)
+        raise SystemExit(2) from None
 
 
 # ── commands ───────────────────────────────────────────────────────────
@@ -101,25 +125,30 @@ def cmd_blocked(args) -> int:
 
     print(f"{len(recs)} effect(s) awaiting a decision:\n")
     for r in recs:
-        print(f"  {r.tool_call_id}")
+        print(f"  {short_id(r.tool_call_id)}")
         print(f"    tool      {r.tool_name}  [{r.effect_class.value}]")
         print(f"    started   {_ts(r.started_at)}   attempt {r.attempt}")
         print(f"    reason    {r.error or '-'}")
         if r.probe_verdict:
             print(f"    probe     {r.probe_verdict}")
-        print(f"    resolve   agentctl resolve {r.tool_call_id} --landed | --retry")
+        # The bare prefix, NOT short_id(): the `...` marks a truncation for a
+        # reader and is not part of the id, so a command carrying it cannot be
+        # pasted. A hint you have to edit before it works is worse than none.
+        print(f"    resolve   agentctl resolve {r.tool_call_id[:SHORT_ID]} "
+              f"--landed | --retry")
         print()
     return 0
 
 
 def cmd_show(args) -> int:
     with _open(args.ledger) as s:
-        r = s.lookup(args.tool_call_id)
+        full = _resolve_id(s, args.tool_call_id)
+        r = s.lookup(full) if full else None
     if r is None:
         print(f"no such effect: {args.tool_call_id}", file=sys.stderr)
         return 2
 
-    print(f"{r.tool_call_id}")
+    print(f"{short_id(r.tool_call_id)}")
     for label, value in [
         ("tool", r.tool_name), ("class", r.effect_class.value),
         ("state", r.state.value), ("conversation", r.conversation_id),
@@ -143,7 +172,8 @@ def cmd_show(args) -> int:
 
 def cmd_resolve(args) -> int:
     with _open(args.ledger) as s:
-        r = s.lookup(args.tool_call_id)
+        full = _resolve_id(s, args.tool_call_id)
+        r = s.lookup(full) if full else None
         if r is None:
             print(f"no such effect: {args.tool_call_id}", file=sys.stderr)
             return 2
@@ -154,13 +184,13 @@ def cmd_resolve(args) -> int:
 
         # The CLI holds no lease, so adopt the record's fence to write.
         s._fences[r.conversation_id] = r.fence_token
-        s.reconcile(args.tool_call_id, "HUMAN", landed=args.landed)
+        s.reconcile(full, "HUMAN", landed=args.landed)
 
     if args.landed:
-        print(f"{args.tool_call_id} -> COMMITTED (recorded as having happened)")
+        print(f"{short_id(full)} -> COMMITTED (recorded as having happened)")
         print("  it will not be re-run.")
     else:
-        print(f"{args.tool_call_id} -> FAILED (recorded as not having happened)")
+        print(f"{short_id(full)} -> FAILED (recorded as not having happened)")
         print("  the agent may retry it on the next run.")
     return 0
 
@@ -239,7 +269,7 @@ def cmd_run(args) -> int:
         # a provider the user just said not to use.
         if not args.base_url:
             print("  --source needs a proxy to route through.")
-            print("    agentctl proxy --out ./proxy --verify")
+            print("    agentctl proxy --out ./proxy")
             print("    bash ./proxy/start.sh 4000")
             print("    ... then add --base-url http://localhost:4000")
             return 2
@@ -745,6 +775,11 @@ def cmd_proxy(args) -> int:
     from agentctl.control.proxy import accounts, available, write
 
     only = None
+    if not args.verify:
+        print("  --no-verify: this pool is built from credentials, not from "
+              "what can serve.")
+        print("    a deployment that 402s or 404s will end a run rather than "
+              "failing over.\n")
     if args.verify:
         from agentctl.control.proxy import verified_providers
         print("  verifying providers (one completion each; paid skipped)...")
@@ -979,9 +1014,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     px = sub.add_parser("proxy", help="generate a LiteLLM proxy config")
     px.add_argument("--out", default=".", help="where to write the config")
-    px.add_argument("--verify", action="store_true",
-                    help="test each provider first and leave out any that "
-                         "cannot currently serve a request")
+    # Verification is ON by default. `docs/0034` §7 measured what an
+    # unverified pool costs: six Cerebras keys authenticate and return 402 on
+    # every completion, litellm does not treat 402 as retryable, and a live
+    # run died on one. Generating a config known to contain deployments that
+    # cannot serve is not a default worth having -- the flag now buys speed,
+    # not correctness, and says so.
+    px.add_argument("--no-verify", dest="verify", action="store_false",
+                    default=True,
+                    help="skip the one-completion-per-provider check. Faster, "
+                         "and the pool may contain deployments that cannot "
+                         "serve -- a 402 from one of them is not retryable "
+                         "and will end a run.")
     px.set_defaults(fn=cmd_proxy)
 
     dr = sub.add_parser("doctor", help="check everything before you run")
