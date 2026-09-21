@@ -7,7 +7,10 @@ is correct and unusable (`docs/0013` §3, Panel 3).
     agentctl keys                    provider keys: what is set, where to get more
     agentctl dash                    one screen: providers, effects, spend, policy
     agentctl doctor                  is everything ready? check before running
+    agentctl models                  sources you can route to, and what each costs
     agentctl run "<task>"            run an agent on a real workspace
+    agentctl subagent <name> "<q>"   delegate a READ to a read-only subagent
+    agentctl plugins <dir>           what a plugin would contribute, and what is not
     agentctl status                  what is in the ledger
     agentctl cost                    what the work cost, and how much is known
     agentctl ingest <telemetry>      load Seam A telemetry into the cost ledger

@@ -184,6 +184,67 @@ per-model limit. It does **not** survive an account-wide daily cap — three
 `:free` models on one key share one quota. The command counts credentials, not
 deployments, and says so.
 
+### Choosing one source
+
+```bash
+agentctl models                        # every source, and what choosing it costs
+agentctl run "..." --source gemini --base-url http://localhost:4000
+```
+
+`pool` is the default and the widest thing you can ask for. A source group is
+narrower **on purpose**, so every row says what it gives up:
+
+```
+  pool                    48 deployments  24 accounts   the default
+     pool-openrouter      18 deployments   6 accounts   gives up 30 of 48
+     pool-gemini           6 deployments   6 accounts   gives up 42 of 48
+```
+
+That line is the feature. Narrowing to one source means an account-wide daily
+cap has less to fail over to — the exact failure the multi-account design
+exists to escape (`docs/0033`). `--verify` marks which sources can actually
+serve, which is not the same as which ones you hold keys for.
+
+### Delegating a read
+
+```bash
+agentctl subagent --init               # writes an example definition
+agentctl subagent reviewer "what does the gate do?"
+```
+
+Claude Code's Markdown frontmatter format, loaded through the SDK's own
+`AgentDefinition`. A subagent may hold **`read_file` and nothing else** — no
+shell, no writes, no MCP.
+
+That is not a starter limitation, it is the whole safety argument. Multi-agent
+is skipped because four correctness mechanisms assume a single writer
+(`docs/0038` §4.2); a subagent that cannot produce an effect needs none of
+them. So the restriction is enforced twice — the definition is validated, and
+the tool list handed to the agent is built from a constant rather than from
+the definition, because a property that depends on one function returning
+correctly is one refactor from gone.
+
+### Installing a plugin, one capability at a time
+
+```bash
+agentctl plugins ./some-plugin         # the audit. Installs nothing.
+```
+
+A Claude Code plugin can carry agents, hooks, commands, skills and MCP
+servers. **Five of those six are refused**, and each refusal is counted:
+
+```
+  ADMITTED  1 read-only agent(s)
+  REJECTED  1 agent(s) that could change the world
+  REFUSED   mcp_config  2 declared
+            commands    1 declared
+```
+
+"declines MCP servers" is a policy; "2 declared" is a fact about the thing in
+front of you, and only the second tells you whether refusing it matters. A
+broker that silently dropped half a plugin would leave you believing you had
+installed something you had not.
+
 ### Policy
 
 ```bash
