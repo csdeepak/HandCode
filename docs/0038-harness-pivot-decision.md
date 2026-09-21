@@ -2,7 +2,7 @@
 Number:        0038
 Title:         The Pivot That Was Already Built
 Type:          DECISION
-Status:        DRAFT
+Status:        ACCEPTED
 Created:       2026-09-20
 Supersedes:    —
 Superseded-by: —
@@ -20,11 +20,12 @@ answer them:
 - `research/phase-10-2-multiagent-cost-and-safety.md` (1,177 lines)
 - `research/phase-10-3-model-selection.md` (1,198 lines)
 
-**Status is DRAFT until the owner accepts it.** That rule was written to mean
-no code moves on this document's authority alone. Item 1 (§3) has since
-landed in `c8113f3` — the owner authorised it directly, not via this
-document — and the blanket sentence that stood here was false the moment it
-did. Items 2-7 remain unaccepted.
+**ACCEPTED 2026-09-21.** This was DRAFT while it was written, on the rule that
+no code moves on this document's authority alone — a rule its own first work
+item then broke, since item 1 (§3) landed in `c8113f3` on the owner's direct
+authorisation rather than this document's. §10 records the state at
+acceptance: §7's list is complete, and the three asks §9's audit found
+missing have since been built.
 
 ---
 
@@ -445,3 +446,65 @@ would happen to a free tier and why it records no quota numbers.
 four invariants still assume a single writer, and that decides it at any
 budget. The budget half is now materially weaker than this document claimed,
 and the audit was right that it was the weaker half to lead with.
+
+---
+
+## 10. Closing record, at acceptance
+
+Written immediately before this document's status changed from DRAFT to
+ACCEPTED on 2026-09-21, because rule 4 forbids editing it afterwards and a
+document frozen while several of its own claims had been overtaken would
+mislead the next reader.
+
+### 10.1 §7's work list is complete
+
+| # | Work | Landed |
+|---|---|---|
+| 1 | Fix the batch false-`LANDED` | `c8113f3` |
+| 2 | Pin `tool_concurrency_limit=1` | `17207c3` — as a `raise`, not an `assert` |
+| 3 | Confirm the Groq 413, make `doctor` report it | `17207c3` |
+| 4 | Land the worktree probe test | `17207c3` |
+| 5 | `modify_params: true` | `17207c3` |
+| 6 | `dash` reads `/model/info` | `17207c3` |
+| 7 | OpenRouter quota in `dash` | `17207c3` |
+
+### 10.2 What §9 said was missing has since been built
+
+The checkpoint-0 audit found three of the owner's six asks dropped. All three
+were answered after this document was written:
+
+- **The source picker** (`10-3` §6.5), which §7 omitted without declining —
+  built in `b040b72`, with the cost of narrowing printed beside every choice.
+- **The read-only subagent**, which §4.4 described as the affordable slice and
+  §9.3 recorded as described-then-not-scheduled — built in `2ab2a74`, then
+  corrected in `b061b05` after a concurrency experiment found it could read
+  another workspace and could silently un-gate Seam C.
+- **Phase 10.4**, never run and never declined — run, and it deleted `tiering`
+  (`099edf7`). Its answer to "strip unneeded features from OpenHands" is that
+  the ask is not coherent as literally stated: OpenHands is not vendored here,
+  only `openhands-sdk` as a pip dependency.
+
+The Claude Code plugin manifests of §2 followed in `6b95a57`, default-deny with
+an itemised receipt.
+
+### 10.3 What is superseded, and what still stands
+
+**Superseded:** §4.1's budget framing (see §9.4 — the pool was 48 deployments,
+not 42, and OpenRouter was never the whole allowance) and §9.3's note that the
+read-only subagent was unscheduled.
+
+**Still standing, and the part worth carrying forward:** the STAY verdict, and
+the safety half of the multi-agent SKIP. Four correctness mechanisms assume a
+single writer, and that decides it at any budget. `b061b05` is evidence for
+rather than against — the read-only subagent, which touches none of those four,
+still shipped with two defects of exactly the kind concurrency multiplies.
+
+### 10.4 Accepted, and by whom
+
+The closing line of §9 said this document should not be accepted until someone
+other than its author had read it. The owner accepted it on 2026-09-21. Two
+independent audits corrected it before that (§9), which is the reason the
+sentence was there.
+
+Corrections from here go in a new numbered document. `docs/0039` already holds
+the defect record for the work this document authorised.

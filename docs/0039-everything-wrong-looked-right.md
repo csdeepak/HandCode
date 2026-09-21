@@ -229,3 +229,13 @@ is the right thing to tell the user. A tolerance band is only honest if the
 thing it protects is insensitive across it.
 
 Fixed in `c1ed32f`. 606 tests, seven CI jobs green.
+
+### One line of §6 has been overtaken
+
+*2026-09-21.* §6 closes: *"`0038` remains **DRAFT** ... It should not be
+accepted until someone other than its author reads it."* The owner accepted it
+the same day, which is that condition being met rather than waived. `0038` §10
+records the state at acceptance.
+
+Noted here rather than corrected there, for the same reason as the rest of this
+postscript.
