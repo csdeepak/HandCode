@@ -54,6 +54,15 @@ OK, WARN, BAD = "ok", "!!", "XX"
 # either has drifted from the constant pinned here:
 _FIXED_PREFIX_TOKENS = 3_593         # 3,208 system prompt + 385 tool schemas
 _PREFIX_MEASURED = "2026-09-20, openhands-sdk 1.45.0"
+#
+# _FIXED_PREFIX_TOKENS is environment-dependent by about two tokens: 3,593
+# measured on Windows, 3,591 on Linux CI, same commit and same encoding. The
+# cause is not identified -- neither the system prompt nor the tool schemas
+# contain an OS string or a path. It does not move the conclusion (311 tokens
+# of headroom versus 313, both far below one turn), and
+# tests/test_doctor_groq_prefix.py asserts the conclusion rather than the
+# constant for exactly that reason.
+#
 _RUNNER_MAX_OUTPUT_TOKENS = 4_096    # mirrors runtime/runner.py:221 -- not
                                       # importable, no constant exists there;
                                       # the same test pins this one too.
