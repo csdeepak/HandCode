@@ -295,10 +295,20 @@ def _quota(refresh: bool) -> list[dict]:
 
 
 def _failover() -> dict:
-    from .providers import all_accounts
+    from .providers import PROVIDERS, all_accounts, quotas_for
 
     accts = all_accounts()
     n = len(accts)
+
+    # Keys are not allowances. Gemini bills per Google PROJECT, so six keys in
+    # one project are one quota -- and this panel exists to say whether a cap
+    # has anywhere to fail over to, which is a question about quotas
+    # (`docs/0033`, and the Account docstring's own warning one level down).
+    quotas = sum(quotas_for(p) for p in PROVIDERS)
+    shared = [(p.name, len([a for a in accts if a.provider is p]))
+              for p in PROVIDERS
+              if not p.quota_per_key and len([a for a in accts
+                                              if a.provider is p]) > 1]
     providers = {a.provider.name for a in accts}
     free = [a for a in accts if a.provider.free_tier]
 
@@ -332,12 +342,18 @@ def _failover() -> dict:
         # and it sits directly above a capacity panel that scrupulously
         # answers UNKNOWN. One honest panel under one confident wrong one is
         # worse than neither (`docs/0039`).
-        detail = (f"{n} accounts across {len(providers)} providers "
-                  f"({shape}) are CONFIGURED -- that is a count of keys, not "
-                  f"of what can serve. Enough shape to survive a cap and an "
-                  f"outage; whether it does is what `agentctl keys --check` "
-                  f"and `agentctl models --verify` answer.")
-    return {"accounts": n, "free_accounts": len(free),
+        caveat = ""
+        if shared:
+            caveat = (" " + "; ".join(
+                f"{name}'s {k} keys share ONE quota (one Google project), so "
+                f"they are {k - 1} fewer allowances than they look"
+                for name, k in shared) + ".")
+        detail = (f"{n} keys across {len(providers)} providers ({shape}) are "
+                  f"CONFIGURED, and they are {quotas} independent quota(s)."
+                  f"{caveat} A count of credentials, not of what can serve --"
+                  f" `agentctl keys --check` and `agentctl models --verify` "
+                  f"answer that.")
+    return {"accounts": n, "free_accounts": len(free), "quotas": quotas,
             "providers": len(providers),
             "verdict": verdict, "detail": detail,
             "missing": [{"name": p.name, "console": p.console, "free": p.free_tier}

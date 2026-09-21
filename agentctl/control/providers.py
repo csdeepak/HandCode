@@ -40,6 +40,14 @@ class Provider:
     prefix: str                  # litellm model prefix
     models: tuple[str, ...]      # known-good ids, cheapest/freest first
     free_tier: bool              # has offered a no-card free tier
+    #: Does a second key here buy a second quota?
+    #:
+    #: True everywhere except Gemini, and the exception is the point. The
+    #: multi-account design assumes a cap is per credential (`docs/0033`), so
+    #: a second key is a second allowance. Google bills per PROJECT, and keys
+    #: minted in one project share one limit -- measured 2026-09-21 against
+    #: this owner's six, all in a single project.
+    quota_per_key: bool = True
     note: str = ""
     steps: tuple[str, ...] = field(default_factory=tuple)
 
@@ -108,8 +116,13 @@ PROVIDERS: tuple[Provider, ...] = (
         # say to read them at aistudio.google.com/rate-limit, which needs a
         # Google sign-in.
         free_tier=True,
-        note="A separate account from OpenRouter, so its quota is independent "
-             "— this is the one that makes failover real.",
+        # Six keys, one project, one quota. Confirmed by the owner in AI
+        # Studio on 2026-09-21 after Google's docs stated the rule.
+        quota_per_key=False,
+        note="Independent of OpenRouter's quota, so it survives that outage "
+             "— but all keys in ONE Google project share ONE limit, so extra "
+             "Gemini keys do not add allowance the way a second key elsewhere "
+             "does.",
         steps=("Open aistudio.google.com/apikey and accept the terms.",
                "A default Google Cloud project is created for you.",
                "Create API key, then copy it.",
@@ -220,6 +233,21 @@ def accounts_for(p: Provider, env: dict | None = None) -> list[Account]:
         suffix = name[len(p.key) + 1:].lower()
         out.append(Account(p, name, f"{p.name}#{suffix}"))
     return out
+
+
+def quotas_for(p: Provider, env: dict | None = None) -> int:
+    """Independent allowances behind a provider — not credentials.
+
+    `Account`'s own docstring warns that counting PROVIDERS instead of
+    credentials "would report failover as ready when it is not". Gemini is
+    that same error one level down: counting credentials reports six
+    allowances where the project has one.
+
+    So the unit the project turns on is narrower than a key. It is a quota,
+    and only the provider knows which keys share one.
+    """
+    n = len(accounts_for(p, env))
+    return n if p.quota_per_key else min(n, 1)
 
 
 def all_accounts(env: dict | None = None) -> list[Account]:

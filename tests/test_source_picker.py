@@ -114,3 +114,37 @@ def test_a_source_carries_its_real_account_count():
 
 def test_sources_are_empty_without_keys():
     assert sources({}) == []
+
+
+# ══ keys are not allowances ══════════════════════════════════════════
+def test_gemini_reports_one_quota_behind_six_keys():
+    """Google bills per PROJECT, not per key (measured 2026-09-21).
+
+    Every other provider's second key is a second allowance -- that is the
+    premise of the whole multi-account design (`docs/0033`). Gemini's is not,
+    and a picker offering "6 accounts" would be selling failover the source
+    does not have.
+    """
+    env = {f"GEMINI_API_KEY{s}": f"k{i}"
+           for i, s in enumerate(("", "_2", "_3", "_4", "_5", "_6"))}
+    env["OPENROUTER_API_KEY"] = "k"        # a second source, so groups emit
+    row = next(r for r in sources(env) if r["source"] == "gemini")
+    assert row["accounts"] == 6
+    assert row["quotas"] == 1, "six keys in one Google project are one quota"
+
+
+def test_a_per_key_provider_still_reports_a_quota_per_key():
+    """The fix must not flatten everyone to one."""
+    env = {"OPENROUTER_API_KEY": "a", "OPENROUTER_API_KEY_2": "b",
+           "GEMINI_API_KEY": "c"}
+    row = next(r for r in sources(env) if r["source"] == "openrouter")
+    assert row["accounts"] == row["quotas"] == 2
+
+
+def test_quotas_for_matches_the_registry_flag():
+    from agentctl.control.providers import BY_NAME, quotas_for
+
+    env = {f"GEMINI_API_KEY{s}": "k" for s in ("", "_2", "_3")}
+    assert quotas_for(BY_NAME["gemini"], env) == 1
+    env2 = {f"MISTRAL_API_KEY{s}": "k" for s in ("", "_2", "_3")}
+    assert quotas_for(BY_NAME["mistral"], env2) == 3

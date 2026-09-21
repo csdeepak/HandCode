@@ -609,8 +609,11 @@ def cmd_models(args) -> int:
                 mark = "ok"
             else:
                 mark, note = "$$", "   cannot serve a request right now"
+        acct = f"{r['accounts']:>2} accounts"
+        if r.get("quotas", r["accounts"]) != r["accounts"]:
+            acct = f"{r['accounts']:>2} keys/{r['quotas']} quota"
         print(f"  {mark} {r['group']:<22} {r['deployments']:>3} deployments  "
-              f"{r['accounts']:>2} accounts   gives up {r['gives_up']}"
+              f"{acct}   gives up {r['gives_up']}"
               f" of {total}{note}")
         for m in r["models"][:3]:
             print(f"       {m}")

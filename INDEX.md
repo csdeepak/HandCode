@@ -44,7 +44,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0036](docs/0036-live-demo.md) | A Timeout That Did Not Time Out | DECISION | ACCEPTED | 2026-09-15 | A live demo fixed a real bug and found three defects in the tool running it |
 | [0037](docs/0037-harness-pivot-research-brief.md) | Harness Pivot — Research Brief | GUIDELINE | LIVING | 2026-09-20 | Phase 10 prompts: which harness, whether multi-agent is affordable, model selection, what to delete |
 | [0038](docs/0038-harness-pivot-decision.md) | The Pivot That Was Already Built | DECISION | ACCEPTED | 2026-09-20 | No pivot. The SDK already ships the features; multi-agent does not fit the budget; a live single-agent bug found. §10 records completion at acceptance |
-| [0039](docs/0039-everything-wrong-looked-right.md) | Everything That Was Wrong Looked Right | DECISION | ACCEPTED | 2026-09-21 | Twelve defects in fourteen commits. The suite found none of them on the machine that wrote them; §7 is the one CI caught |
+| [0039](docs/0039-everything-wrong-looked-right.md) | Everything That Was Wrong Looked Right | DECISION | ACCEPTED | 2026-09-21 | Thirteen defects. The suite found none on the machine that wrote them; §7 adds the one CI caught and the one that defeated its own guard |
 
 ---
 

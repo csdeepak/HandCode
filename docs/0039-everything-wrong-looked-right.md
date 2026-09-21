@@ -239,3 +239,39 @@ records the state at acceptance.
 
 Noted here rather than corrected there, for the same reason as the rest of this
 postscript.
+
+### The thirteenth: six keys, one quota
+
+*2026-09-21.* `research/phase-10-5` found that cross-provider subagent fan-out
+beats `0038` §4.1's budget by **×4.33**, because scouts pinned to Gemini,
+Mistral and Groq spend quota the OpenRouter pool does not have. It leaned on
+Gemini being six separate allowances.
+
+Google's own documentation says otherwise:
+
+> "Rate limits are applied per project, not per API key."
+
+The owner checked AI Studio. **All six Gemini keys are in one project.** Six
+keys, one quota.
+
+| # | What it claimed | What was true |
+|---|---|---|
+| 13 | `gemini x6` — six accounts, six allowances | Six keys in one Google project. **One** allowance |
+
+It is the same shape again, and this time it defeated the mechanism built to
+prevent it. `Account`'s docstring in `providers.py` warns that counting
+*providers* instead of *credentials* "would report failover as ready when it
+is not" — and then the project counted credentials, which for Gemini reports
+failover as ready when it is not. **The unit was refined once and stopped one
+level short.** A quota is what the project turns on; only the provider knows
+which keys share one.
+
+`providers.py` now carries `quota_per_key`, false only for Gemini. The
+dashboard reports "31 keys ... and they are 26 independent quota(s)", naming
+the five that are not there. `agentctl models` shows `6 keys/1 quota` rather
+than `6 accounts`.
+
+What it costs: the ×4.33 was computed with Gemini as six allowances and needs
+redoing. The fan-out still stands on Mistral, but Groq is near-useless at 311
+tokens of headroom, so the honest expectation is materially lower than 4.33 and
+currently unquantified. Recorded as open rather than re-estimated here.

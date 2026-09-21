@@ -152,11 +152,19 @@ def sources(env: dict | None = None) -> list[dict]:
     total = len([e for e in entries if e[3]])
     rows = []
     for name, mine in _by_source(entries).items():
+        from .providers import BY_NAME
+        prov = BY_NAME.get(name)
+        n_acct = len({e[0] for e in mine})
+        # Keys are not allowances. Gemini bills per Google project, so six
+        # keys there are one quota -- and a picker that offered "6 accounts"
+        # would be selling failover this source does not have.
+        n_quota = n_acct if (prov is None or prov.quota_per_key) else min(n_acct, 1)
         rows.append({
             "source": name,
             "group": f"{SOURCE_PREFIX}{name}",
             "deployments": len(mine),
-            "accounts": len({e[0] for e in mine}),
+            "accounts": n_acct,
+            "quotas": n_quota,
             "models": sorted({e[1] for e in mine}),
             "gives_up": total - len(mine),
         })
