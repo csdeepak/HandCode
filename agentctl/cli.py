@@ -506,6 +506,64 @@ def cmd_subagent(args) -> int:
     return 0
 
 
+def cmd_plugins(args) -> int:
+    """What a Claude Code plugin would contribute, and what is refused.
+
+    Default-deny with an itemised receipt (`docs/0010` §9.2). Read-only agent
+    definitions are admitted; hooks, commands, skills and MCP servers are not,
+    and are counted rather than silently dropped — a broker that quietly
+    discarded half a plugin would leave you believing you had installed
+    something you had not.
+    """
+    from agentctl.runtime.plugins import load
+
+    info = load(args.path)
+    if (err := info.get("error")):
+        print(err, file=sys.stderr)
+        return 2
+
+    print(f"{info['name']} {info['version']}")
+    if info["description"]:
+        print(f"  {info['description']}")
+    print(f"  {info['path']}\n")
+
+    if info["admitted"]:
+        print(f"  ADMITTED  {len(info['admitted'])} read-only agent(s)")
+        for d in info["admitted"]:
+            print(f"    ok  {d.name:<18} {(d.description or '')[:44]}")
+    else:
+        print("  ADMITTED  nothing")
+
+    if info["rejected"]:
+        print(f"\n  REJECTED  {len(info['rejected'])} agent(s) that could "
+              f"change the world")
+        for name, why in info["rejected"]:
+            print(f"    --  {name:<18} {why.splitlines()[0][:60]}")
+
+    if info["refused"]:
+        print("\n  REFUSED   capabilities this project does not run")
+        for cap, n, why in info["refused"]:
+            print(f"    --  {cap:<18} {n} declared")
+            for line in _wrap_plain(why, 58):
+                print(f"          {line}")
+
+    print("\n  Nothing here has been installed or run. This is the audit.")
+    return 0
+
+
+def _wrap_plain(text: str, width: int) -> list[str]:
+    words, lines, cur = text.split(), [], ""
+    for w in words:
+        if len(cur) + len(w) + 1 > width:
+            lines.append(cur)
+            cur = w
+        else:
+            cur = f"{cur} {w}".strip()
+    if cur:
+        lines.append(cur)
+    return lines
+
+
 def cmd_models(args) -> int:
     """Choose a source. Every row says what choosing it gives up.
 
@@ -771,6 +829,11 @@ def build_parser() -> argparse.ArgumentParser:
                     help="test every key against the provider. Uses metadata "
                          "endpoints, so it costs no tokens and no quota.")
     ky.set_defaults(fn=cmd_keys)
+
+    pl = sub.add_parser("plugins", help="what a Claude Code plugin would "
+                                       "contribute, and what is refused")
+    pl.add_argument("path", help="the plugin directory")
+    pl.set_defaults(fn=cmd_plugins)
 
     sa = sub.add_parser("subagent", help="read-only subagents: list one, run one")
     sa.add_argument("name", nargs="?", help="which one (omit to list)")
