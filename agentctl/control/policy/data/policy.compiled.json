@@ -5,7 +5,7 @@
     "on_unpriced": "warn",
     "per_task_usd": 0.5
   },
-  "compiled_at": 1789320921.6737514,
+  "compiled_at": 1790203425.3882647,
   "effects": {
     "DESTRUCTIVE": "require_human_approval",
     "EXTERNAL": "reconcile_or_block"
@@ -13,30 +13,26 @@
   "routing": {
     "default_pool": "free_tier",
     "escalation": {
-      "after_failures": 3,
+      "after_failures": null,
       "pool": "paid",
       "require_confirmation": true,
-      "requires_capability": [
-        "long_context"
-      ]
+      "requires_capability": []
     },
     "pools": {
       "free_tier": [
-        "openrouter/free",
-        "google-ai-studio/flash",
-        "cerebras/llama",
-        "mistral/free"
+        "openai/pool",
+        "openai/pool-openrouter",
+        "openai/pool-gemini",
+        "openai/pool-mistral",
+        "openai/pool-cerebras",
+        "openai/pool-groq"
       ],
       "paid": [
-        "anthropic/sonnet"
+        "openai/paid"
       ]
     }
   },
-  "source_sha256": "afe4fcecb811ad4a8d0fbfb58179e9fa139ee92f0036f70c97feb0ee0d144098",
-  "tiering": {
-    "edit": "mid",
-    "planning": "strong",
-    "read": "cheap"
-  },
+  "source_sha256": "50c85d221bafe8a82ef9bc589167486d578e45b08954a7c2c5fa714a07175f54",
+  "tiering": {},
   "version": 1
 }

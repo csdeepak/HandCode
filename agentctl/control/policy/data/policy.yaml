@@ -5,22 +5,28 @@
 # `agentctl/kernel/policy.py`.
 version: 1
 
+# Pool members are the model strings `agentctl run` actually sends through the
+# proxy: `--model openai/pool`, or `--source <name>` -> `openai/pool-<name>`.
+# They used to name `openrouter/free` and friends, which no run ever sends, so
+# every `--policy` run stopped at "spend on it?" (docs/0042 I-16).
 pools:
   free_tier:
-    - openrouter/free
-    - google-ai-studio/flash
-    - cerebras/llama
-    - mistral/free
+    - openai/pool
+    - openai/pool-openrouter
+    - openai/pool-gemini
+    - openai/pool-mistral
+    - openai/pool-cerebras
+    - openai/pool-groq
   paid:
-    - anthropic/sonnet
+    - openai/paid
 
+# No automatic triggers: `when: {or_after_failures, requires_capability}` used
+# to sit here, compiled and read by nothing. Escalation is only ever a model
+# you name, confirmed before the first token.
 routing:
   default_pool: free_tier
   escalate_to:
     pool: paid
-    when:
-      requires_capability: [long_context]
-      or_after_failures: 3
     # docs/0002 section 5: never silently spend.
     require_confirmation: true
 
@@ -34,11 +40,6 @@ budget:
   # fail open and only effect decisions fail closed. `block` is the honest
   # alternative and stops most free-tier work.
   on_unpriced: warn
-
-tiering:
-  planning: { min_tier: strong }
-  edit:     { min_tier: mid }
-  read:     { min_tier: cheap }
 
 effects:
   destructive: require_human_approval

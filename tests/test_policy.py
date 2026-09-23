@@ -259,3 +259,92 @@ def test_a_policy_without_tiering_still_compiles():
 
     out = compile_policy({"budget": {"daily_usd": 1.0}})
     assert out["tiering"] == {}
+
+
+# ══ docs/0042 I-16: the policy that ships ═════════════════════════════
+def _shipped():
+    from agentctl.kernel.policy import DEFAULT_POLICY
+    return DEFAULT_POLICY.with_name("policy.yaml")
+
+
+def _proxy_models() -> tuple[list[str], str]:
+    """The model strings `agentctl run` sends through the proxy (`--source`)."""
+    from agentctl.control.proxy import PAID, POOL, SOURCE_PREFIX
+    from agentctl.control.providers import PROVIDERS
+
+    free = [f"openai/{POOL}"] + [f"openai/{SOURCE_PREFIX}{p.name}"
+                                 for p in PROVIDERS if p.free_tier]
+    return free, f"openai/{PAID}"
+
+
+def test_the_shipped_policy_compiles():
+    """It stopped compiling when `tiering` was refused, and nothing noticed:
+    every other test compiles a policy written inline. A safety artifact that
+    reads like protection and does not load is `docs/0039`'s whole subject.
+    """
+    compile_policy(_shipped())
+
+
+def test_the_checked_in_artifact_is_compiled_from_the_shipped_source():
+    """`dash`, `doctor` and `Policy.load()` read the artifact, not the YAML."""
+    import hashlib
+
+    from agentctl.kernel.policy import DEFAULT_POLICY
+
+    text = _shipped().read_text(encoding="utf-8")
+    assert (Policy.load(DEFAULT_POLICY).source_sha256
+            == hashlib.sha256(text.encode("utf-8")).hexdigest()), (
+        "stale: agentctl policy agentctl/control/policy/data/policy.yaml")
+
+
+def test_every_free_proxy_group_is_in_the_shipped_default_pool():
+    """The pools used to name `openrouter/free` and friends, strings no run
+    sends, so every `--policy` run through the proxy stopped to ask."""
+    pol = Policy(compile_policy(_shipped()))
+    free, _ = _proxy_models()
+    assert [m for m in free if m not in pol.pool(pol.default_pool)] == []
+
+
+def test_the_paid_group_is_never_the_default_and_always_asks():
+    """`docs/0002` §5: never silently spend."""
+    pol = Policy(compile_policy(_shipped()))
+    _, paid = _proxy_models()
+    assert paid not in pol.pool(pol.default_pool)
+    assert paid in pol.pool(pol.escalation["pool"])
+    assert pol.escalation["require_confirmation"] is True
+
+
+def test_the_shipped_policy_declares_no_trigger_nothing_acts_on():
+    """`or_after_failures` and `requires_capability` compile and are read by
+    nothing -- the shape Phase 10.4 refused for `tiering`."""
+    esc = compile_policy(_shipped())["routing"]["escalation"]
+    assert esc["after_failures"] is None
+    assert esc["requires_capability"] == []
+
+
+def test_a_proxied_run_on_a_free_group_is_not_stopped(monkeypatch, tmp_path):
+    """Assert the route, not the data (`docs/0024`)."""
+    from agentctl.runtime.runner import _enforce_before_spending
+
+    def asked(*_):
+        raise AssertionError("asked to spend on a free group")
+
+    monkeypatch.setattr("builtins.input", asked)
+    pol = Policy(compile_policy(_shipped()))
+    free, _ = _proxy_models()
+    for model in free:
+        _enforce_before_spending(pol, model, tmp_path / "cost.db", None,
+                                 replaying=False, verbose=False)
+
+
+def test_a_proxied_run_on_the_paid_group_still_asks(monkeypatch, tmp_path):
+    from agentctl.runtime.runner import _enforce_before_spending
+
+    prompts: list[str] = []
+    monkeypatch.setattr("builtins.input", lambda p="": prompts.append(p) or "n")
+    pol = Policy(compile_policy(_shipped()))
+    _, paid = _proxy_models()
+    with pytest.raises(SystemExit, match="requires confirmation"):
+        _enforce_before_spending(pol, paid, tmp_path / "cost.db", None,
+                                 replaying=False, verbose=False)
+    assert prompts
