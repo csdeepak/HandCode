@@ -152,6 +152,17 @@ def test_the_template_is_ignored_before_it_is_written(tmp_path, monkeypatch):
     assert "keys.env" in ignored
 
 
+def test_init_does_not_write_into_an_unrelated_cwd(tmp_path, monkeypatch):
+    """docs/0044 N8: `keys --init` put the keys file in ~/.agentctl and a
+    `.gitignore` in whatever directory it was run from, protecting nothing."""
+    cwd = tmp_path / "somewhere"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+    p, created = keys.write_template(tmp_path / "home" / "keys.env")
+    assert created and p.exists()
+    assert not (cwd / ".gitignore").exists()
+
+
 def test_the_template_never_overwrites_a_filled_file(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     f = tmp_path / "keys.env"
@@ -349,7 +360,12 @@ def test_the_template_shows_how_to_add_a_second_account():
     assert "OPENROUTER_API_KEY_2" in t
     # The text wraps, so match on the flattened form rather than one line.
     flat = " ".join(t.replace("#", " ").split())
-    assert "per ACCOUNT" in flat
+    # docs/0044 N9: the mechanism stays documented, but a second key at the
+    # same provider is not sold as a second quota -- that is unverified and
+    # unchecked against terms of service (docs/0042 §4.C).
+    assert "SECOND PROVIDER" in flat
+    assert "UNVERIFIED" in flat and "terms" in flat
+    assert "buys a second quota" not in flat
     # the extra slots ship commented out, so the file still parses to nothing
     assert keys.parse(t) == {}
 

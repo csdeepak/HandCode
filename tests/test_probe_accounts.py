@@ -109,6 +109,79 @@ def test_a_real_payment_failure_is_still_no_credit(three_accounts, monkeypatch):
     assert probe.check_inference("openrouter").status == NO_CREDIT
 
 
+# ══ a model leaving the catalogue is not a dead key (docs/0044 N6) ═══
+GONE = Exception("litellm.NotFoundError: 404 No endpoints found for this model")
+
+
+def fake_by_model(calls, dead_models=(), capped_keys=()):
+    def _c(*_a, **kw):
+        calls.append((kw.get("api_key"), kw.get("model")))
+        if kw.get("api_key") in capped_keys:
+            raise Exception("Rate limit exceeded: free-models-per-day")
+        if any(kw.get("model", "").endswith(m) for m in dead_models):
+            raise GONE
+        return {"ok": True}
+    return _c
+
+
+def test_a_gone_first_model_falls_through_to_the_next(three_accounts,
+                                                      monkeypatch):
+    """Phase 0: the first registry model was gone and a working key read
+    "0 provider(s) can serve a request right now"."""
+    import litellm
+
+    from agentctl.control.providers import BY_NAME
+    first, second = BY_NAME["openrouter"].models[:2]
+    calls: list = []
+    monkeypatch.setattr(litellm, "completion",
+                        fake_by_model(calls, dead_models=(first,)))
+
+    r = probe.check_inference("openrouter")
+    assert r.status == LIVE, r.detail
+    assert r.gone == (first,)
+    assert first in r.detail and second in r.detail
+    assert calls == [("k1", f"openrouter/{first}"),
+                     ("k1", f"openrouter/{second}")]
+
+
+def test_every_model_gone_says_the_key_may_be_fine(three_accounts, monkeypatch):
+    import litellm
+
+    from agentctl.control.providers import BY_NAME
+    models = BY_NAME["openrouter"].models
+    calls: list = []
+    monkeypatch.setattr(litellm, "completion",
+                        fake_by_model(calls, dead_models=models))
+
+    r = probe.check_inference("openrouter")
+    assert r.status == UNREACHABLE
+    assert "key may be fine" in r.detail and set(r.gone) == set(models)
+    assert len(calls) == len(models), "a gone model is gone for every account"
+
+
+def test_a_cap_does_not_spend_a_request_per_model(three_accounts, monkeypatch):
+    """A daily cap is account-wide across every `:free` model, so trying the
+    next model on a capped key would only spend a request to learn nothing."""
+    import litellm
+    calls: list = []
+    monkeypatch.setattr(litellm, "completion",
+                        fake_by_model(calls, capped_keys=("k1",)))
+
+    assert probe.check_inference("openrouter").status == LIVE
+    assert [k for k, _ in calls] == ["k1", "k2"]
+
+
+def test_proxy_leaves_out_a_model_verification_found_gone():
+    from agentctl.control.proxy import build
+    from agentctl.control.providers import BY_NAME
+
+    p = BY_NAME["openrouter"]
+    dead = f"{p.prefix}{p.models[0]}"
+    env = {"OPENROUTER_API_KEY": "k1"}
+    assert dead in build(env)
+    assert dead not in build(env, drop_models={dead})
+
+
 # ══ which verdict survives ═══════════════════════════════════════════
 def test_limited_beats_no_credit_across_accounts(three_accounts, monkeypatch):
     """One capped key and one unpaid key means the provider works tomorrow."""

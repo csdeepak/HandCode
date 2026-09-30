@@ -75,7 +75,7 @@ class Policy:
         if not p.exists():
             raise FileNotFoundError(
                 f"no compiled policy at {p}\n"
-                f"  compile one:  agentctl policy compile <policy.yaml>")
+                f"  compile one:  agentctl policy <policy.yaml>")
         return cls(json.loads(p.read_text(encoding="utf-8")))
 
     @classmethod

@@ -227,22 +227,21 @@ def template(extra_slots: int = 2) -> str:
         "# Values are read into the environment and NEVER printed, logged, or",
         "# shown by any command. `agentctl keys` says `set (73 chars)`.",
         "#",
-        "# ── MULTIPLE ACCOUNTS PER PROVIDER ──────────────────────────────",
+        "# ── MORE THAN ONE KEY ───────────────────────────────────────────",
         "#",
-        "# This is the point of the file. A free-tier cap is usually per",
-        "# ACCOUNT, so a second key at the SAME provider buys a second quota:",
+        "# One key is enough to start. A daily cap on it stops work until it",
+        "# resets; a key at a SECOND PROVIDER survives that, and survives the",
+        "# first provider going down.",
         "#",
-        "#     OPENROUTER_API_KEY=sk-or-v1-....      <- first account",
-        "#     OPENROUTER_API_KEY_2=sk-or-v1-....    <- second, separate quota",
-        "#     OPENROUTER_API_KEY_WORK=sk-or-v1-...  <- any label works",
+        "# Extra keys at the same provider are accepted with any suffix:",
         "#",
-        "# Any suffix after the name is accepted: _2, _3, _ALT, _WORK. Each",
-        "# becomes its own deployment in the pool, so when one account hits a",
-        "# daily cap the others keep serving (`docs/0033`).",
+        "#     OPENROUTER_API_KEY=sk-or-v1-....      <- first key",
+        "#     OPENROUTER_API_KEY_WORK=sk-or-v1-...  <- another account",
         "#",
-        "# Two accounts at ONE provider beats five models at one account.",
-        "# Two accounts at DIFFERENT providers is better still -- it survives",
-        "# the provider itself going down.",
+        "# Each becomes its own deployment in the pool (`docs/0033`). Whether",
+        "# it is a separate quota is UNVERIFIED, and pooling several free",
+        "# accounts may be against that provider's terms. Check both before",
+        "# relying on it (`docs/0042` §4.C).",
         "#",
         "# ── AFTER EDITING ───────────────────────────────────────────────",
         "#",
@@ -279,7 +278,7 @@ def _wrap(text: str, width: int) -> list[str]:
 
 
 def write_template(path: str | Path | None = None,
-                   gitignore: str | Path = ".gitignore") -> tuple[Path, bool]:
+                   gitignore: str | Path | None = None) -> tuple[Path, bool]:
     """Write the template, ignoring it FIRST. Never overwrites a filled file.
 
     Defaults to `~/.agentctl/keys.env`, outside any repository. A gitignore
@@ -294,8 +293,17 @@ def write_template(path: str | Path | None = None,
     # `.gitignore` while placing the file under `~/.agentctl` — which on this
     # machine is inside a *different* repo, leaving the file unprotected in the
     # only repo that could commit it (`docs/0033` §5).
-    for target in {Path(gitignore), *( [repo / ".gitignore"]
-                                       if (repo := enclosing_repo(p)) else [] )}:
+    #
+    # The cwd's `.gitignore` is no longer a default target: it protects the
+    # file only when the file is inside the cwd's repository, which the
+    # enclosing-repo rule already covers. Otherwise it was a stray write into
+    # whatever directory `--init` ran in -- someone else's project, or no
+    # repository at all (`docs/0044` N8). An explicit `gitignore` still wins.
+    repo = enclosing_repo(p)
+    targets = {Path(gitignore)} if gitignore else set()
+    if repo:
+        targets.add(repo / ".gitignore")
+    for target in targets:
         try:
             ensure_ignored(target, name=p.name)
         except Exception:                               # noqa: BLE001

@@ -258,3 +258,16 @@ def test_a_missing_key_with_no_proxy_still_refuses(monkeypatch, tmp_path):
 
     with pytest.raises(SystemExit, match="No API key found"):
         run("x", tmp_path, model="anthropic/claude-sonnet-5", verbose=False)
+
+
+def test_the_system_prompt_is_hidden_and_says_so(capsys, monkeypatch):
+    """docs/0044 N10: every run began with the SDK's whole system prompt.
+    Hidden by default -- but announced, never silently dropped."""
+    from openhands.sdk.event import SystemPromptEvent
+
+    from agentctl.runtime.runner import SHOW_SYSTEM_PROMPT_ENV, _visualizer
+
+    monkeypatch.delenv(SHOW_SYSTEM_PROMPT_ENV, raising=False)
+    _visualizer().on_event(SystemPromptEvent.model_construct())
+    out = capsys.readouterr().out
+    assert "system prompt hidden" in out and SHOW_SYSTEM_PROMPT_ENV in out

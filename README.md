@@ -36,16 +36,37 @@ With this layer installed:
 
 ## Verify it yourself
 
+Requires **Python ≥ 3.12** (the OpenHands SDK does) and `git` on PATH. On an
+older Python the install fails with a long list of `Requires-Python >=3.12`
+lines that never names the cause, so check first.
+
+**Windows** (PowerShell):
+
+```powershell
+py -3.12 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -e ".[dev,openhands]"
+python verify.py
+```
+
+Clone into a short path such as `C:\src\HandCode`. One file the install
+unpacks sits 139 characters deep inside `.venv`, so a clone path longer than
+about 120 characters hits Windows' 260-character limit and pip fails partway
+(`docs/0044` N3).
+
+**macOS / Linux:**
+
 ```bash
-python -m venv .venv && .venv/Scripts/activate     # bin/activate on Unix
+python3 -m venv .venv          # Ubuntu: sudo apt install python3.12-venv first
+source .venv/bin/activate
 pip install -e ".[dev,openhands]"
 python verify.py
 ```
 
 **Zero cost** — everything runs against a local mock provider. No API key, no
-network, no tokens. Takes about four minutes.
-
-Requires Python ≥ 3.12 (the OpenHands SDK does) and `git` on PATH.
+network, no tokens. Takes about five minutes. With this install, two of the
+ten checks (Seam A and the full stack) are **SKIPPED**, because they need the
+proxy extra below; that is expected, and `verify.py` says how to run them.
 
 If a dependency has since shipped something incompatible, install the exact set
 that is known to pass:
@@ -93,18 +114,20 @@ value. If it ever becomes tracked by git, every command says so loudly and
 tells you to rotate — a `.gitignore` entry added after a file is tracked does
 nothing (`docs/0032`).
 
-**Multiple accounts per provider** is the point. A free-tier cap is usually
-per account, so a second key at the *same* provider buys a second quota:
+**One key is enough to start.** A daily cap on it stops work until it resets;
+a key at a **second provider** survives that, and survives an outage too:
 
 ```
-OPENROUTER_API_KEY=sk-or-v1-...      # first account
-OPENROUTER_API_KEY_2=sk-or-v1-...    # second, separate quota
-GEMINI_API_KEY=...                   # different provider, survives an outage too
+OPENROUTER_API_KEY=sk-or-v1-...      # one provider
+GEMINI_API_KEY=...                   # a second provider
 ```
 
-Any suffix works (`_2`, `_ALT`, `_WORK`), and each becomes its own deployment
-in the pool. `agentctl dash` says which of four states you are actually in
-(`docs/0033`).
+Extra keys at the *same* provider are accepted with any suffix (`_2`, `_WORK`)
+and each becomes its own deployment in the pool (`docs/0033`). **Whether that
+is a separate quota is unverified**: OpenRouter's own limits page says extra
+accounts do not change rate limits. Pooling several free accounts may also be
+against a provider's terms. Check both before relying on it (`docs/0042`
+§4.C). `agentctl dash` says which state you are actually in.
 
 ## Use it
 
@@ -126,8 +149,14 @@ to edit.
 > surfacing it is scheduled work.
 
 Real tools (bash, read, write), a real model, every effect classified and
-ledgered. Crash it and re-run with `--resume <id>`: work already done is not
-repeated.
+ledgered. Crash it and re-run with the conversation id the run printed at the
+start. Work already done is not repeated:
+
+```bash
+agentctl run "" --workspace ./myproject --resume <conversation-id>
+```
+
+The task is `""` because the conversation already holds it.
 
 ### Run it again for nothing
 

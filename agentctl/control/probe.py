@@ -43,6 +43,10 @@ class Result:
     account: Account
     status: str
     detail: str = ""
+    #: Registry model ids the provider rejected as unknown. A catalogue entry
+    #: that has disappeared is a fact about the registry, not about the key,
+    #: and `proxy` leaves these out of the pool (`docs/0044` N6).
+    gone: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -273,21 +277,50 @@ def check_inference(provider_name: str,
     # healthy provider still costs exactly one call, because the loop stops
     # at the first success. Only a provider that is actually failing pays for
     # more, which is when you want to know.
+    #
+    # And ask each MODEL until one serves, but only past a rejected model id.
+    # Testing `models[0]` alone meant one model leaving the catalogue made a
+    # working key read "0 provider(s) can serve": `nex-agi/nex-n2.5-pro:free`
+    # was chosen on 2026-09-21 and gone by 2026-10-01 (`docs/0044` N6). A cap
+    # or a bad key is about the ACCOUNT, so those stop the model loop -- the
+    # next model would only spend a request to learn the same thing.
+    try:
+        import litellm
+    except ImportError:
+        return Result(accts[0], UNREACHABLE,
+                      'litellm is not installed: pip install -e ".[openhands]"')
+    litellm.suppress_debug_info = True
+
     best: Result | None = None
+    gone: list[str] = []
     for acct in accts:
-        try:
-            import litellm
-            litellm.suppress_debug_info = True
-            litellm.completion(model=p.default_model, max_tokens=4,
-                               api_key=acct.value,
-                               messages=[{"role": "user", "content": "ok"}])
-            note = f"inference ok ({p.models[0]})"
+        for model in p.models:
+            if model in gone:
+                continue
+            try:
+                litellm.completion(model=f"{p.prefix}{model}", max_tokens=4,
+                                   api_key=acct.value,
+                                   messages=[{"role": "user", "content": "ok"}])
+            except Exception as e:                      # noqa: BLE001
+                r = _classify_inference(e, acct, p, model)
+                best = _worse_of(best, r)
+                if r.detail.startswith(MODEL_GONE):
+                    gone.append(model)
+                    continue
+                break
+            note = f"inference ok ({model})"
             if acct is not accts[0]:
                 note += f" via {acct.label}"
-            return Result(acct, LIVE, note)
-        except Exception as e:                          # noqa: BLE001
-            best = _worse_of(best, _classify_inference(e, acct, p))
+            if gone:
+                note += f"; no longer served: {', '.join(gone)}"
+            return Result(acct, LIVE, note, gone=tuple(gone))
     assert best is not None
+    if gone and len(gone) == len(p.models):
+        return Result(best.account, UNREACHABLE,
+                      f"the key may be fine, but none of the {len(gone)} "
+                      f"registry model(s) is served: {', '.join(gone)}",
+                      gone=tuple(gone))
+    best.gone = tuple(gone)
     return best
 
 
@@ -309,7 +342,10 @@ def _worse_of(a: "Result | None", b: "Result") -> "Result":
     return a if rank.get(a.status, 9) <= rank.get(b.status, 9) else b
 
 
-def _classify_inference(e: Exception, acct, p) -> "Result":
+MODEL_GONE = "model id rejected"
+
+
+def _classify_inference(e: Exception, acct, p, model: str = "") -> "Result":
     """Why a completion failed, from the provider's own words.
 
     **Rate limiting is checked before payment, and the order is the point.**
@@ -327,6 +363,7 @@ def _classify_inference(e: Exception, acct, p) -> "Result":
     if "payment" in low or "credit" in low or "billing" in low:
         return Result(acct, NO_CREDIT,
                       "authenticates, but inference needs payment")
-    if "not found" in low or "404" in msg:
-        return Result(acct, UNREACHABLE, f"model id rejected: {p.models[0]}")
+    if "not found" in low or "404" in msg or "not a valid model" in low:
+        return Result(acct, UNREACHABLE,
+                      f"{MODEL_GONE}: {model or p.models[0]}")
     return Result(acct, UNREACHABLE, msg.splitlines()[0][:80])

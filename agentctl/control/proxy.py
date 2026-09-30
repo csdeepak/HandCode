@@ -196,9 +196,14 @@ def verified_providers(allow_paid: bool = False) -> tuple[set[str], dict]:
 
 
 def build(env: dict | None = None, telemetry: str | Path | None = None,
-          only: set[str] | None = None) -> str:
-    """The proxy config, as YAML text. `only` restricts it to named providers."""
-    entries = available(env)
+          only: set[str] | None = None,
+          drop_models: set[str] = frozenset()) -> str:
+    """The proxy config, as YAML text. `only` restricts it to named providers.
+
+    `drop_models` holds full model strings verification found the provider no
+    longer serves. Left in, each is a deployment that 404s on every call.
+    """
+    entries = [e for e in available(env) if e[1] not in drop_models]
     if only is not None:
         from .providers import BY_KEY
         entries = [e for e in entries
@@ -423,12 +428,14 @@ proxy_handler_instance = AgentctlHook(
 
 
 def write(out_dir: str | Path = ".", env: dict | None = None,
-          only: set[str] | None = None) -> tuple[Path, Path]:
+          only: set[str] | None = None,
+          drop_models: set[str] = frozenset()) -> tuple[Path, Path]:
     d = Path(out_dir)
     d.mkdir(parents=True, exist_ok=True)
     cfg = d / "proxy_config.yaml"
     hook = d / "agentctl_hook.py"
-    cfg.write_text(build(env, only=only), encoding="utf-8")
+    cfg.write_text(build(env, only=only, drop_models=drop_models),
+                   encoding="utf-8")
     hook.write_text(HOOK_MODULE, encoding="utf-8")
     write_start_scripts(d, Path(__file__).resolve().parent.parent.parent)
     return cfg, hook

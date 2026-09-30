@@ -36,6 +36,54 @@ from pathlib import Path
 
 DEFAULT_MODEL = "openrouter/nvidia/nemotron-3-super-120b-a12b:free"
 
+#: What `<workspace>/.agentctl/.gitignore` says. The directory holds the ledger
+#: and every conversation -- task text, file contents, command output -- and
+#: sat untracked in the user's repository, one `git add -A` from a commit
+#: (`docs/0044` N11). `*` ignores all of it, this file included, so it never
+#: appears in `git status`. `agents/` stays visible: subagent definitions are
+#: written by the user and may belong in the repository.
+STATE_GITIGNORE = ("# Written by agentctl: runtime state, never source.\n"
+                   "*\n!agents/\n!agents/**\n")
+
+
+SHOW_SYSTEM_PROMPT_ENV = "AGENTCTL_SHOW_SYSTEM_PROMPT"
+
+
+def _visualizer():
+    """The SDK's own visualizer, minus the system prompt.
+
+    The default prints the whole system prompt and tool schemas before the
+    first turn: a 38-second run produced 687 lines, most of them text the user
+    did not write and cannot act on (`docs/0044` N10). It is replaced by one
+    line saying it was hidden and how to see it -- never silently dropped.
+    """
+    from openhands.sdk.conversation.visualizer import DefaultConversationVisualizer
+    from openhands.sdk.event import SystemPromptEvent
+
+    class _Quiet(DefaultConversationVisualizer):
+        def on_event(self, event):
+            if (isinstance(event, SystemPromptEvent)
+                    and not os.environ.get(SHOW_SYSTEM_PROMPT_ENV)):
+                print(f"  (system prompt hidden; set {SHOW_SYSTEM_PROMPT_ENV}=1 "
+                      f"to show it)\n")
+                return
+            super().on_event(event)
+
+    return _Quiet()
+
+
+def state_dir(ws: Path) -> Path:
+    """`<ws>/.agentctl`, created with its own `.gitignore`.
+
+    An existing `.gitignore` is left alone: if someone wrote one, it is theirs.
+    """
+    d = ws / ".agentctl"
+    d.mkdir(parents=True, exist_ok=True)
+    ignore = d / ".gitignore"
+    if not ignore.exists():
+        ignore.write_text(STATE_GITIGNORE, encoding="utf-8")
+    return d
+
 
 def _build_agent(llm, tools):
     """Construct the Agent with `tool_concurrency_limit` pinned to 1.
@@ -127,11 +175,12 @@ def run(
 
     ws = Path(workspace).resolve()
     ws.mkdir(parents=True, exist_ok=True)
-    ledger_path = Path(ledger) if ledger else ws / ".agentctl" / "ledger.db"
+    state = state_dir(ws)
+    ledger_path = Path(ledger) if ledger else state / "ledger.db"
 
     os.environ[rt.WORKSPACE_ENV] = str(ws)
     os.environ.setdefault("AGENTCTL_TELEMETRY",
-                          str(ws / ".agentctl" / "hook_telemetry.json"))
+                          str(state / "hook_telemetry.json"))
     # Do NOT register the plain tools here: protect() registers gated versions
     # under the same names, and doing both only produces duplicate warnings.
 
@@ -223,9 +272,10 @@ def run(
 
     conv = Conversation(
         agent=agent, workspace=str(ws),
-        persistence_dir=str(ws / ".agentctl" / "conversations"),
+        persistence_dir=str(state / "conversations"),
         conversation_id=cid, delete_on_close=False,
         max_iteration_per_run=max_iterations,
+        visualizer=_visualizer(),
         callbacks=[guard.seam_b])
 
     # `Conversation(...)` is a strict factory and rejects this, but the

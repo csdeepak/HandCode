@@ -360,9 +360,14 @@ def cmd_keys(args) -> int:
         print()
 
     if args.init:
+        from agentctl.control.keys import enclosing_repo
         p, created = write_template(path)
         print(f"{'wrote' if created else 'kept existing'} {p}")
-        print("  added ignore rules to .gitignore BEFORE writing it")
+        if (repo := enclosing_repo(p)):
+            print(f"  added ignore rules to {repo / '.gitignore'} "
+                  f"BEFORE writing it")
+        else:
+            print("  it is in no git repository, so nothing can commit it")
         if created:
             print("  fill in the keys you have; blanks are fine")
         print()
@@ -429,17 +434,20 @@ def cmd_keys(args) -> int:
           f"{len({a.provider.name for a in accts})} provider(s).")
     if len(accts) <= 1:
         print()
-        print("  ONE ACCOUNT is the thing that stops work. A free-tier cap is")
-        print("  usually per account, so a second key -- even at the SAME")
-        print("  provider -- buys a second quota:")
+        # docs/0044 N9: this used to lead with a second key at the SAME
+        # provider. Whether that is a second quota is unverified, and whether
+        # it is allowed is unchecked (docs/0042 §4.C), so it is not advice.
         print()
-        print("    OPENROUTER_API_KEY_2=sk-or-v1-...    # in your keys file")
-        print()
-        print("  Different providers are better still; they survive an outage")
-        print("  as well as a cap:")
+        print("  One account is fine to start with. A daily cap on it stops")
+        print("  work until it resets; a key at a second provider survives")
+        print("  that, and an outage too:")
         for p in missing():
             if p.free_tier:
                 print(f"    {p.name:<11} {p.console}")
+        print()
+        print("  Extra keys at the same provider (_2, _WORK ...) are accepted,")
+        print("  but whether they add quota is unverified and may be against")
+        print("  that provider's terms. Check them first (docs/0042 §4.C).")
     return 0
 
 
@@ -775,6 +783,7 @@ def cmd_proxy(args) -> int:
     from agentctl.control.proxy import accounts, available, write
 
     only = None
+    drop: set[str] = set()
     if not args.verify:
         print("  --no-verify: this pool is built from credentials, not from "
               "what can serve.")
@@ -787,11 +796,17 @@ def cmd_proxy(args) -> int:
         for name, r in sorted(report.items()):
             flag = "ok  " if name in only else "--  "
             print(f"    {flag} {name:<12} {r.status:<11} {r.detail[:54]}")
+        from agentctl.control.providers import BY_NAME
+        drop = {f"{BY_NAME[n].prefix}{m}"
+                for n, r in report.items() for m in r.gone}
+        for m in sorted(drop):
+            print(f"    left out     {m}  (the provider no longer serves it)")
         print()
 
     entries = [e for e in available()
-               if only is None or _provider_of(e[0]) in only]
-    cfg, hook = write(args.out, only=only)
+               if (only is None or _provider_of(e[0]) in only)
+               and e[1] not in drop]
+    cfg, hook = write(args.out, only=only, drop_models=drop)
     n_acct = len(accounts(entries))
 
     print(f"wrote {cfg}")
@@ -1037,9 +1052,10 @@ def build_parser() -> argparse.ArgumentParser:
     po = sub.add_parser("policy", help="compile and inspect the policy")
     po.add_argument("source", nargs="?",
                     help="policy.yaml to compile; omit to show the compiled one")
-    po.add_argument("--out", type=Path,
-                    default=Path("agentctl/control/policy/data/"
-                                 "policy.compiled.json"),
+    # The package's own copy, not a cwd-relative path: that only resolved from
+    # the root of a clone (docs/0044 N14).
+    from agentctl.kernel.policy import DEFAULT_POLICY
+    po.add_argument("--out", type=Path, default=DEFAULT_POLICY,
                     help="where the compiled artifact lives")
     po.set_defaults(fn=cmd_policy)
 
@@ -1058,6 +1074,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     _ascii_stdout()
+    # The SDK prints a ten-line banner on import, on every command -- `doctor`,
+    # `keys`, `dash` -- ending "Report a bug: github.com/OpenHands/...", which
+    # is the wrong place for an agentctl bug (docs/0031, 0044 N10). Set before
+    # anything imports it; an explicit value in the shell still wins.
+    import os
+    os.environ.setdefault("OPENHANDS_SUPPRESS_BANNER", "1")
     # Load keys.env before anything reads the environment. An already-exported
     # variable wins: something you set deliberately in a shell should not be
     # replaced by a file. Values are never printed (`docs/0032`).

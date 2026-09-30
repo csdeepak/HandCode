@@ -89,6 +89,32 @@ def test_doctor_checks_the_things_that_have_actually_broken():
         assert needed in subjects, f"doctor stopped checking {needed}"
 
 
+def test_a_package_version_alone_never_blocks(monkeypatch):
+    """docs/0044 N5: a fresh install got mcp 1.30, doctor called it BAD
+    ("the SDK will fail to import"), and the SDK imported cleanly. Whether the
+    SDK imports is tested by importing it; a version number is only reported.
+    """
+    import importlib.metadata as md
+
+    import agentctl.runtime.doctor as d
+
+    real = md.version
+    monkeypatch.setattr(md, "version",
+                        lambda p: "1.30.0" if p == "mcp" else real(p))
+    rows = {s: (st, detail) for st, s, detail in d._packages()}
+    assert rows["mcp"] == (OK, "1.30.0")
+
+
+def test_doctor_passes_the_install_it_is_running_in(monkeypatch):
+    """The environment under test IS a fresh install in CI, and CI stayed
+    green while doctor told every fresh install to stop (docs/0044 N5).
+    With a key present, nothing about the installation itself may be BAD.
+    """
+    monkeypatch.setenv("OPENROUTER_API_KEY", "x")
+    bad = [(s, d) for st, s, d in check_all(probe_network=False) if st == BAD]
+    assert not bad, f"doctor blocks the install it runs in: {bad}"
+
+
 def test_a_single_provider_is_flagged_as_no_failover(monkeypatch):
     """The project's own thesis: one account cannot fail over."""
     for env, _, _ in __import__("agentctl.runtime.doctor", fromlist=["PROVIDERS"]).PROVIDERS:

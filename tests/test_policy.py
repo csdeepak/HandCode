@@ -130,8 +130,29 @@ def compile_to_tmp(tmp_path):
 
 
 def test_a_missing_policy_says_how_to_make_one(tmp_path):
-    with pytest.raises(FileNotFoundError, match="agentctl policy compile"):
+    """And the command it names must exist. It used to say `agentctl policy
+    compile <file>`, a subcommand the CLI has never had (docs/0044 N14)."""
+    from agentctl.cli import build_parser
+
+    with pytest.raises(FileNotFoundError, match=r"agentctl policy <policy\.yaml>"):
         Policy.load(tmp_path / "nope.json")
+    args = build_parser().parse_args(["policy", "policy.yaml"])
+    assert str(args.source) == "policy.yaml"
+
+
+def test_the_policy_command_finds_the_shipped_artifact_from_anywhere(
+        tmp_path, monkeypatch):
+    """`--out` defaulted to a path relative to the cwd, so outside a clone
+    `agentctl policy` reported no compiled policy (docs/0044 N14)."""
+    from pathlib import Path
+
+    from agentctl.cli import build_parser
+    from agentctl.kernel.policy import DEFAULT_POLICY
+
+    monkeypatch.chdir(tmp_path)
+    args = build_parser().parse_args(["policy"])
+    assert Path(args.out) == DEFAULT_POLICY
+    assert Path(args.out).exists()
 
 
 def test_an_empty_policy_enforces_nothing():

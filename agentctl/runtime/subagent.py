@@ -213,9 +213,10 @@ def _run_scoped(definition, task, ws, model, api_key, base_url,
     if (prompt := getattr(definition, "system_prompt", "")):
         task = f"{prompt}\n\n---\n\n{task}"
 
+    from .runner import state_dir
     conv = Conversation(
         agent=agent, workspace=str(ws),
-        persistence_dir=str(ws / ".agentctl" / "subagents" / definition.name),
+        persistence_dir=str(state_dir(ws) / "subagents" / definition.name),
         delete_on_close=False,
         # The bound that actually binds; max_budget_per_run does not.
         max_iteration_per_run=(

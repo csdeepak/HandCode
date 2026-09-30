@@ -318,8 +318,8 @@ def _failover() -> dict:
         verdict = "SINGLE ACCOUNT"
         detail = (f"only {accts[0].label}. A per-model limit or a transient "
                   f"outage is survivable; an account-wide daily cap is not -- "
-                  f"there is nowhere to go. A second key, even at the same "
-                  f"provider, is a second quota.")
+                  f"there is nowhere to go. A key at a second provider is "
+                  f"what survives one.")
     elif len(providers) == 1:
         # Better than one, and still one provider outage away from zero.
         verdict = "MULTI-ACCOUNT"

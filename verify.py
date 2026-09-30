@@ -47,6 +47,15 @@ CHECKS = [
     ("FULL STACK",
      ["experiments/0006-full-stack/run_full_stack.py"],
      "agent -> proxy -> backends, with the gate. The integration."),
+]
+# These two start a real LiteLLM proxy, which the README's first install does
+# not include. Without the extra they used to report INCONCLUSIVE ("a broken
+# harness") and exit 1 on exactly the install the README tells a stranger to
+# do, with nothing naming the missing extra (docs/0044 N7).
+NEEDS_PROXY = {"M1  Seam A", "FULL STACK"}
+PROXY_INSTALL = ('pip install -e ".[dev,openhands,proxy]"  '
+                 '(then see README "The proxy extra needs two steps")')
+CHECKS += [
     ("M6  replay",
      ["experiments/0008-m6-replay/run_replay.py"],
      "a real recorded session replays offline, identically, for nothing"),
@@ -86,6 +95,20 @@ def run(name: str, argv: list[str], why: str) -> tuple[bool, float, str]:
     return p.returncode == 0, elapsed, ("ok" if p.returncode == 0 else "FAILED")
 
 
+def proxy_extra_missing() -> list[str]:
+    """Modules the LiteLLM proxy needs that are not installed.
+
+    `find_spec`, not an import: importing `litellm.proxy.proxy_server` takes
+    8-17 s, and these two are what it raises on first when the extra is absent.
+    An installed-but-broken proxy still reaches the experiment, which then
+    reports INCONCLUSIVE -- correctly, because that IS a broken harness.
+    """
+    import importlib.util
+
+    return [m for m in ("fastapi", "backoff")
+            if importlib.util.find_spec(m) is None]
+
+
 def _env() -> dict:
     import os
     return dict(os.environ)
@@ -96,9 +119,14 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fast", action="store_true",
                     help="unit tests + the nine-point suite only (~60s)")
+    ap.add_argument("--require-proxy", action="store_true",
+                    help="fail, rather than skip, the proxy checks when the "
+                         "proxy extra is missing. CI sets this: a skip there "
+                         "would be a check that quietly stopped existing.")
     args = ap.parse_args()
 
     checks = CHECKS[:2] if args.fast else CHECKS
+    missing = proxy_extra_missing()
     print("=" * 70)
     print("agentctl verification - no API key, no network, no tokens")
     print("=" * 70)
@@ -106,7 +134,17 @@ def main() -> int:
     results = []
     for name, argv, why in checks:
         print(f"\n  running {name} ...", flush=True)
-        ok, secs, status = run(name, argv, why)
+        if name in NEEDS_PROXY and missing:
+            if args.require_proxy:
+                ok, secs, status = (False, 0.0, "FAILED")
+                print(f"  proxy extra missing ({', '.join(missing)}), "
+                      f"and --require-proxy was given")
+            else:
+                ok, secs, status = (True, 0.0,
+                                    f"SKIPPED: needs the proxy extra -- "
+                                    f"{PROXY_INSTALL}")
+        else:
+            ok, secs, status = run(name, argv, why)
         results.append((name, ok, secs, status, why))
         skipped = ok and "SKIP" in status
         mark = ("SKIP" if skipped else "PASS") if ok else status
@@ -131,7 +169,7 @@ def main() -> int:
     # Never silent. A skip that nobody sees is a check that quietly stopped
     # existing, which is worse than one that fails.
     for name, _, _, status, _ in skipped:
-        print(f"  SKIPPED  {name}: {status}")
+        print(f"  SKIPPED  {name}: {status.removeprefix('SKIPPED: ')}")
     if not args.fast:
         print("\nThe correctness claims still hold on this machine:")
         print("  - no duplicate side effect at ANY of the nine crash points")

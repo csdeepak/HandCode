@@ -142,21 +142,18 @@ def check_all(workspace: str | Path | None = None,
 def _packages() -> list[tuple[str, str, str]]:
     from importlib.metadata import version
 
+    # Versions are reported, never judged. `mcp >= 2` used to be BAD here
+    # (docs/0021 §7: litellm[proxy] once downgraded it and broke the SDK), and
+    # it outlived its premise: SDK 1.50.1 resolves to mcp 1.30 and imports
+    # cleanly, so a fresh install from the README was told to stop by a rule
+    # the next two rows contradicted (docs/0044 N5). The import rows below
+    # test what actually breaks, on whatever versions pip chose.
     rows = []
-    for pkg, need in (("openhands-sdk", None), ("litellm", None),
-                      ("mcp", 2), ("fastmcp", None), ("pyyaml", None)):
+    for pkg in ("openhands-sdk", "litellm", "mcp", "fastmcp", "pyyaml"):
         try:
-            v = version(pkg)
+            rows.append((OK, pkg, version(pkg)))
         except Exception:                               # noqa: BLE001
             rows.append((BAD, pkg, "not installed"))
-            continue
-        if need and int(v.split(".")[0]) < need:
-            # docs/0021 §7: litellm[proxy] has downgraded this before, and
-            # `pip check` reported nothing wrong.
-            rows.append((BAD, pkg, f"{v} — needs >= {need}; the SDK will "
-                                   f"fail to import"))
-        else:
-            rows.append((OK, pkg, v))
 
     try:
         from fastmcp import Client                      # noqa: F401
@@ -206,11 +203,13 @@ def _providers(probe: bool) -> list[tuple[str, str, str]]:
 
     providers = {a.provider.name for a in accts}
     if len(accts) == 1:
-        # The project's own thesis: one account cannot fail over.
+        # One account cannot fail over. The advice is a second PROVIDER: a
+        # second key at the same one is unverified as a second quota and
+        # unchecked against terms of service (docs/0042 §4.C, 0044 N9).
         rows.append((WARN, "failover",
-                     f"only {accts[0].label} — a daily cap on it stops all "
-                     f"work. A second key, even at the same provider, is a "
-                     f"second quota."))
+                     f"only {accts[0].label} — fine to start with; a daily "
+                     f"cap on it stops work until it resets. A key at a "
+                     f"second provider survives that (`agentctl keys`)."))
     elif len(providers) == 1:
         rows.append((WARN, "failover",
                      f"{len(accts)} accounts, all at "

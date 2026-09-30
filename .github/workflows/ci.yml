@@ -14,6 +14,13 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # The `tests` job installs unpinned, so it answers "does a cold install work
+  # TODAY" -- but only when something is pushed. Ten days without a push let
+  # the SDK move 1.45 -> 1.50 and `doctor` start refusing every fresh install,
+  # and nothing here noticed (docs/0044 N4, N5). Weekly, so drift is found by
+  # CI rather than by a stranger.
+  schedule:
+    - cron: "0 6 * * 1"
 
 env:
   # docs/0012 §6: force UTF-8 on every redirected subprocess. Four separate
@@ -144,7 +151,9 @@ jobs:
           print("openhands sdk ok:", Event.__name__)
           EOF
 
-      - run: python -u verify.py
+      # --require-proxy: this job installs the extra, so a proxy check that
+      # skips here means the install broke, not that the check does not apply.
+      - run: python -u verify.py --require-proxy
 
       - name: Keep the evidence
         if: always()

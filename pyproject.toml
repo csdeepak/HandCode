@@ -45,6 +45,8 @@ include = ["agentctl*"]
 [tool.setuptools.package-data]
 "agentctl.kernel.ledger" = ["*.sql"]
 "agentctl.control.matrix.data" = ["*.yaml"]
+# Without this a non-editable install ships no default policy at all.
+"agentctl.control.policy.data" = ["*.yaml", "*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
