@@ -109,6 +109,11 @@ provider**, recorded in the phase's commit message.
 - **Done when** every row in §2 is confirmed, corrected or struck, and the
   baseline is recorded.
 
+### Phase 0.5 — Quick fixes (added by `0044`, done)
+
+Nine zero-quota fixes, each for something that stopped the Phase 0 user.
+Listed in `0044` §9; what changed and how it was checked is in `0044` §10.
+
 ### Phase 1 — Stop the safety layer getting in the way (zero quota)
 
 Already the next Stage 1 work in `0042`. It is restated here because it is the

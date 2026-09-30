@@ -181,3 +181,48 @@ defect happening in the first two real tasks a new user runs, not in a probe.
 
 **The success-only exit code** (N15's exit 1) and **N12** (the agent setting
 git identity unasked) go into Phase 3 and Phase 4 respectively.
+
+---
+
+## 10. Addendum (2026-10-01): Phase 0.5 landed
+
+All nine items in §9 are done, in one commit after `28795c4`.
+
+| # | Item | What changed | Checked by |
+|---|---|---|---|
+| 1 | Push `main` (N1) | `6870711..28795c4` pushed. CI passed on it with the new dependencies | `gh run list` |
+| 2 | `doctor` + drift (N4, N5) | Versions are reported, never judged. A weekly scheduled CI run | `test_a_package_version_alone_never_blocks` |
+| 3 | `keys --check` (N6) | Tries each registry model past a rejected id; a cap or bad key still stops at one. Records gone models, and `proxy` leaves them out | 4 tests; **live**: see below |
+| 4 | `verify.py` (N7) | Proxy checks are SKIPPED, naming the install, when `fastapi`/`backoff` are absent. CI passes `--require-proxy`, so a skip there fails | Dev venv, `--require-proxy`: **10/10**. The Phase 0 venv (no proxy extra) on this tree: **8 passed, 2 SKIPPED, exit 0**, each skip naming the install |
+| 5 | `.agentctl/.gitignore` (N11) | Written on first use: `*`, except `agents/`. An existing one is left alone | 4 tests through real `git status` |
+| 6 | README (N2, N3, F5) | Per-platform install; the path-length note; `run "" --resume <id>` | read |
+| 7 | `keys --init`, `policy` (N8, N14) | Ignore rules only in the keys file's own repo. `policy` defaults to the packaged artifact, and its hint names a real command. The policy data is now in `package-data` | 3 tests |
+| 8 | Noise (N10) | Banner suppressed from `main()`. The system prompt is replaced by one line naming `AGENTCTL_SHOW_SYSTEM_PROMPT=1` | 1 test |
+| 9 | Same-provider advice (N9) | `keys`, `doctor`, `dash`, the template and the README point to a second provider, and state that extra keys at one provider are unverified and may breach terms | template test |
+
+**The live check.** `keys --check` against the owner's keys file:
+
+```
+ok   openrouter   live   inference ok (nvidia/nemotron-3-super-120b-a12b:free)
+                         via openrouter#3; no longer served: nex-agi/nex-n2.5-pro:free
+```
+
+- This is the exact failure from §2: the first model is gone.
+- The check fell through to the next model and named the dead one. Accounts #1
+  and #2 are capped today, so it served via #3.
+- It cost about 16 free-tier requests over two runs.
+- The dead model stays in `providers.py`. `proxy` now drops it at verification
+  time, and whether to edit the registry is the owner's call.
+
+**Not changed, and noted.**
+- On this machine the home directory is a git repository, and `%TEMP%` is
+  inside it. So a test that writes a keys file under `tmp_path` has
+  `enclosing_repo` resolve to the home repo, and `ensure_ignored` would append
+  there. Today it is a no-op: the rules have been present since 2026-09-14. It
+  is still a way for the suite to write outside its temp directory.
+- CI passed at `28795c4` while `doctor` refused every fresh install, because
+  no test asserted that `doctor` passes the install it runs in. One now does
+  (`test_doctor_passes_the_install_it_is_running_in`). CI's `tests` job *is* a
+  fresh unpinned install, so, together with the weekly schedule, drift of this
+  kind now fails CI. `test_a_package_version_alone_never_blocks` was checked
+  to fail against the pre-fix `doctor.py`.
