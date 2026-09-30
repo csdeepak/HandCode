@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0042**.
+**The highest number is the newest document.** Current head: **0043**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -48,6 +48,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0040](docs/0040-the-fan-out-rests-on-one-unmeasured-number.md) | The Fan-Out Rests on One Unmeasured Number | DECISION | ACCEPTED | 2026-09-21 | ×4.33 was a range. Gemini measured at 250 RPD → ×1.55 evenly split, ×4.33 split by scarcity. §6 has the number |
 | [0041](docs/0041-the-first-live-validation.md) | The First Live Validation | DECISION | ACCEPTED | 2026-09-21 | The harness works end to end against real APIs. Three defects no mock could show: a dead deployment ending a run, a pool that would not route around it, an unusable resolve |
 | [0042](docs/0042-harness-council.md) | The Harness Council — What to Build and Test Next | RESEARCH | DRAFT | 2026-09-24 | 27 ideas from an isolated architect, validated by two isolated analysts. Three core defects reproduced; the OpenRouter multi-account premise is unverified. Raw outputs in `research/phase-11-council/` |
+| [0043](docs/0043-making-it-user-centric.md) | Making It User-Centric — The Plan | DECISION | DRAFT | 2026-10-01 | One-key developer as the primary user; 14 friction points from the code; six phases from a watched first run to a $0 demo. Nothing built |
 
 ---
 
