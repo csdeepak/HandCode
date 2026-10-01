@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0045**.
+**The highest number is the newest document.** Current head: **0046**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -51,6 +51,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0043](docs/0043-making-it-user-centric.md) | Making It User-Centric — The Plan | DECISION | DRAFT | 2026-10-01 | One-key developer as the primary user; 14 friction points from the code; six phases from a watched first run to a $0 demo. Nothing built |
 | [0044](docs/0044-phase-0-first-run-baseline.md) | Phase 0 — What a New User Hits, Measured | EXPERIMENT | DRAFT | 2026-10-01 | Fresh clone, one key: tasks solved and a killed run resumed without a duplicate, but 17½ min, 9 commands, two readiness checks that lied, and I-01 live in both tasks. Adds a zero-quota Phase 0.5 |
 | [0045](docs/0045-a-repeat-is-not-a-replay.md) | A Repeat Is Not a Replay | DECISION | ACCEPTED | 2026-10-01 | I-01 built. A result in the model's history makes an identical call the model's decision. Crash cases unchanged; chaos suite gains a tenth point and re-minted resumes. Live: exit 1 + 2 BLOCKs became exit 0 + none |
+| [0046](docs/0046-one-driver-per-conversation.md) | One Driver Per Conversation | DECISION | ACCEPTED | 2026-10-01 | I-02 built. Fresh intents fenced, lease heartbeat, dead holders taken over and live ones refused. Found: a killed holder leaves a transient "disk I/O error" on Windows (5/8); open now retries. Live: refusal and auto-takeover both shown |
 
 ---
 
