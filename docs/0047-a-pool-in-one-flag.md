@@ -62,6 +62,23 @@ Two found by the tests rather than the live run:
 - `up` refused port N when something answered on the *default* port.
 - A test fixture leaked its listening socket.
 
+**And one found by CI, after the push (`da1d0d1`).** Every Linux job died
+with exit 143 (SIGTERM), 23 s into the unit tests.
+- **Cause.** On POSIX, `proxy down` signalled the target's whole process
+  group. The test's child shared pytest's group, so `down` killed pytest and
+  the CI step with it. A pid file naming any process in the caller's group
+  would do the same.
+- **Fix (`63cf8ec`).** Signal the group only when it is not ours. A proxy
+  `up` started is in its own session; anything else gets the pid alone.
+- **Checked on Linux (WSL).** The old code SIGTERMed the calling shell. The
+  fix stops a same-group child, and an own-session child together with its
+  grandchild, and survives.
+
+The same investigation found that importing `agentctl.runtime.lease`
+eagerly loaded the tools, pydantic and the SDK through the package's
+`__init__`. Those names now load lazily. Windows CI could not show either
+problem, which is `0028`'s lesson again.
+
 **Also measured.**
 - A clean non-editable wheel install with `[openhands]` took **815 s**,
   against 4 m 20 s in Phase 0. One measurement, cause not captured. If it
