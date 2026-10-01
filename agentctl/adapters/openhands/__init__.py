@@ -20,7 +20,7 @@ from typing import Any, Callable
 
 from agentctl.kernel.classify import Classifier
 from agentctl.kernel.gate import EffectGate
-from agentctl.kernel.ledger.store import LedgerStore
+from agentctl.kernel.ledger.store import LeaseHeartbeat, LedgerStore
 from agentctl.kernel.reconcile import (
     IdempotencyProbe,
     ProbeRegistry,
@@ -46,6 +46,9 @@ class Guard:
     handoff: SubstitutionHandoff
     seam_b: SeamB
     gated_tools: list[str] = field(default_factory=list)
+    heartbeat: LeaseHeartbeat | None = None
+    conversation_id: str = ""
+    _closed: bool = field(default=False, repr=False)
 
     def attach(self, conversation: Any) -> "Guard":
         """Bind Seam B to a live conversation. Required."""
@@ -62,7 +65,23 @@ class Guard:
         return self.store.pending(cid) if cid else []
 
     def close(self) -> None:
-        self.store.close()
+        """Stop renewing, give the lease back, close the ledger.
+
+        Releasing on a clean exit is what lets the next `--resume` start
+        straight away. A crash skips this, and the lease then expires within
+        one TTL, or is taken over once its holder is known to be dead.
+        """
+        if self.heartbeat is not None:
+            self.heartbeat.stop()
+            self.heartbeat = None
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            if self.conversation_id:
+                self.store.release(self.conversation_id)
+        finally:
+            self.store.close()
 
     def __enter__(self) -> "Guard":
         return self
@@ -79,10 +98,11 @@ def protect(
     matrix: dict | str | Path | None = None,
     repo_root: str | Path | None = None,
     probes: ProbeRegistry | None = None,
-    holder: str = "agentctl",
+    holder: str | None = None,
     takeover: bool = False,
     lease_ttl_s: float = 60.0,
     on_decision: Callable | None = None,
+    heartbeat: bool = True,
 ) -> Guard:
     """Wire the gate, the ledger, and both seams.
 
@@ -95,14 +115,25 @@ def protect(
         matrix: capability matrix as a dict, or a path to one. Defaults to the
             bundled `tools.yaml`.
         repo_root: workspace repo, used by the git probe.
-        takeover: steal a live lease. Needed when resuming after a crash, since
-            a dead process cannot release its own (`docs/0016` §3).
+        holder: who holds the lease. Defaults to `run@<host>:<pid>`, unique
+            per process, which is what lets a resume tell a dead holder from
+            a live one (`agentctl.runtime.lease`).
+        takeover: steal a LIVE lease. Only right when its holder is known to
+            be dead; fencing then refuses the old holder's writes. A live
+            holder stolen from is two drivers of one conversation
+            (`docs/0042` I-02).
+        heartbeat: renew the lease from a background thread until `close()`.
 
     Returns a `Guard`. You must call `guard.attach(conversation)` after
     constructing the Conversation, or Seam B is inert.
     """
+    if holder is None:
+        from agentctl.runtime.lease import holder_id
+        holder = holder_id()
     store = LedgerStore(ledger, holder=holder)
     fence = store.acquire(conversation_id, ttl_s=lease_ttl_s, takeover=takeover)
+    beat = (LeaseHeartbeat(ledger, holder, conversation_id, ttl_s=lease_ttl_s).start()
+            if heartbeat else None)
 
     if isinstance(matrix, (str, Path)):
         classifier = Classifier(matrix_path=matrix)
@@ -134,4 +165,5 @@ def protect(
         handoff=handoff if gated else None,
     )
     return Guard(store=store, gate=gate, handoff=handoff,
-                 seam_b=seam_b, gated_tools=gated)
+                 seam_b=seam_b, gated_tools=gated, heartbeat=beat,
+                 conversation_id=conversation_id)

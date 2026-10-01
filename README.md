@@ -158,6 +158,13 @@ agentctl run "" --workspace ./myproject --resume <conversation-id>
 
 The task is `""` because the conversation already holds it.
 
+Only one process may drive a conversation. If the run that held it crashed on
+this machine, `--resume` sees that it is gone and takes over. If it is still
+running, `--resume` refuses and names it, because two drivers of one
+conversation is exactly what the ledger exists to prevent. `--takeover`
+overrides that, for a holder you know is dead but this machine cannot check
+(`docs/0046`).
+
 ### Run it again for nothing
 
 ```bash
@@ -195,7 +202,7 @@ guard = protect(
     conversation_id=str(conversation_id),
     tools={"commit": CommitTool},      # gated at Seam C
     repo_root="./workspace",           # for the git probe
-    takeover=resuming_after_a_crash,   # a dead process cannot free its lease
+    takeover=previous_holder_is_dead,  # NEVER for a live one (docs/0046)
 )
 
 conv = Conversation(agent=agent, callbacks=[guard.seam_b], ...)

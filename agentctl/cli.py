@@ -289,7 +289,7 @@ def cmd_run(args) -> int:
         confirm_destructive=not args.allow_destructive,
         max_iterations=args.max_iterations, max_budget_usd=args.max_budget,
         resume=args.resume, record=args.record, replay=args.replay,
-        policy=args.policy,
+        policy=args.policy, takeover=args.takeover,
     )
     print()
     print(f"  conversation  {result['conversation_id']}")
@@ -945,6 +945,10 @@ def build_parser() -> argparse.ArgumentParser:
     rn.add_argument("--max-iterations", type=int, default=30)
     rn.add_argument("--max-budget", type=float, help="hard USD ceiling for the run")
     rn.add_argument("--resume", help="conversation id to continue")
+    rn.add_argument("--takeover", action="store_true",
+                    help="with --resume: take the conversation from a run "
+                         "that may still be alive. Not needed after a crash "
+                         "on this machine -- a dead holder is detected.")
     rn.add_argument("--policy", metavar="POLICY",
                     help="policy.yaml or a compiled policy. Budget caps and "
                          "effect rules are enforced before the run starts.")

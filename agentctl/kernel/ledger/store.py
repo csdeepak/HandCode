@@ -62,6 +62,39 @@ def short_id(tool_call_id: str) -> str:
     return tool_call_id[:SHORT_ID] + "..."
 
 
+#: Opening a ledger right after its previous holder was KILLED can fail on
+#: Windows with "disk I/O error": the dead process's locks on the WAL's -shm
+#: file are released asynchronously, and SQLite's recovery trips over them.
+#: Measured (`docs/0046`): 5 of 8 kill-then-open trials failed on the first
+#: attempt and every one succeeded ~50 ms later. That is the crash -> resume
+#: path, so it is retried, briefly, and never for any other error.
+_TRANSIENT = ("disk i/o error", "database is locked")
+_OPEN_DEADLINE_S = 3.0
+
+
+def _open(path: Path) -> sqlite3.Connection:
+    import logging
+
+    deadline, delay, attempt = time.monotonic() + _OPEN_DEADLINE_S, 0.02, 0
+    while True:
+        attempt += 1
+        db = sqlite3.connect(str(path), isolation_level=None)
+        try:
+            db.row_factory = sqlite3.Row
+            db.executescript(SCHEMA)
+            if attempt > 1:
+                logging.getLogger("agentctl.ledger").info(
+                    "opened %s on attempt %d", path, attempt)
+            return db
+        except sqlite3.OperationalError as e:
+            db.close()
+            if (not any(t in str(e).lower() for t in _TRANSIENT)
+                    or time.monotonic() + delay > deadline):
+                raise
+            time.sleep(delay)
+            delay = min(delay * 2, 0.5)
+
+
 class LedgerStore:
     """SQLite-backed effect ledger.
 
@@ -72,9 +105,7 @@ class LedgerStore:
         self.path = Path(path)
         self.holder = holder
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._db = sqlite3.connect(str(self.path), isolation_level=None)
-        self._db.row_factory = sqlite3.Row
-        self._db.executescript(SCHEMA)
+        self._db = _open(self.path)
         self._fences: dict[str, int] = {}   # conversation_id -> our fence token
 
     def close(self) -> None:
@@ -144,6 +175,13 @@ class LedgerStore:
             "UPDATE lease SET expires_at=0 WHERE conversation_id=? AND holder=?",
             (conversation_id, self.holder),
         )
+
+    def lease(self, conversation_id: str) -> dict | None:
+        """The lease as it stands: holder, fence_token, expires_at."""
+        row = self._db.execute(
+            "SELECT holder, fence_token, expires_at FROM lease "
+            "WHERE conversation_id=?", (conversation_id,)).fetchone()
+        return dict(row) if row else None
 
     # ── reads ──────────────────────────────────────────────────────────
     def lookup(self, tool_call_id: str) -> EffectRecord | None:
@@ -290,11 +328,31 @@ class LedgerStore:
                 f"fence {ours} superseded by {record_fence} for {conversation_id}"
             )
 
+    def _assert_current_lease(self, conversation_id: str) -> None:
+        """Refuse to START an effect if another holder has taken the lease."""
+        ours = self._fences.get(conversation_id)
+        if ours is None:
+            return                       # no lease taken; single-process use
+        row = self.lease(conversation_id)
+        if row and row["fence_token"] > ours:
+            raise StaleFence(
+                f"fence {ours} superseded by {row['fence_token']} "
+                f"({row['holder']}) for {conversation_id}")
+
     def write_intent(
         self, call: ToolCall, cls: EffectClass, fence: int,
         pre_state: str | None = None,
     ) -> EffectRecord:
-        """Record intent *before* the tool runs. Durable on return."""
+        """Record intent *before* the tool runs. Durable on return.
+
+        Two fence checks, because they catch different zombies. The record's
+        own fence catches a superseded holder touching an effect the new one
+        has re-claimed. The LEASE's fence catches the one that check cannot
+        see: a superseded holder starting a *new* effect, under an id nobody
+        has recorded yet. Without it a zombie's fresh call went straight
+        through and committed (`docs/0042` I-02, probe P2).
+        """
+        self._assert_current_lease(call.conversation_id)
         prev = self.lookup(call.tool_call_id)
         if prev is not None:
             self._assert_fence(call.conversation_id, prev.fence_token)
@@ -404,6 +462,63 @@ class LedgerStore:
         self._db.execute(
             f"UPDATE effect_record SET {', '.join(cols)} WHERE tool_call_id=?", vals
         )
+
+
+class LeaseHeartbeat:
+    """Keep a lease live for as long as the process holding it is.
+
+    `renew()` had no callers, and the TTL is 60 s (`docs/0042` I-02). Any tool
+    call longer than that -- a test suite, a build -- let the lease lapse, and
+    the next `acquire` from another terminal took it silently.
+
+    A thread rather than a renew-per-decision: nothing decides while a long
+    tool runs, which is exactly when the lease runs out. It holds its own
+    connection, because `LedgerStore` is single-threaded by design.
+
+    A crash stops the heartbeat with the process, so the lease expires within
+    one TTL -- which is what lets a resume recover without being told to. It
+    renews only while the holder still matches: after a takeover it renews
+    nothing, so it cannot resurrect a lease it lost.
+    """
+
+    def __init__(self, path: str | Path, holder: str, conversation_id: str,
+                 ttl_s: float = 60.0, interval_s: float | None = None):
+        import threading
+
+        self._args = (Path(path), holder, conversation_id, ttl_s)
+        self._interval = interval_s if interval_s is not None else ttl_s / 4
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True,
+                                        name=f"lease-heartbeat-{conversation_id}")
+
+    def start(self) -> "LeaseHeartbeat":
+        self._thread.start()
+        return self
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread.is_alive():
+            self._thread.join(timeout=self._interval + 5)
+
+    def _run(self) -> None:
+        import logging
+
+        path, holder, cid, ttl = self._args
+        try:
+            store = LedgerStore(path, holder=holder)
+        except Exception:                               # noqa: BLE001
+            logging.getLogger("agentctl.lease").exception("heartbeat could not open %s", path)
+            return
+        try:
+            while not self._stop.wait(self._interval):
+                try:
+                    store.renew(cid, ttl_s=ttl)
+                except Exception:                       # noqa: BLE001
+                    # A missed beat costs at most a lapsed lease, which the
+                    # fence turns into a refused write -- never a duplicate.
+                    logging.getLogger("agentctl.lease").exception("renew failed")
+        finally:
+            store.close()
 
 
 def _check(current: EffectState | None, target: EffectState) -> None:

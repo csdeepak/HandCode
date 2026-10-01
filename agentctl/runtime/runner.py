@@ -163,6 +163,7 @@ def run(
     policy: str | Path | None = None,
     cost_ledger: str | Path | None = None,
     verbose: bool = True,
+    takeover: bool = False,
 ) -> dict:
     """Run one agent task. Returns a summary dict.
 
@@ -252,15 +253,32 @@ def run(
             print(f"  [agentctl] {decision.verdict.value} {call.tool_name}: "
                   f"{decision.reason}", file=sys.stderr)
 
-    guard = protect(
-        ledger=ledger_path,
-        conversation_id=str(cid),
-        tools=rt.TOOLS,
-        repo_root=ws,
-        holder=f"run-{os.getpid()}",
-        takeover=bool(resume),
-        on_decision=on_decision,
-    )
+    # One driver per conversation (`docs/0042` I-02). This used to be
+    # `takeover=bool(resume)`: every resume stole the lease, including from a
+    # run still working in another terminal. Now a dead holder is taken over
+    # without asking, and a live one is refused unless `--takeover`.
+    from agentctl.kernel.ledger.store import LeaseHeld
+    from agentctl.runtime.lease import claim, holder_id
+
+    steal = False
+    if resume:
+        c = claim(ledger_path, str(cid), force=takeover)
+        steal = c.takeover
+        if c.note and verbose:
+            print(f"  lease         {c.note}")
+    try:
+        guard = protect(
+            ledger=ledger_path,
+            conversation_id=str(cid),
+            tools=rt.TOOLS,
+            repo_root=ws,
+            holder=holder_id(),
+            takeover=steal,
+            on_decision=on_decision,
+        )
+    except LeaseHeld as e:
+        # Taken between the check and the acquire. The same refusal.
+        raise SystemExit(f"{e}\n  If that run is gone:  add --takeover") from None
 
     if confirm_destructive:
         _install_confirmation(guard, verbose, workspace=ws)
@@ -303,6 +321,9 @@ def run(
             conv.send_message(task)
         conv.run()
     except Exception as e:                              # noqa: BLE001
+        # Give the lease back first: this run is over either way, and a held
+        # lease would make the very next `--resume` wait or ask.
+        guard.close()
         # A provider refusing to serve is not a bug in the agent framework, and
         # the SDK's own error ends with "please file a bug report at
         # github.com/OpenHands" -- which sends you to the wrong place. Say what
