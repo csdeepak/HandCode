@@ -96,10 +96,15 @@ class EffectGate:
         note = (f" (matched to {rec.tool_call_id} by intent hash)"
                 if aliased else "")
 
+        # OBSERVED reaches here only by its own id: the SDK re-driving the very
+        # action whose result it persisted. `find_by_intent` never aliases to
+        # one, because a re-minted twin of an observed call is the model's
+        # decision to repeat (`docs/0045`).
         if rec.state in (EffectState.COMMITTED, EffectState.OBSERVED):
             return GateDecision(Verdict.SUBSTITUTE, cls,
                                 observation=rec.observation,
-                                reason=f"already recorded{note}" if note else None)
+                                reason=f"already recorded{note}" if note else None,
+                                record_id=rec.tool_call_id)
 
         if rec.state is EffectState.FAILED:
             # Re-capture: the world may have moved since the failed attempt.
@@ -163,6 +168,7 @@ class EffectGate:
                 return GateDecision(
                     Verdict.SUBSTITUTE, cls, observation=rec.observation,
                     reason=f"{probe.name} probe: the effect already landed",
+                    record_id=rid,
                 )
             if verdict == DID_NOT_LAND:
                 self.store.reconcile(rid, verdict, landed=False)
@@ -278,6 +284,58 @@ class EffectGate:
             self.store.fail(tool_call_id, error)
         except Exception:                               # noqa: BLE001
             log.exception("could not record failure for %s", tool_call_id)
+
+    def record_observation(self, tool_call_id: str,
+                           observation: bytes | None = None,
+                           error: str | None = None) -> None:
+        """The tool returned, and the harness has PERSISTED its result.
+
+        Only a caller that knows the result is durably in the conversation
+        history may use this -- Seam B qualifies because the SDK persists an
+        event before any caller callback runs (`docs/0042` §8.2). Otherwise
+        use `record_success` / `record_tool_error`, which assume nothing about
+        what the model has seen.
+
+        The record goes INTENT -> OBSERVED in one write, success or reported
+        failure alike. From then on an identical call is the model choosing to
+        repeat it, so `find_by_intent` stops aliasing to it (`docs/0045`).
+
+        One exception keeps the old shape: a replay-safe effect that reported
+        failure is FAILED. Repeating it is harmless, and FAILED already lets
+        the agent retry without a human.
+        """
+        try:
+            rec = self.store.lookup(tool_call_id)
+            if rec is None:
+                log.error("no record to deliver for %s", tool_call_id)
+                return
+            if error is not None and rec.effect_class.replay_safe:
+                self.store.fail(tool_call_id, error)
+            elif rec.state is EffectState.INTENT:
+                self.store.deliver(tool_call_id, observation, error)
+            elif rec.state is EffectState.COMMITTED:
+                self.store.observed(tool_call_id)
+            else:
+                log.warning("not delivering %s from state %s",
+                            tool_call_id, rec.state.value)
+        except Exception:                               # noqa: BLE001
+            # Leaves the record INTENT (or COMMITTED): the conservative side.
+            # A later identical call is then matched and probed or blocked,
+            # never silently repeated.
+            log.exception("could not record the observation for %s", tool_call_id)
+
+    def mark_observed(self, tool_call_id: str) -> None:
+        """A substituted result has reached the model. COMMITTED -> OBSERVED.
+
+        Without this an effect recovered after a crash stays COMMITTED, and
+        every later deliberate repeat of it is answered with the old output.
+        """
+        try:
+            rec = self.store.lookup(tool_call_id)
+            if rec is not None and rec.state is EffectState.COMMITTED:
+                self.store.observed(tool_call_id)
+        except Exception:                               # noqa: BLE001
+            log.exception("could not mark %s observed", tool_call_id)
 
     def record_tool_error(self, tool_call_id: str, error: str,
                           observation: bytes | None = None) -> None:

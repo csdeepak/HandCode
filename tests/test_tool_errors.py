@@ -178,5 +178,9 @@ def test_seam_b_still_commits_a_successful_observation():
         observation = GoodObservation()
 
     seam._close(ObservationEvent())
-    assert store.lookup("tc-1").state is EffectState.COMMITTED
+    # Landed AND seen: Seam B runs after the SDK persisted the event, so the
+    # result is in the model's history (docs/0045). Not FAILED, not BLOCKED.
+    rec = store.lookup("tc-1")
+    assert rec.state is EffectState.OBSERVED
+    assert rec.error is None and rec.committed_at is not None
     store.close()

@@ -191,9 +191,16 @@ class LedgerStore:
         `intent_hash` is ours: tool name plus canonicalised arguments. Same
         logical effect, same hash, whoever asked.
 
-        Deliberately conservative. A genuine repeat of an identical call also
-        matches, and is treated as the same effect -- for a non-idempotent
-        effect that is the safe direction, and the probe or a human resolves it.
+        Only the MOST RECENT identical call is a candidate, and not when it is
+        OBSERVED (`docs/0045`). Aliasing exists for a call the model re-mints
+        because it never saw the first one's result: a crash before the
+        observation was persisted. Once the result is in the history the model
+        reads -- success or reported failure -- an identical call is the model
+        choosing to repeat it, which is the ordinary edit -> test -> re-test
+        loop. Matching that as "the same effect" handed back stale output or
+        blocked a fixed retry, in the first two tasks a new user ran
+        (`docs/0044` N15). The crash cases are untouched: an INTENT twin, or a
+        COMMITTED one whose observation was never delivered, still matches.
         """
         rows = self._db.execute(
             "SELECT * FROM effect_record WHERE conversation_id=? AND intent_hash=? "
@@ -201,6 +208,8 @@ class LedgerStore:
         for r in rows:
             if exclude_tool_call_id and r["tool_call_id"] == exclude_tool_call_id:
                 continue
+            if r["state"] == EffectState.OBSERVED.value:
+                return None
             return _to_record(r)
         return None
 
@@ -235,13 +244,20 @@ class LedgerStore:
         `>=` rather than `>`: two records can share a timestamp, and counting a
         simultaneous sibling as concurrent costs a human decision, while
         missing one costs a dropped effect.
+
+        OBSERVED counts as landed here. It is where a delivered effect now
+        ends up, so leaving it out would hide every ordinary sibling from the
+        sole-writer check (`docs/0045`). A delivered *reported failure* is
+        OBSERVED too and counts as well: whether it touched the world is
+        unknown, and unknown is treated as "it might have".
         """
         rows = self._db.execute(
-            "SELECT * FROM effect_record WHERE conversation_id=? AND state=? "
+            "SELECT * FROM effect_record WHERE conversation_id=? "
+            "AND state IN (?, ?) "
             "AND COALESCE(committed_at, started_at)>=? AND tool_call_id!=? "
             "ORDER BY committed_at",
-            (conversation_id, EffectState.COMMITTED.value, since,
-             exclude_tool_call_id),
+            (conversation_id, EffectState.COMMITTED.value,
+             EffectState.OBSERVED.value, since, exclude_tool_call_id),
         ).fetchall()
         return [_to_record(r) for r in rows]
 
@@ -347,7 +363,22 @@ class LedgerStore:
         self._transition(tool_call_id, EffectState.BLOCKED, extra={"error": reason[:2000]})
 
     def observed(self, tool_call_id: str) -> None:
+        """A COMMITTED effect's recorded result has now reached the model."""
         self._transition(tool_call_id, EffectState.OBSERVED)
+
+    def deliver(self, tool_call_id: str, observation: bytes | None = None,
+                error: str | None = None) -> None:
+        """INTENT -> OBSERVED in ONE write: the tool returned, and its result
+        is already persisted in the history the model reads. Durable on return.
+
+        `error` is set when the tool reported failure. Whether such an effect
+        touched the world is unknown, and the record says so; what IS known is
+        that the model saw the failure, so a repeat is its decision.
+        """
+        self._transition(tool_call_id, EffectState.OBSERVED, extra={
+            "committed_at": time.time(), "observation": observation,
+            "error": error[:2000] if error else None,
+        })
 
     def reconcile(self, tool_call_id: str, verdict: str, landed: bool) -> None:
         """Resolve an ambiguous INTENT using out-of-band evidence."""

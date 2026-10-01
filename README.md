@@ -9,8 +9,8 @@ cost-efficient** across changes of provider, account, and model.
 > recoverable, measurable, and cost-efficient.
 
 **Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 643 tests — including a nine-point chaos suite with real process
-death — plus four end-to-end crash experiments. All green.
+verified. 690 tests — including a chaos suite that crashes at ten points with
+real process death — plus four end-to-end crash experiments. All green.
 
 ---
 
@@ -28,7 +28,7 @@ With this layer installed:
 | | M2a | M4 | M2b |
 |---|---|---|---|
 | Duplicate effect | none | none | none |
-| Ledger state | `BLOCKED` | `COMMITTED` | `COMMITTED` |
+| Ledger state | `BLOCKED` | `COMMITTED` | `OBSERVED` |
 | Human needed | yes | no | no |
 | Agent receives | rejection | rejection | **the result** |
 
@@ -179,6 +179,11 @@ happening *twice*; `--confirm-destructive` (on by default) stops one happening
 destructive, **or** it writes outside the workspace. `echo x > ~/.bashrc` is an
 ordinary idempotent write that is simply none of the agent's business
 (`docs/0027`).
+
+"Twice" means *by replay*. Once a result — success or failure — is in the
+history the model reads, an identical later call is the model deciding to run
+it again: the edit, test, re-test loop. It runs. A crash still never causes a
+repeat (`docs/0045`).
 
 ### Or embed it
 
@@ -370,10 +375,11 @@ Stated plainly, because a safety layer that oversells itself is worse than none:
   (`python -c "..."`) is opaque to it by construction. Not enough for untrusted
   tasks. Listed first because it is the limitation the others assume away.
 - **`EXTERNAL` effects need an idempotency key.** With one declared, a retry is
-  safe (`docs/0020`). Without one — `send_email` and friends — they still fail
-  closed, correctly: there is no safe retry.
+  safe (`docs/0020`). Without one — `send_email` and friends — a crash with the
+  outcome unknown still fails closed: there is no safe retry. But a model that
+  *saw* a failure and retries it is not stopped (`docs/0045` §4).
 - **Only two effect kinds are chaos-tested** (git commit, file append). The
-  nine crash points are covered for those; `EXTERNAL` is tested separately.
+  ten crash points are covered for those; `EXTERNAL` is tested separately.
 - **A non-compliant remote voids the guarantee.** We trust the server to honour
   the key, and nothing local can detect that it did not.
 - **Single process.** Fencing is implemented and tested; multi-host is not
@@ -396,7 +402,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            643 tests, including the nine-point chaos suite
+tests/            690 tests, including the ten-point chaos suite
 verify.py         one command that proves all of the above
 ```
 

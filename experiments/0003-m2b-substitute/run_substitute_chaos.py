@@ -8,8 +8,9 @@ back and the loop continues as if the crash never happened.
     RUN 1   gate captures HEAD -> tool commits -> hard kill before the observation
     RUN 2   resume with Seam B AND Seam C
             probe says LANDED -> Seam B hands off -> Seam C substitutes
-    ASSERT  exactly ONE commit, ledger COMMITTED, nothing blocked,
-            and the agent received the observation (no rejection)
+    ASSERT  exactly ONE commit, ledger OBSERVED (the substituted result was
+            delivered, `docs/0045`), nothing blocked, and the agent received
+            the observation (no rejection)
 
 Zero cost — local mock provider, no API key.
 
@@ -250,14 +251,18 @@ def parent() -> dict:
         out["notes"].append(
             f"Expected one new commit before the crash ({before} -> {before+1}), "
             f"saw {crash}. The scenario did not reproduce.")
-    elif (resume == crash and "COMMITTED" in states and "LANDED" in probes
+    # OBSERVED, not COMMITTED (`docs/0045`): the substituted result reached
+    # the model, and Seam B records that. COMMITTED here would mean the
+    # delivery was never recorded, and every later deliberate repeat of the
+    # commit would be answered with this old result.
+    elif (resume == crash and "OBSERVED" in states and "LANDED" in probes
           and out["evidence"].get("rejections", 0) == 0
           and out["evidence"].get("conversation_errors", 0) == 0
           and out["evidence"].get("observations", 0) >= 1):
         out["verdict"] = "PASS"
         out["notes"].append(
             "Seam C substituted the recorded observation. One commit, ledger "
-            "COMMITTED, nothing blocked, and NO rejection reached the agent.")
+            "OBSERVED, nothing blocked, and NO rejection reached the agent.")
         out["notes"].append(
             "M2a blocked here; M4 reconciled but still rejected; M2b resumes "
             "cleanly. The correctness story is complete.")

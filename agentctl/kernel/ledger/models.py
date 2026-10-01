@@ -62,7 +62,10 @@ _SEVERITY: dict[EffectClass, int] = {
 class EffectState(str, Enum):
     INTENT = "INTENT"        # written before execution; the ambiguous state
     COMMITTED = "COMMITTED"  # tool returned; observation stored
-    OBSERVED = "OBSERVED"    # observation handed back to the harness
+    #: The tool's result -- success OR reported failure -- is durably in the
+    #: conversation history the model reads. A later identical call is then
+    #: the model deciding to repeat, not the harness replaying (`docs/0045`).
+    OBSERVED = "OBSERVED"
     FAILED = "FAILED"        # provably did not land
     BLOCKED = "BLOCKED"      # fail-closed; awaiting a human
 
@@ -73,6 +76,10 @@ TRANSITIONS: dict[EffectState | None, set[EffectState]] = {
     EffectState.INTENT: {
         EffectState.COMMITTED, EffectState.FAILED,
         EffectState.BLOCKED, EffectState.INTENT,   # retry after FAILED bumps attempt
+        # Straight to OBSERVED in one write when the harness has already
+        # persisted the observation. Going through COMMITTED would open a crash
+        # window in which a reported failure sat as COMMITTED (`docs/0031`).
+        EffectState.OBSERVED,
     },
     EffectState.COMMITTED: {EffectState.OBSERVED},
     EffectState.FAILED: {EffectState.INTENT},
@@ -143,6 +150,10 @@ class GateDecision:
     effect_class: EffectClass | None = None
     observation: bytes | None = None
     reason: str | None = None
+    #: For SUBSTITUTE: the record whose result is being handed back. Under
+    #: intent-hash aliasing it is not the caller's id, and it is the record to
+    #: mark OBSERVED once the substituted result reaches the model.
+    record_id: str | None = None
 
     @property
     def allows_execution(self) -> bool:

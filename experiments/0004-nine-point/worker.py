@@ -46,6 +46,11 @@ CRASH_POINTS = [
     "before_commit",
     "after_commit",
     "before_observation",
+    # The tenth (`docs/0045`). OBSERVED is now what stops intent aliasing, so
+    # the instant after it is written -- before control returns to the harness
+    # -- is a new place to die, and both council analysts named it
+    # (`docs/0042` I-01).
+    "after_observed",
 ]
 
 CONV_ID = "conv_nine_point"
@@ -101,6 +106,11 @@ class CrashingStore(LedgerStore):
         self._crasher.maybe("after_commit")
         return out
 
+    def observed(self, *a, **kw):
+        out = super().observed(*a, **kw)
+        self._crasher.maybe("after_observed")
+        return out
+
 
 # ── the effects ────────────────────────────────────────────────────────
 def git(repo: Path, *args: str):
@@ -127,16 +137,18 @@ def do_append(target: Path, crasher: Crasher) -> None:
         os.fsync(fh.fileno())
 
 
-def build_call(effect: str, repo: Path, target: Path) -> ToolCall:
+def build_call(effect: str, repo: Path, target: Path,
+               tool_call_id: str = TOOL_CALL_ID) -> ToolCall:
     if effect == "git":
-        return ToolCall(TOOL_CALL_ID, CONV_ID, "turn_1", "git_commit",
+        return ToolCall(tool_call_id, CONV_ID, "turn_1", "git_commit",
                         {"message": "nine-point effect", "cwd": str(repo)})
-    return ToolCall(TOOL_CALL_ID, CONV_ID, "turn_1", "append",
+    return ToolCall(tool_call_id, CONV_ID, "turn_1", "append",
                     {"path": str(target), "content": APPEND_TEXT})
 
 
 # ── the protocol ───────────────────────────────────────────────────────
-def run(point: str | None, workdir: Path, effect: str, resume: bool) -> int:
+def run(point: str | None, workdir: Path, effect: str, resume: bool,
+        remint: bool = False) -> int:
     crasher = Crasher(point)
     repo, target = workdir / "repo", workdir / "log.txt"
 
@@ -155,7 +167,11 @@ def run(point: str | None, workdir: Path, effect: str, resume: bool) -> int:
         fence=store.acquire(CONV_ID, takeover=resume),
     )
 
-    call = build_call(effect, repo, target)
+    # `--remint`: the resumed call arrives under a NEW id, as it does when a
+    # different model answers the same question (`docs/0023` §4). Only intent
+    # aliasing can connect it to the first attempt.
+    call = build_call(effect, repo, target,
+                      TOOL_CALL_ID + "_reminted" if remint else TOOL_CALL_ID)
     decision = gate.guard(call)
     _record(workdir, resume, {"verdict": decision.verdict.value,
                               "class": decision.effect_class.value
@@ -187,9 +203,11 @@ def main() -> int:
     ap.add_argument("--workdir", required=True)
     ap.add_argument("--effect", choices=["git", "append"], default="git")
     ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--remint", action="store_true",
+                    help="resume under a different tool_call_id")
     a = ap.parse_args()
     point = None if a.point == "none" else a.point
-    return run(point, Path(a.workdir), a.effect, a.resume)
+    return run(point, Path(a.workdir), a.effect, a.resume, a.remint)
 
 
 if __name__ == "__main__":

@@ -115,6 +115,9 @@ class SeamB:
         self.handoff = handoff
         self._state: Any = None
         self._pending: dict[str, str] = {}    # action_event_id -> tool_call_id
+        # action_event_id -> the record whose result Seam C is handing back.
+        # Its ObservationEvent is when that result reaches the model.
+        self._substituted: dict[str, str] = {}
 
     def attach(self, conversation: Any) -> "SeamB":
         """Bind to a live conversation. Call immediately after construction."""
@@ -172,6 +175,8 @@ class SeamB:
                 # Seam C will return the recorded observation. Let the harness
                 # proceed to the executor -- it never reaches the real tool.
                 self.handoff.offer(event.action, call, decision.observation)
+                if decision.record_id:
+                    self._substituted[str(event.id)] = decision.record_id
                 log.info("handing %s to Seam C for substitution", call.tool_call_id)
             else:
                 # No Seam C: block instead. Correctness preserved, resume
@@ -189,8 +194,20 @@ class SeamB:
             self.on_decision(call, decision)
 
     def _close(self, event: Any) -> None:
-        """Close the ledger record. Pure observation, so Seam B can do it."""
-        tcid = self._pending.pop(getattr(event, "action_id", None), None)
+        """Close the ledger record. Pure observation, so Seam B can do it.
+
+        Everything here runs AFTER the SDK has persisted `event`: its default
+        callback appends and fsyncs before any caller callback, and if that
+        raises none of them run (`docs/0042` §8.2, checked in SDK 1.45.0 and
+        1.50.1). That ordering is what lets this record the result as
+        OBSERVED -- in the history the model reads -- rather than merely
+        returned (`docs/0045`).
+        """
+        action_id = getattr(event, "action_id", None)
+        if (rid := self._substituted.pop(action_id, None)) is not None:
+            self.gate.mark_observed(rid)
+            return
+        tcid = self._pending.pop(action_id, None)
         if tcid is None:
             return
         assert self.ctx is not None
@@ -202,12 +219,10 @@ class SeamB:
         # The event type is not the whole story. A tool that RAN and failed
         # still arrives as an ordinary ObservationEvent, and committing it
         # tells a resume the work is done. A real run recorded five `exit=1`
-        # shell commands as COMMITTED (`docs/0031` §10).
-        if (why := _tool_error(event)) is not None:
-            self.gate.record_tool_error(tcid, why, self.ctx.serialize(event))
-            return
-
-        self.gate.record_success_by_id(tcid, self.ctx.serialize(event))
+        # shell commands as COMMITTED (`docs/0031` §10). So the error travels
+        # with the observation, and the record says the tool reported failure.
+        self.gate.record_observation(tcid, self.ctx.serialize(event),
+                                     error=_tool_error(event))
 
 
 def make_seam_b_callback(

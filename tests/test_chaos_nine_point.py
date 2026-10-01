@@ -36,6 +36,7 @@ CRASH_POINTS = [
     "before_commit",
     "after_commit",
     "before_observation",
+    "after_observed",       # the tenth, docs/0045
 ]
 
 APPEND_TEXT = "EFFECT-LINE\n"
@@ -61,12 +62,15 @@ def make_workdir(tmp_path: Path) -> Path:
 
 
 def run_worker(workdir: Path, effect: str, point: str | None = None,
-               resume: bool = False) -> subprocess.CompletedProcess:
+               resume: bool = False,
+               remint: bool = False) -> subprocess.CompletedProcess:
     argv = [sys.executable, "-X", "utf8", str(WORKER),
             "--workdir", str(workdir), "--effect", effect,
             "--point", point or "none"]
     if resume:
         argv.append("--resume")
+    if remint:
+        argv.append("--remint")
     return subprocess.run(argv, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=120)
 
@@ -152,6 +156,7 @@ def test_append_never_happens_twice(tmp_path, point):
     ("before_commit", "INTENT"),
     ("after_commit", "COMMITTED"),
     ("before_observation", "COMMITTED"),
+    ("after_observed", "OBSERVED"),
 ])
 def test_ledger_state_after_the_crash(tmp_path, point, expected_state):
     """The ledger must land in the state docs/0008 §10 predicts."""
@@ -175,6 +180,8 @@ def test_ledger_state_after_the_crash(tmp_path, point, expected_state):
     # Already committed: substitute from the record.
     ("after_commit", "SUBSTITUTE"),
     ("before_observation", "SUBSTITUTE"),
+    # Seen, then the SDK re-drives the SAME action: still a replay.
+    ("after_observed", "SUBSTITUTE"),
 ])
 def test_resume_verdict(tmp_path, point, expected_verdict):
     """The probe should resolve every point without a human."""
@@ -212,3 +219,42 @@ def test_partial_append_is_not_silently_completed(tmp_path):
     assert d["verdict"] in ("BLOCK", "EXECUTE"), d
     # Whatever it chose, the result must not be two effects stacked up.
     assert appended(wd / "log.txt").count(APPEND_TEXT) <= 1
+
+
+# ══ a different model resumes: the call comes back under a new id ══════
+#: Every point at which the result had NOT yet reached the model. Here a
+#: re-minted call must be connected to the first attempt by intent hash, and
+#: the commit must still land at most once (`docs/0023` §4, `docs/0045`).
+UNSEEN_POINTS = [p for p in CRASH_POINTS if p != "after_observed"]
+
+
+@needs_git
+@pytest.mark.parametrize("point", UNSEEN_POINTS)
+def test_a_reminted_resume_never_commits_twice(tmp_path, point):
+    wd = make_workdir(tmp_path)
+    repo = wd / "repo"
+    before = commits(repo)
+    run_worker(wd, "git", point=point)
+    run_worker(wd, "git", resume=True, remint=True)
+    assert commits(repo) - before <= 1, (
+        f"DUPLICATE COMMIT after crashing at {point} and resuming under a "
+        f"new id: {decision(wd, 'resume')}")
+
+
+@needs_git
+def test_a_reminted_call_after_the_result_was_seen_is_the_models_call(tmp_path):
+    """The line I-01 moves, pinned so it cannot move further unnoticed.
+
+    Once the result is OBSERVED it is in the history the model reads, and the
+    harness never re-drives an action whose result it persisted. A re-minted
+    identical call at this point can only be the model choosing to repeat it --
+    the edit -> test -> re-test loop -- and it is executed, not aliased.
+
+    That is a deliberate second effect, not a replay: the guarantee above is
+    "a crash never causes a repeat", and this run has no crash in it that the
+    model did not see the far side of.
+    """
+    wd = make_workdir(tmp_path)
+    run_worker(wd, "git", point="after_observed")
+    run_worker(wd, "git", resume=True, remint=True)
+    assert decision(wd, "resume")["verdict"] == "EXECUTE"
