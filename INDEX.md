@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0046**.
+**The highest number is the newest document.** Current head: **0047**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -52,6 +52,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0044](docs/0044-phase-0-first-run-baseline.md) | Phase 0 — What a New User Hits, Measured | EXPERIMENT | DRAFT | 2026-10-01 | Fresh clone, one key: tasks solved and a killed run resumed without a duplicate, but 17½ min, 9 commands, two readiness checks that lied, and I-01 live in both tasks. Adds a zero-quota Phase 0.5 |
 | [0045](docs/0045-a-repeat-is-not-a-replay.md) | A Repeat Is Not a Replay | DECISION | ACCEPTED | 2026-10-01 | I-01 built. A result in the model's history makes an identical call the model's decision. Crash cases unchanged; chaos suite gains a tenth point and re-minted resumes. Live: exit 1 + 2 BLOCKs became exit 0 + none |
 | [0046](docs/0046-one-driver-per-conversation.md) | One Driver Per Conversation | DECISION | ACCEPTED | 2026-10-01 | I-02 built. Fresh intents fenced, lease heartbeat, dead holders taken over and live ones refused. Found: a killed holder leaves a transient "disk I/O error" on Windows (5/8); open now retries. Live: refusal and auto-takeover both shown |
+| [0047](docs/0047-a-pool-in-one-flag.md) | A Pool in One Flag | DECISION | ACCEPTED | 2026-10-02 | Phase 2. `init` + flagless `run`; `run --pool` starts a LiteLLM proxy in its own environment. The first live run found four defects (detached launch, unverified later models, Groq rejecting `prompt_cache_key`, `/dev/null` as an escape); all fixed, then exit 0 in 40 s. PyPI name `agentctl` is taken |
 
 ---
 

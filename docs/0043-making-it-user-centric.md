@@ -134,6 +134,10 @@ most user-visible defect.
 
 ### Phase 2 — One key, three commands (the install path)
 
+> **Built (`0047`), except publishing.** `init`, config precedence, and the
+> managed pool are live-verified. The PyPI name is the owner's decision, since
+> `agentctl` is taken.
+
 - **Packaging.**
   - Publish to PyPI, so `pipx install agentctl` or `uv tool install agentctl`
     works. Check the name is free first (D3).
