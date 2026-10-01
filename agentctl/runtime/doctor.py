@@ -196,7 +196,7 @@ def _keys_file() -> list[tuple[str, str, str]]:
     p = resolve()
     if p is None:
         return [(WARN, "keys file",
-                 "none found — run: agentctl keys --init")]
+                 "none found — run: agentctl init")]
     if (warn := check_not_tracked(p)):
         return [(BAD, "keys file", warn)]
     return [(OK, "keys file", f"{p} (not exposed to git)")]

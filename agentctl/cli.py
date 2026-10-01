@@ -273,6 +273,19 @@ def cmd_run(args) -> int:
     base_url = config.resolve("base_url", args.base_url, cfg).value
     m = config.resolve("model", args.model, cfg)
     model = m.value
+    if args.pool:
+        # One flag instead of three commands and two flags (docs/0044 F3).
+        from agentctl.control import proxyenv
+        from agentctl.control.proxy import POOL
+        s = proxyenv.status()
+        if s["state"] != "running":
+            proxyenv.up()
+            s = proxyenv.status()
+        base_url = proxyenv.url(s["port"])
+        if not args.source:
+            model = f"openai/{POOL}"
+            m = config.Setting(model, "--pool")
+        print(f"  pool          {base_url}")
     if args.source:
         # A source group only exists inside the proxy's config, so asking for
         # one without a proxy would resolve to nothing. Refuse rather than
@@ -734,7 +747,7 @@ def cmd_models(args) -> int:
     if args.verify:
         from agentctl.control.proxy import verified_providers
         print("  checking which sources can actually serve "
-              "(one completion each)...\n")
+              "(one completion per model id)...\n")
         live, _ = verified_providers()
 
     total = sum(r["deployments"] for r in rows)
@@ -797,7 +810,26 @@ def _provider_of(env_var: str) -> str:
 
 
 def cmd_proxy(args) -> int:
-    """Generate a proxy config from the keys you actually have."""
+    """Run the managed proxy (up/down/status), or generate a config (no action)."""
+    if args.action:
+        from agentctl.control import proxyenv
+        if args.action == "up":
+            s = proxyenv.up(port=args.port, verify=args.verify)
+            print(f"\n  route a run through it:  agentctl run \"...\" --pool")
+            return 0 if s["answers"] else 1
+        if args.action == "down":
+            proxyenv.down()
+            return 0
+        s = proxyenv.status()
+        print(f"  state     {s['state']}")
+        print(f"  url       {proxyenv.url(s['port'])}  "
+              f"({'answers' if s['answers'] else 'no answer'})")
+        if s["pid"]:
+            print(f"  pid       {s['pid']}")
+        print(f"  log       {s['log']}")
+        print(f"  env       {s['env']}")
+        return 0 if s["state"] in ("running", "stopped") else 1
+
     from agentctl.control.proxy import accounts, available, write
 
     only = None
@@ -809,7 +841,7 @@ def cmd_proxy(args) -> int:
               "failing over.\n")
     if args.verify:
         from agentctl.control.proxy import verified_providers
-        print("  verifying providers (one completion each; paid skipped)...")
+        print("  verifying providers (one completion per model id; paid skipped)...")
         only, report = verified_providers()
         for name, r in sorted(report.items()):
             flag = "ok  " if name in only else "--  "
@@ -972,6 +1004,9 @@ def build_parser() -> argparse.ArgumentParser:
     rn.add_argument("--base-url", help="an OpenAI-compatible endpoint, e.g. your "
                                        "proxy. Default: AGENTCTL_BASE_URL, then "
                                        "config.toml")
+    rn.add_argument("--pool", action="store_true",
+                    help="route through the managed proxy pool, starting it "
+                         "if it is not running (`agentctl proxy up`)")
     rn.add_argument("--source", metavar="NAME",
                     help="route this run to ONE provider (see `agentctl "
                          "models`). Narrower than the default pool, so a "
@@ -1066,8 +1101,14 @@ def build_parser() -> argparse.ArgumentParser:
                          "automatically, only on this flag.")
     da.set_defaults(fn=cmd_dash)
 
-    px = sub.add_parser("proxy", help="generate a LiteLLM proxy config")
-    px.add_argument("--out", default=".", help="where to write the config")
+    px = sub.add_parser("proxy", help="run the managed LiteLLM pool (up / down "
+                                      "/ status), or generate a config")
+    px.add_argument("action", nargs="?", choices=("up", "down", "status"),
+                    help="manage the proxy agentctl runs in its own environment "
+                         "(~/.agentctl/proxy-env). Omit to only write a config")
+    px.add_argument("--port", type=int, default=4000)
+    px.add_argument("--out", default=".", help="where to write the config "
+                                               "(generate-only mode)")
     # Verification is ON by default. `docs/0034` §7 measured what an
     # unverified pool costs: six Cerebras keys authenticate and return 402 on
     # every completion, litellm does not treat 402 as retryable, and a live

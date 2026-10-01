@@ -124,8 +124,17 @@ def escapes(target: str, root: str | Path) -> bool:
         return True
 
 
+#: Places a redirect can point that are not files anyone owns. `2>/dev/null`
+#: asked for confirmation as "writes outside the workspace" in a live pooled
+#: run, and with no terminal the prompt read EOF and refused it (`docs/0047`).
+#: Exact names only: `/dev/sda` is a device, not a sink, and stays reported.
+_SINKS = frozenset({"/dev/null", "/dev/stdout", "/dev/stderr", "/dev/tty",
+                    "nul", "nul:", "con"})
+
+
 def escaping_writes(call: ToolCall, root: str | Path | None) -> list[str]:
     """Write targets that land outside `root`. Empty when `root` is None."""
     if root is None:
         return []
-    return [t for t in write_targets(call) if escapes(t, root)]
+    return [t for t in write_targets(call)
+            if t.lower() not in _SINKS and escapes(t, root)]

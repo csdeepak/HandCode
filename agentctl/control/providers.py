@@ -48,6 +48,11 @@ class Provider:
     #: minted in one project share one limit -- measured 2026-09-21 against
     #: this owner's six, all in a single project.
     quota_per_key: bool = True
+    #: Request parameters this provider REJECTS but litellm forwards anyway,
+    #: because its config for the provider inherits OpenAI's parameter list.
+    #: `drop_params: true` cannot catch these; each deployment gets them as
+    #: `additional_drop_params`. Only what a live 400 has shown (`docs/0047`).
+    reject_params: tuple[str, ...] = ()
     note: str = ""
     steps: tuple[str, ...] = field(default_factory=tuple)
 
@@ -165,6 +170,11 @@ PROVIDERS: tuple[Provider, ...] = (
         # account actually lists AND answers.
         models=("openai/gpt-oss-20b", "openai/gpt-oss-120b"),
         free_tier=True,
+        # Live, 2026-10-02, through the pool: the SDK sends OpenAI's
+        # `prompt_cache_key` (the run's model is `openai/pool`), litellm's
+        # Groq config inherits it as supported, and Groq answers 400
+        # "property 'prompt_cache_key' is unsupported" -- which ended the run.
+        reject_params=("prompt_cache_key",),
         note="Model availability on the free plan has changed during 2026; "
              "confirm the model id in the console before relying on it.",
         steps=("Sign up at console.groq.com.",

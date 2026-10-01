@@ -171,6 +171,59 @@ def test_a_cap_does_not_spend_a_request_per_model(three_accounts, monkeypatch):
     assert [k for k, _ in calls] == ["k1", "k2"]
 
 
+def test_pool_verification_finds_a_dead_model_after_a_live_one(three_accounts,
+                                                              monkeypatch):
+    """`docs/0047`: the dead id was LAST, verification stopped at the first
+    model that answered, and its 404 ended a live pooled run."""
+    import litellm
+
+    from agentctl.control.providers import BY_NAME
+    models = BY_NAME["openrouter"].models
+    calls: list = []
+    monkeypatch.setattr(litellm, "completion",
+                        fake_by_model(calls, dead_models=(models[-1],)))
+
+    r = probe.check_inference("openrouter", all_models=True)
+    assert r.status == LIVE and r.gone == (models[-1],)
+    assert len(calls) == len(models), "one completion per model id, no more"
+
+    calls.clear()
+    assert probe.check_inference("openrouter").gone == ()
+    assert len(calls) == 1, "keys --check still stops at the first success"
+
+
+def test_a_busy_model_is_not_a_dead_one(three_accounts, monkeypatch):
+    import litellm
+
+    from agentctl.control.providers import BY_NAME
+    second = BY_NAME["openrouter"].models[1]
+
+    def c(*_a, **kw):
+        if kw["model"].endswith(second):
+            raise Exception("Rate limit exceeded: try again in 20s")
+        return {"ok": True}
+
+    monkeypatch.setattr(litellm, "completion", c)
+    assert probe.check_inference("openrouter", all_models=True).gone == ()
+
+
+def test_groq_deployments_drop_the_param_groq_rejects():
+    """`docs/0047`: Groq 400'd on `prompt_cache_key`, which litellm forwards
+    because its Groq config inherits OpenAI's parameter list, and the 400
+    ended a pooled run. Only Groq's deployments drop it; the YAML must parse."""
+    import yaml
+
+    from agentctl.control.proxy import build
+
+    cfg = yaml.safe_load(build({"GROQ_API_KEY": "g", "OPENROUTER_API_KEY": "o"}))
+    for d in cfg["model_list"]:
+        dropped = d["litellm_params"].get("additional_drop_params")
+        if d["litellm_params"]["model"].startswith("groq/"):
+            assert dropped == ["prompt_cache_key"], d
+        else:
+            assert dropped is None, d
+
+
 def test_proxy_leaves_out_a_model_verification_found_gone():
     from agentctl.control.proxy import build
     from agentctl.control.providers import BY_NAME

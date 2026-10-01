@@ -240,3 +240,21 @@ def test_copying_something_OUT_still_is(ws, command):
 def test_rm_flags_every_operand_because_it_deletes_them_all(ws):
     t = write_targets(call(command="rm a.txt ../b.txt ../../c.txt"))
     assert t == ["a.txt", "../b.txt", "../../c.txt"]
+
+
+# ── sinks are not destinations (docs/0047) ─────────────────────────────
+@pytest.mark.parametrize("cmd", [
+    'ls -la test_m.py 2>/dev/null || echo "missing"',   # the live case
+    "python -m pytest -q > /dev/null 2>&1",
+    "make 2> /dev/stderr",
+    "dir > NUL",
+])
+def test_a_redirect_to_a_sink_is_not_an_escaping_write(ws, cmd):
+    """It asked for confirmation in a live pooled run, and with no terminal
+    the prompt read EOF and refused it. Ordinary noise must not prompt."""
+    assert escaping_writes(call(command=cmd), ws) == []
+
+
+def test_a_real_device_is_still_reported(ws):
+    """Exact names only. `/dev/sda` is a disk, not somewhere to discard output."""
+    assert escaping_writes(call(command="echo x > /dev/sda"), ws) == ["/dev/sda"]

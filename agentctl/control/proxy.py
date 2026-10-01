@@ -186,13 +186,20 @@ def verified_providers(allow_paid: bool = False) -> tuple[set[str], dict]:
 
     ok, report = set(), {}
     for p in PROVIDERS:
-        r = check_inference(p.name, allow_paid=allow_paid)
+        r = check_inference(p.name, allow_paid=allow_paid, all_models=True)
         if r is None:
             continue
         report[p.name] = r
         if r.status in (LIVE, LIMITED):
             ok.add(p.name)
     return ok, report
+
+
+def _rejected(env_var: str) -> list[str]:
+    """`additional_drop_params` for a provider that 400s on a forwarded param."""
+    from .providers import BY_KEY
+    reject = BY_KEY[env_var.split("_API_KEY")[0] + "_API_KEY"].reject_params
+    return [f"      additional_drop_params: [{', '.join(reject)}]"] if reject else []
 
 
 def build(env: dict | None = None, telemetry: str | Path | None = None,
@@ -230,6 +237,7 @@ def build(env: dict | None = None, telemetry: str | Path | None = None,
             "    litellm_params:",
             f"      model: {model}",
             f"      api_key: os.environ/{env_var}",
+            *_rejected(env_var),
             "    model_info:",
             f"      id: {short}",
             f"      free: {str(is_free).lower()}",
@@ -268,6 +276,7 @@ def build(env: dict | None = None, telemetry: str | Path | None = None,
                     "    litellm_params:",
                     f"      model: {model}",
                     f"      api_key: os.environ/{env_var}",
+                    *_rejected(env_var),
                     "    model_info:",
                     f"      id: {short}-only",
                     f"      free: {str(is_free).lower()}",

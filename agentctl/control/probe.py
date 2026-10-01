@@ -232,8 +232,8 @@ NO_CREDIT = "no-credit"
 SKIPPED_PAID = "skipped"
 
 
-def check_inference(provider_name: str,
-                    allow_paid: bool = False) -> Result | None:
+def check_inference(provider_name: str, allow_paid: bool = False,
+                    all_models: bool = False) -> Result | None:
     """Can this provider actually COMPLETE, not merely authenticate?
 
     Metadata endpoints answer "is the credential real". They do not answer "may
@@ -311,6 +311,12 @@ def check_inference(provider_name: str,
                     gone.append(model)
                     continue
                 break
+            if all_models:
+                # A pool is built from EVERY model id, so every id needs one
+                # completion, not just the first that answers. Stopping at the
+                # first success left a dead id later in the list in the pool,
+                # and its 404 ended a live run (`docs/0047`; `docs/0042` I-11).
+                gone += _dead_models(litellm, acct, p, after=model, gone=gone)
             note = f"inference ok ({model})"
             if acct is not accts[0]:
                 note += f" via {acct.label}"
@@ -343,6 +349,27 @@ def _worse_of(a: "Result | None", b: "Result") -> "Result":
         return b
     rank = {s: i for i, s in enumerate(_RANK)}
     return a if rank.get(a.status, 9) <= rank.get(b.status, 9) else b
+
+
+def _dead_models(litellm, acct, p, after: str, gone: list[str]) -> list[str]:
+    """Every registry model after `after` that this working key cannot call.
+
+    Only a rejected model id counts as dead. A rate limit or an overload says
+    nothing about the id, so that model stays in the pool -- dropping it would
+    make a busy minute look like a shrinking catalogue.
+    """
+    dead: list[str] = []
+    for model in p.models[p.models.index(after) + 1:]:
+        if model in gone:
+            continue
+        try:
+            litellm.completion(model=f"{p.prefix}{model}", max_tokens=4,
+                               api_key=acct.value,
+                               messages=[{"role": "user", "content": "ok"}])
+        except Exception as e:                          # noqa: BLE001
+            if _classify_inference(e, acct, p, model).detail.startswith(MODEL_GONE):
+                dead.append(model)
+    return dead
 
 
 MODEL_GONE = "model id rejected"

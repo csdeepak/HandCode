@@ -79,7 +79,11 @@ CI runs both forms on Linux and Windows, and runs `verify.py` itself — so the
 badge above means the correctness claim reproduces on a machine that is not
 mine, which is the only version of that claim worth anything.
 
-### The proxy extra needs two steps
+### The proxy extra needs two steps (only if you run the proxy yourself)
+
+`agentctl run --pool` and `agentctl proxy up` do not need any of this: they
+keep LiteLLM in a separate environment of their own. The steps below are for
+running the full-stack checks in `verify.py`, or a proxy by hand.
 
 `litellm[proxy]` declares `mcp<2.0`; the OpenHands SDK needs `fastmcp` and so
 needs `mcp>=2`. They are incompatible on paper and work in practice, so the
@@ -229,10 +233,20 @@ blocked rather than resumed cleanly.
 ### Failing over
 
 ```bash
-agentctl proxy --out ./proxy            # verifies, and leaves out what cannot serve
-bash ./proxy/start.sh 4000              # or ./proxy/start.ps1 on Windows
-agentctl run "..." --model openai/pool --base-url http://localhost:4000
+agentctl run "..." --pool               # starts the managed pool if it is not running
+agentctl proxy status                   # running? answering? where is its log?
+agentctl proxy down                     # stop it
 ```
+
+`--pool` (or `agentctl proxy up`) runs LiteLLM in **its own environment**,
+`~/.agentctl/proxy-env`, created the first time (a few minutes) and reused
+after that. Your install never needs the proxy extra.
+- It verifies every model id with one completion and leaves out what cannot
+  serve, naming it.
+- It runs in the background and outlives the command that started it.
+
+`agentctl proxy --out ./proxy` still writes a config and start scripts, if you
+would rather run the proxy yourself (`docs/0047`).
 
 A pool over **one** provider key survives a transient upstream overload and a
 per-model limit. It does **not** survive an account-wide daily cap — three
