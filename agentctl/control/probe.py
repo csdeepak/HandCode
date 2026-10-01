@@ -47,6 +47,9 @@ class Result:
     #: that has disappeared is a fact about the registry, not about the key,
     #: and `proxy` leaves these out of the pool (`docs/0044` N6).
     gone: tuple[str, ...] = ()
+    #: The registry model id that actually served, when one did. `init`
+    #: records it as the user's default: proven by a completion, not assumed.
+    model: str = ""
 
     @property
     def ok(self) -> bool:
@@ -313,7 +316,7 @@ def check_inference(provider_name: str,
                 note += f" via {acct.label}"
             if gone:
                 note += f"; no longer served: {', '.join(gone)}"
-            return Result(acct, LIVE, note, gone=tuple(gone))
+            return Result(acct, LIVE, note, gone=tuple(gone), model=model)
     assert best is not None
     if gone and len(gone) == len(p.models):
         return Result(best.account, UNREACHABLE,

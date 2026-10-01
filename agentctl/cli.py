@@ -84,6 +84,13 @@ def _resolve_id(store: LedgerStore, given: str) -> str | None:
 
 
 # ── commands ───────────────────────────────────────────────────────────
+def cmd_init(args) -> int:
+    from agentctl.runtime.init import run_init
+    return run_init(provider=args.provider, model=args.model,
+                    verify=args.verify, key_stdin=args.key_stdin,
+                    check_paid=args.check_paid)
+
+
 def cmd_status(args) -> int:
     with _open(args.ledger) as s:
         rows = s._db.execute(
@@ -258,16 +265,20 @@ def cmd_ingest(args) -> int:
 
 
 def cmd_run(args) -> int:
+    from agentctl.runtime import config
     from agentctl.runtime.runner import run
     print("agentctl run")
 
-    model = args.model
+    cfg = config.load()
+    base_url = config.resolve("base_url", args.base_url, cfg).value
+    m = config.resolve("model", args.model, cfg)
+    model = m.value
     if args.source:
         # A source group only exists inside the proxy's config, so asking for
         # one without a proxy would resolve to nothing. Refuse rather than
         # silently fall back to the default model, which would run the task on
         # a provider the user just said not to use.
-        if not args.base_url:
+        if not base_url:
             print("  --source needs a proxy to route through.")
             print("    agentctl proxy --out ./proxy")
             print("    bash ./proxy/start.sh 4000")
@@ -282,9 +293,16 @@ def cmd_run(args) -> int:
             return 2
         model = f"openai/{SOURCE_PREFIX}{args.source}"
         print(f"  source        {args.source} (narrower than the full pool)")
+    elif model is None and not args.replay:
+        print("  no model: no flag, no AGENTCTL_MODEL, no config, and no key to")
+        print("  derive one from. One command sets all of that up:")
+        print("    agentctl init")
+        return 2
+    elif model:
+        print(f"  model from    {m.source}")
     result = run(
-        task=args.task, workspace=args.workspace, model=model,
-        base_url=args.base_url, ledger=args.ledger if args.ledger != DEFAULT_LEDGER
+        task=args.task, workspace=args.workspace, model=model or "replay",
+        base_url=base_url, ledger=args.ledger if args.ledger != DEFAULT_LEDGER
         else None,
         confirm_destructive=not args.allow_destructive,
         max_iterations=args.max_iterations, max_budget_usd=args.max_budget,
@@ -912,6 +930,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser = add_parser                 # every subcommand gets them
 
+    it = sub.add_parser("init", help="set up a key and a default model, once")
+    it.add_argument("--provider", metavar="NAME",
+                    help="the provider to use (default: the first you hold a "
+                         "key for, free tiers first; asks if you hold none)")
+    it.add_argument("--model", help="record this model instead of checking one")
+    it.add_argument("--no-verify", dest="verify", action="store_false",
+                    help="do not send the one checking completion")
+    it.add_argument("--key-stdin", action="store_true",
+                    help="read the key from stdin (for scripts), never echoed")
+    it.add_argument("--check-paid", action="store_true",
+                    help="allow the check to call a PAID provider (a few tokens)")
+    it.set_defaults(fn=cmd_init)
+
     sub.add_parser("status", help="summary of the ledger").set_defaults(fn=cmd_status)
 
     b = sub.add_parser("blocked", help="effects awaiting a human decision")
@@ -935,8 +966,12 @@ def build_parser() -> argparse.ArgumentParser:
     rn.add_argument("task", help="what you want done")
     rn.add_argument("--workspace", type=Path, default=Path("."),
                     help="directory the agent works in (default: cwd)")
-    rn.add_argument("--model", default="openrouter/nvidia/nemotron-3-super-120b-a12b:free")
-    rn.add_argument("--base-url", help="an OpenAI-compatible endpoint, e.g. your proxy")
+    rn.add_argument("--model", help="litellm model id. Default: AGENTCTL_MODEL, "
+                                    "then ~/.agentctl/config.toml (`agentctl "
+                                    "init`), then your first provider's default")
+    rn.add_argument("--base-url", help="an OpenAI-compatible endpoint, e.g. your "
+                                       "proxy. Default: AGENTCTL_BASE_URL, then "
+                                       "config.toml")
     rn.add_argument("--source", metavar="NAME",
                     help="route this run to ONE provider (see `agentctl "
                          "models`). Narrower than the default pool, so a "

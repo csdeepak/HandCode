@@ -125,12 +125,27 @@ def _groq_headroom(accts: list) -> tuple[str, str, str] | None:
     return (WARN, "groq headroom", detail)
 
 
+def _model() -> list[tuple[str, str, str]]:
+    """Which model `agentctl run` will use with no flags, and why that one."""
+    try:
+        from agentctl.runtime.config import resolve
+        s = resolve("model", None)
+    except SystemExit as e:                             # a broken config.toml
+        return [(BAD, "model", str(e).splitlines()[0])]
+    except Exception as e:                              # noqa: BLE001
+        return [(WARN, "model", f"could not resolve: {e}")]
+    if s.value is None:
+        return [(WARN, "model", "none -- run `agentctl init`")]
+    return [(OK, "model", f"{s.value}  ({s.source})")]
+
+
 def check_all(workspace: str | Path | None = None,
               probe_network: bool = True) -> list[tuple[str, str, str]]:
     """[(status, subject, detail)] — never raises, always reports."""
     out: list[tuple[str, str, str]] = []
     out += _packages()
     out += _providers(probe_network)
+    out += _model()
     out += _tooling()
     out += _policy()
     if workspace:

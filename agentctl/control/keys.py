@@ -76,6 +76,34 @@ class KeysAreTracked(RuntimeError):
     """The keys file is in git. Ignoring it now changes nothing."""
 
 
+def set_value(path: str | Path, name: str, value: str) -> Path:
+    """Put one key into a keys file: replace its line, or append one.
+
+    For `agentctl init`. The ignore rules are written FIRST (`write_template`
+    does that and never overwrites a filled file), and the value is never
+    printed, logged or returned -- only the path is.
+    """
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+        raise ValueError(f"not a variable name: {name!r}")
+    if not value or any(c in value for c in "\r\n"):
+        raise ValueError("a key is one non-empty line")
+    p, _ = write_template(path)
+    lines = p.read_text(encoding="utf-8").splitlines()
+    for i, raw in enumerate(lines):
+        m = _LINE.match(raw.strip())
+        if m and m.group(1) == name and not raw.lstrip().startswith("#"):
+            lines[i] = f"{name}={value}"
+            break
+    else:
+        lines.append(f"{name}={value}")
+    p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        os.chmod(p, 0o600)                              # no-op on Windows
+    except Exception:                                   # noqa: BLE001
+        pass
+    return p
+
+
 # ── reading ────────────────────────────────────────────────────────────
 def parse(text: str) -> dict[str, str]:
     """A minimal .env parser. No dependency, no surprises.

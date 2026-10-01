@@ -74,9 +74,15 @@ PROVIDERS: tuple[Provider, ...] = (
         # catalogue — `thinkingmachines/inkling:free` is listed and 403s,
         # which is `docs/0034`'s "a catalogue is not what you can call"
         # happening again on the same provider.
-        models=("nex-agi/nex-n2.5-pro:free",
-                "nvidia/nemotron-3-super-120b-a12b:free",
-                "nvidia/nemotron-3-ultra-550b-a55b:free"),
+        #
+        # `nex-agi/nex-n2.5-pro:free` was first, and on 2026-10-01 a live
+        # `keys --check` found it no longer served (`docs/0044` §10). Moved to
+        # last rather than removed: `default_model` is the first entry, and
+        # `agentctl init` derives a user's default from it, but whether it is
+        # gone for good is the owner's call. `proxy --verify` drops it anyway.
+        models=("nvidia/nemotron-3-super-120b-a12b:free",
+                "nvidia/nemotron-3-ultra-550b-a55b:free",
+                "nex-agi/nex-n2.5-pro:free"),
         free_tier=True,
         note="One account-wide cap covers every `:free` model, so extra "
              "OpenRouter models add resilience to outages but not to the "

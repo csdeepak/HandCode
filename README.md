@@ -132,8 +132,22 @@ against a provider's terms. Check both before relying on it (`docs/0042`
 ## Use it
 
 ```bash
-agentctl doctor --workspace ./myproject     # check BEFORE you spend
-agentctl run "add type hints to utils.py" --workspace ./myproject
+agentctl init                                # once: one key, one checked default model
+cd myproject
+agentctl run "add type hints to utils.py"    # no flags needed
+```
+
+`init` uses a key you already have in the environment or a keys file, or asks
+for one and stores it in `~/.agentctl/keys.env`, outside every repository and
+never echoed. It then sends **one** completion and records the model that
+actually answered in `~/.agentctl/config.toml`. A paid provider is not called
+unless you pass `--check-paid`.
+
+`run` takes its model from `--model`, then `AGENTCTL_MODEL`, then that config,
+then the first provider you hold a key for, and prints which one it used.
+
+```bash
+agentctl doctor --workspace ./myproject     # check everything BEFORE you spend
 ```
 
 `doctor` checks packages, the SDK import chain, git, your provider keys, the
