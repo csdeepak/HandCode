@@ -271,8 +271,16 @@ def down(log=_say) -> bool:
                            capture_output=True)
         else:
             import signal
+            # The group only when it is the proxy's OWN. `up` starts it in a
+            # new session, but a pid file can name anything, and signalling a
+            # group we belong to kills the caller: it SIGTERMed pytest, and the
+            # CI step with it, on every Linux job (`docs/0047`).
             try:
-                os.killpg(os.getpgid(pid), signal.SIGTERM)
+                pgid = os.getpgid(pid)
+                if pgid != os.getpgid(0):
+                    os.killpg(pgid, signal.SIGTERM)
+                else:
+                    os.kill(pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
         for _ in range(20):

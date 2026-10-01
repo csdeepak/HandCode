@@ -174,11 +174,27 @@ def test_down_with_nothing_running_is_harmless(home):
 
 
 def test_down_stops_a_real_process(home):
+    """The child shares THIS process's group on POSIX, on purpose: `down`
+    must stop it without signalling the group, or it kills the test runner
+    (it did, on every Linux CI job)."""
     p = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
     _pid(home, p.pid, _free_port())
     assert proxyenv.down(log=lambda m: None) is True
     assert p.wait(timeout=10) is not None
     assert not proxyenv._pidfile().exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX process groups")
+def test_down_signals_the_proxys_own_group(home):
+    """A proxy started the way `up` starts it, in its own session, is stopped
+    with its children (litellm's workers) by signalling that group."""
+    p = subprocess.Popen([sys.executable, "-c",
+                          "import subprocess, sys, time; "
+                          "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); "
+                          "time.sleep(60)"], start_new_session=True)
+    _pid(home, p.pid, _free_port())
+    assert proxyenv.down(log=lambda m: None) is True
+    assert p.wait(timeout=10) is not None
 
 
 # ══ run --pool ═════════════════════════════════════════════════════════
