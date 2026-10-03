@@ -1143,9 +1143,23 @@ def cmd_policy(args) -> int:
 
 
 # ── entry point ────────────────────────────────────────────────────────
+def _version() -> str:
+    """The installed distribution's version. A bug report needs it."""
+    try:
+        from importlib.metadata import version
+        return version("agentctl")
+    except Exception:                                   # noqa: BLE001
+        return "unknown"
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="agentctl", description="Inspect and resolve the effect ledger.")
+        prog="agentctl",
+        description="Run a coding agent whose work survives crashes, restarts "
+                    "and provider switches. New here: agentctl demo")
+    p.add_argument("--version", action="version",
+                   version=f"agentctl {_version()} (python {sys.version.split()[0]}, "
+                           f"{sys.platform})")
     p.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER,
                    help=f"path to the effect ledger (default: {DEFAULT_LEDGER})")
     p.add_argument("--cost-ledger", type=Path, default=DEFAULT_COST_LEDGER,

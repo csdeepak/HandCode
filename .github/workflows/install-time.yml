@@ -1,0 +1,73 @@
+name: install time
+
+# docs/0051 Stage 0. Measured installs took 4m20s and 13.5 min on one laptop
+# (docs/0044, 0047), and everything heavy arrives through the OpenHands SDK
+# (litellm alone is ~124 MB). Before deciding how a release should install,
+# measure it where nobody's cache helps: a fresh runner, each OS, pip versus
+# uv, cold then warm. Then prove the install WORKS by running the demo from it.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * 1"          # weekly, alongside CI's drift check
+
+jobs:
+  measure:
+    name: ${{ matrix.installer }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        installer: [pip, uv]
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONIOENCODING: utf-8
+      OPENHANDS_SUPPRESS_BANNER: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      # No `cache:` on purpose -- the first install must be cold.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install, cold then warm
+        run: |
+          bindir() { if [ "$RUNNER_OS" = "Windows" ]; then echo "$1/Scripts"; else echo "$1/bin"; fi; }
+          install() {
+            if [ "${{ matrix.installer }}" = "uv" ]; then
+              uv venv "$1" --python 3.12 -q
+              uv pip install -q --python "$(bindir "$1")/python" ".[openhands]"
+            else
+              python -m venv "$1"
+              "$(bindir "$1")/python" -m pip install -q --disable-pip-version-check ".[openhands]"
+            fi
+          }
+          if [ "${{ matrix.installer }}" = "uv" ]; then python -m pip install -q uv; fi
+          t0=$(date +%s); install cold;  t1=$(date +%s)
+          install warm;                  t2=$(date +%s)
+          echo "COLD=$((t1 - t0))" >> "$GITHUB_ENV"
+          echo "WARM=$((t2 - t1))" >> "$GITHUB_ENV"
+          echo "AGENTCTL=$(pwd)/$(bindir cold)/agentctl" >> "$GITHUB_ENV"
+          "$(bindir cold)/python" -c "import importlib.metadata as m; print(len(list(m.distributions())), 'distributions')"
+
+      - name: The install works -- agentctl demo, outside the repository
+        run: |
+          mkdir -p "$RUNNER_TEMP/elsewhere" && cd "$RUNNER_TEMP/elsewhere"
+          t0=$(date +%s)
+          set +e; "$AGENTCTL" demo; rc=$?; set -e
+          echo "DEMO_RC=$rc" >> "$GITHUB_ENV"
+          echo "DEMO_S=$(( $(date +%s) - t0 ))" >> "$GITHUB_ENV"
+          exit $rc
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "| OS | installer | cold install | warm install | demo |"
+            echo "|---|---|---|---|---|"
+            echo "| ${{ matrix.os }} | ${{ matrix.installer }} | ${COLD:-?}s | ${WARM:-?}s | exit ${DEMO_RC:-?} in ${DEMO_S:-?}s |"
+          } >> "$GITHUB_STEP_SUMMARY"

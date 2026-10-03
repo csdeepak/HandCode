@@ -57,3 +57,8 @@ keys.env
 
 # Agent worktrees are transient checkouts, never content.
 .claude/worktrees/
+
+# Seam A telemetry. Runtime output of a proxy, never source: a hand-run proxy
+# writes it into its working directory, and the copy at the repo root was
+# noise in every commit from 0042 on (docs/0051 Stage 0).
+hook_telemetry.json

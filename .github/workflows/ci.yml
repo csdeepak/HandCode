@@ -35,7 +35,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # macOS was never run before docs/0051 Stage 0, and a release cannot
+        # claim a platform nothing has tested.
+        os: [ubuntu-latest, windows-latest, macos-latest]
         # 3.12 is the floor the README claims; 3.13 is what it was built on.
         python: ["3.12", "3.13"]
 
