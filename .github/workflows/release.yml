@@ -1,0 +1,190 @@
+name: release
+
+# docs/0051 Stage 1. A release is a tag `vX.Y.Z[rcN]` whose X.Y.Z[rcN] equals
+# pyproject's version. The order is the point: nothing reaches PyPI that was
+# not first installed FROM ITS OWN WHEEL on all three OS, then from TestPyPI,
+# and shown to run.
+#
+#   build -> test the wheel (3 OS) -> TestPyPI -> install from TestPyPI (3 OS)
+#         -> PyPI (environment `pypi`: the owner approves) -> GitHub release
+#
+# Publishing uses PyPI trusted publishing (OIDC): there is no token anywhere.
+# It needs a trusted publisher configured on test.pypi.org and pypi.org for
+# this repository, this workflow and these environments -- see RELEASING.md.
+#
+# workflow_dispatch with `publish: none` (the default) runs build and test only:
+# a dry run that publishes nothing.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "How far to go: none (dry run), testpypi, or pypi"
+        type: choice
+        options: [none, testpypi, pypi]
+        default: none
+
+permissions:
+  contents: read
+
+env:
+  PYTHONIOENCODING: utf-8
+  OPENHANDS_SUPPRESS_BANNER: "1"
+  # How far this run goes: a tag goes all the way (PyPI still waits for the
+  # owner's approval on the `pypi` environment).
+  TARGET: ${{ github.event_name == 'push' && 'pypi' || inputs.publish }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q uv
+      - name: Version, and the tag must match it
+        id: v
+        run: |
+          v=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v$v" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match pyproject version $v"; exit 1
+          fi
+          echo "releasing handcode $v (target: $TARGET)"
+      - run: uv build
+      - run: uvx twine check dist/*
+      - name: Nothing private in the sdist
+        run: |
+          if tar -tzf dist/*.tar.gz | grep -i -E 'telemetry|\.db$|keys\.env|\.venv|research/'; then
+            echo "::error::the sdist contains files that must not be published"; exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  test-wheel:
+    needs: build
+    name: wheel on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - run: python -m pip install -q uv
+      # No checkout: the test is the published artifact, not the source tree.
+      - name: uv tool install, as the README tells users to
+        run: |
+          export UV_TOOL_BIN_DIR="$RUNNER_TEMP/bin"
+          uv tool install --python 3.12 "$(ls dist/*.whl)[openhands]"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Both commands, the right version
+        run: |
+          cd "$RUNNER_TEMP"
+          agentctl --version | grep -F "handcode ${{ needs.build.outputs.version }} "
+          handcode --version | grep -F "handcode ${{ needs.build.outputs.version }} "
+      - name: The demo passes from the installed package
+        run: cd "$RUNNER_TEMP" && handcode demo
+
+  publish-testpypi:
+    needs: [build, test-wheel]
+    if: ${{ github.event_name == 'push' || inputs.publish != 'none' }}
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  verify-testpypi:
+    needs: [build, publish-testpypi]
+    name: from TestPyPI on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q uv
+      - name: Fetch ONLY handcode from TestPyPI; every dependency from PyPI
+        run: |
+          # Not `--index-strategy unsafe-best-match`: that would let ANY
+          # dependency resolve from TestPyPI, where anyone can upload a
+          # lookalike. Only the artifact under test comes from there.
+          v="${{ needs.build.outputs.version }}"
+          mkdir -p "$RUNNER_TEMP/from-testpypi"
+          for i in 1 2 3 4 5 6; do          # TestPyPI can lag a new upload
+            python -m pip download -q --no-deps --only-binary :all: \
+              --index-url https://test.pypi.org/simple/ "handcode==$v" \
+              -d "$RUNNER_TEMP/from-testpypi" && break
+            echo "not visible yet; retry $i"; sleep 30
+          done
+          ls "$RUNNER_TEMP/from-testpypi"/handcode-*.whl
+          export UV_TOOL_BIN_DIR="$RUNNER_TEMP/bin"
+          uv tool install --python 3.12 \
+            "$(ls "$RUNNER_TEMP/from-testpypi"/handcode-*.whl)[openhands]"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - run: cd "$RUNNER_TEMP" && handcode --version && handcode demo
+
+  publish-pypi:
+    needs: [build, verify-testpypi]
+    if: ${{ github.event_name == 'push' || inputs.publish == 'pypi' }}
+    runs-on: ubuntu-latest
+    environment: pypi                 # the owner sets a required reviewer here
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    needs: [build, publish-pypi]
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Create the release, with the dists attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v="${{ needs.build.outputs.version }}"
+          pre=""; case "$v" in *rc*|*a*|*b*) pre="--prerelease";; esac
+          gh release create "v$v" dist/* $pre --title "handcode $v" \
+            --notes "See CHANGELOG.md. Install: uv tool install \"handcode[openhands]==$v\""

@@ -1144,12 +1144,18 @@ def cmd_policy(args) -> int:
 
 # ── entry point ────────────────────────────────────────────────────────
 def _version() -> str:
-    """The installed distribution's version. A bug report needs it."""
-    try:
-        from importlib.metadata import version
-        return version("agentctl")
-    except Exception:                                   # noqa: BLE001
-        return "unknown"
+    """The installed distribution's version. A bug report needs it.
+
+    The distribution is `handcode`; the import package is `agentctl`
+    (docs/0051 Stage 1). An install from before the rename is `agentctl`.
+    """
+    from importlib.metadata import PackageNotFoundError, version
+    for dist in ("handcode", "agentctl"):
+        try:
+            return version(dist)
+        except PackageNotFoundError:
+            continue
+    return "unknown"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1158,8 +1164,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Run a coding agent whose work survives crashes, restarts "
                     "and provider switches. New here: agentctl demo")
     p.add_argument("--version", action="version",
-                   version=f"agentctl {_version()} (python {sys.version.split()[0]}, "
-                           f"{sys.platform})")
+                   version=f"handcode {_version()} (the agentctl command; python "
+                           f"{sys.version.split()[0]}, {sys.platform})")
     p.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER,
                    help=f"path to the effect ledger (default: {DEFAULT_LEDGER})")
     p.add_argument("--cost-ledger", type=Path, default=DEFAULT_COST_LEDGER,

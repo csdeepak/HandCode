@@ -1,9 +1,9 @@
-# AI Agent Control Plane
+# HandCode
 
 [![CI](https://github.com/csdeepak/HandCode/actions/workflows/ci.yml/badge.svg)](https://github.com/csdeepak/HandCode/actions/workflows/ci.yml)
 
-**agentctl keeps a coding agent's work safe across crashes, restarts and
-provider switches.**
+**HandCode keeps a coding agent's work safe across crashes, restarts and
+provider switches.** Its command is `agentctl`.
 
 When an agent's process dies in the middle of a task and you resume it, the
 agent framework re-runs whatever was in flight, so a commit can happen twice.
@@ -60,11 +60,11 @@ and what needs you:
   needs you   nothing
 ```
 
-The **[user guide](guide/README.md)** covers the
-[quickstart](guide/quickstart.md) step by step (Windows included),
-[concepts in plain words](guide/concepts.md),
-[troubleshooting by the exact text you see](guide/troubleshooting.md), and an
-[FAQ](guide/faq.md).
+The **[user guide](https://github.com/csdeepak/HandCode/blob/main/guide/README.md)** covers the
+[quickstart](https://github.com/csdeepak/HandCode/blob/main/guide/quickstart.md) step by step (Windows included),
+[concepts in plain words](https://github.com/csdeepak/HandCode/blob/main/guide/concepts.md),
+[troubleshooting by the exact text you see](https://github.com/csdeepak/HandCode/blob/main/guide/troubleshooting.md), and an
+[FAQ](https://github.com/csdeepak/HandCode/blob/main/guide/faq.md).
 
 ## What it protects you from
 
@@ -81,13 +81,13 @@ The **[user guide](guide/README.md)** covers the
 **What it does not do:** it is not a sandbox. Commands run on your machine.
 agentctl stops actions repeating and asks before dangerous ones, but it does
 not contain what an allowed command does
-([concepts](guide/concepts.md#what-agentctl-does-not-do)).
+([concepts](https://github.com/csdeepak/HandCode/blob/main/guide/concepts.md#what-agentctl-does-not-do)).
 
 **Status.** 822 tests, including a chaos suite that kills the process at ten
 points in the protocol, plus `verify.py`'s end-to-end crash experiments. All
 run at no cost, on Linux and Windows in CI. Every feature here has also been
 run at least once against a real provider. The design history, with what was
-measured and what was found, is the numbered [`docs/`](INDEX.md) stream.
+measured and what was found, is the numbered [`docs/`](https://github.com/csdeepak/HandCode/blob/main/INDEX.md) stream.
 
 ---
 
@@ -523,8 +523,8 @@ LLM DATA PLANE ──▶ providers
 CONTROL PLANE   out-of-band · may fail
 ```
 
-Full reasoning: [`docs/0008`](docs/0008-system-architecture-v1.md).
-Diagrams: [`docs/0011`](docs/0011-request-flow-architecture.md).
+Full reasoning: [`docs/0008`](https://github.com/csdeepak/HandCode/blob/main/docs/0008-system-architecture-v1.md).
+Diagrams: [`docs/0011`](https://github.com/csdeepak/HandCode/blob/main/docs/0011-request-flow-architecture.md).
 
 ---
 
@@ -570,12 +570,12 @@ verify.py         one command that proves all of the above
 ```
 
 The kernel/control boundary is enforced by a test
-([`tests/test_boundaries.py`](tests/test_boundaries.py)). That single test is
+([`tests/test_boundaries.py`](https://github.com/csdeepak/HandCode/blob/main/tests/test_boundaries.py)). That single test is
 what stops the architecture rotting.
 
-**Start with [INDEX.md](INDEX.md)** — every document, numbered, newest last.
-[`docs/0001`](docs/0001-project-charter.md) is the charter,
-[`docs/0009`](docs/0009-open-questions-register.md) says what is still open.
+**Start with [INDEX.md](https://github.com/csdeepak/HandCode/blob/main/INDEX.md)** — every document, numbered, newest last.
+[`docs/0001`](https://github.com/csdeepak/HandCode/blob/main/docs/0001-project-charter.md) is the charter,
+[`docs/0009`](https://github.com/csdeepak/HandCode/blob/main/docs/0009-open-questions-register.md) says what is still open.
 
 ---
 
@@ -610,4 +610,4 @@ to act on a different one.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](https://github.com/csdeepak/HandCode/blob/main/LICENSE).

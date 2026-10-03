@@ -12,6 +12,9 @@ The release that makes it usable by someone other than its author
 (`docs/0043` to `docs/0050`).
 
 ### Added
+- Published on PyPI as **`handcode`** (`agentctl` was taken). The command is
+  still `agentctl`, and is also installed as `handcode`; the import package
+  is still `agentctl` (`docs/0051` Stage 1).
 - `agentctl demo`: a real crash duplicates a commit in plain OpenHands, and
   agentctl prevents it. No key, no network, $0 (`docs/0050`).
 - `agentctl init`: one key, checked with one request, and the model that
