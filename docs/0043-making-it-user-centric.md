@@ -171,6 +171,9 @@ most user-visible defect.
 
 ### Phase 3 — A run you can read (P2)
 
+> **Done (`0048`)**, including I-09 and I-10. The per-turn progress line is
+> deferred to `0042` I-18's open question.
+
 - **An end-of-run report**, replacing the verdict counts (F6):
 
   ```

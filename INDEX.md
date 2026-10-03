@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0047**.
+**The highest number is the newest document.** Current head: **0048**.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -53,6 +53,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0045](docs/0045-a-repeat-is-not-a-replay.md) | A Repeat Is Not a Replay | DECISION | ACCEPTED | 2026-10-01 | I-01 built. A result in the model's history makes an identical call the model's decision. Crash cases unchanged; chaos suite gains a tenth point and re-minted resumes. Live: exit 1 + 2 BLOCKs became exit 0 + none |
 | [0046](docs/0046-one-driver-per-conversation.md) | One Driver Per Conversation | DECISION | ACCEPTED | 2026-10-01 | I-02 built. Fresh intents fenced, lease heartbeat, dead holders taken over and live ones refused. Found: a killed holder leaves a transient "disk I/O error" on Windows (5/8); open now retries. Live: refusal and auto-takeover both shown |
 | [0047](docs/0047-a-pool-in-one-flag.md) | A Pool in One Flag | DECISION | ACCEPTED | 2026-10-02 | Phase 2. `init` + flagless `run`; `run --pool` starts a LiteLLM proxy in its own environment. The first live run found four defects (detached launch, unverified later models, Groq rejecting `prompt_cache_key`, `/dev/null` as an escape); all fixed, then exit 0 in 40 s. PyPI name `agentctl` is taken |
+| [0048](docs/0048-a-run-you-can-read.md) | A Run You Can Read | DECISION | ACCEPTED | 2026-10-03 | Phase 3. End-of-run report (checked outcome, git changes, usage, plain actions, what needs you), `--accept`, exit code from it. I-09 fixed from a captured proxy dict (18/18 attributed); I-10's known-free state, so report and cost ledger agree |
 
 ---
 
