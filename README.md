@@ -80,7 +80,9 @@ The **[user guide](https://github.com/csdeepak/HandCode/blob/main/guide/README.m
 
 **What it does not do:** it is not a sandbox. Commands run on your machine.
 agentctl stops actions repeating and asks before dangerous ones, but it does
-not contain what an allowed command does
+not contain what an allowed command does. For a task you would not trust your
+shell with, run it in the [container image](https://github.com/csdeepak/HandCode/blob/main/guide/quickstart.md#6-run-it-in-a-container-recommended-for-tasks-you-would-not-trust-your-shell-with),
+where only the mounted repository is reachable
 ([concepts](https://github.com/csdeepak/HandCode/blob/main/guide/concepts.md#what-agentctl-does-not-do)).
 
 **Status.** 822 tests, including a chaos suite that kills the process at ten

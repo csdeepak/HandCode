@@ -68,7 +68,9 @@ Said plainly, because a safety tool that oversells itself is worse than none:
 - **It is not a sandbox.** Commands run on your machine. agentctl decides
   whether an action may run *again*, and asks before dangerous ones. It does
   not contain what an allowed command does. Do not point it at a task you
-  would not trust a junior developer's shell with.
+  would not trust a junior developer's shell with, **or run it in the
+  container** ([quickstart §6](quickstart.md#6-run-it-in-a-container-recommended-for-tasks-you-would-not-trust-your-shell-with)).
+  There, only the mounted repository is reachable.
 - **It cannot see inside a remote service.** If a remote API ignores
   idempotency keys, a retry there can duplicate, and nothing local can know.
 - **It does not make the model better.** A weak free model still writes weak

@@ -31,7 +31,10 @@ Examples of what we want to hear about:
 These are documented, and reports of them are still welcome as improvements:
 
 - **agentctl is not a sandbox.** An allowed command runs with your
-  permissions. Use the container image (once released) for untrusted tasks.
+  permissions. Use the container image for untrusted tasks
+  (`guide/quickstart.md` §6): there it reaches only the mounted repository.
+  A way out of *that* boundary, through anything this project configures,
+  is a vulnerability.
 - A command interpreter's arguments (`python -c "..."`) are opaque to the
   classifier, so it is treated as an unrepeatable command, not inspected.
 - A remote service that ignores idempotency keys can duplicate an effect,

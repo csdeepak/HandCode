@@ -96,7 +96,43 @@ agentctl resume       # continue the last run here
 - A dangerous action is waiting for approval? `agentctl approve <id>`, then
   `agentctl resume`.
 
-## 6. More than one provider (optional)
+## 6. Run it in a container (recommended for tasks you would not trust your shell with)
+
+agentctl is not a sandbox. In a container, an allowed command can reach the
+container and the one directory you mount, and nothing else on your machine.
+
+Until the first release publishes the image to `ghcr.io/csdeepak/handcode`,
+build it from a clone (it needs Docker):
+
+```bash
+uv build --wheel
+docker build -t handcode .
+```
+
+Then, from your project:
+
+```bash
+docker run --rm -it --user "$(id -u):$(id -g)" \
+  -v "$PWD:/work" \
+  -v handcode-home:/home/handcode \
+  --env-file ~/.agentctl/keys.env \
+  handcode run "<task>" --accept "<your tests>"
+```
+
+| Part | Why |
+|---|---|
+| `--user "$(id -u):$(id -g)"` | Files the agent writes in your repo belong to you, not to root |
+| `-v "$PWD:/work"` | Your repository. The only part of your machine the agent can change |
+| `-v handcode-home:/home/handcode` | Keeps `status`, `resume`, `init`'s config and the run index between containers |
+| `--env-file ~/.agentctl/keys.env` | Your keys, read at start; never copied into the image |
+
+Add `-v ~/.gitconfig:/home/handcode/.gitconfig:ro` to commit as yourself.
+Otherwise commits are authored by "HandCode agent". `--pool` starts in
+seconds here, because the pool's environment is built into the image.
+
+On Windows (PowerShell), use `-v "${PWD}:/work"` and leave out `--user`.
+
+## 7. More than one provider (optional)
 
 With keys for several providers, route through a pool, so that a daily cap or
 an outage at one provider does not stop the run:

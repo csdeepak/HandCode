@@ -35,6 +35,9 @@ The release that makes it usable by someone other than its author
   in an environment of its own; no proxy extra in your install
   (`docs/0047`).
 - `agentctl --version`.
+- A container image (`Dockerfile`; published to `ghcr.io/csdeepak/handcode`
+  with each release). Only the mounted repository is reachable, and the
+  pool's environment is built in (`docs/0051` Stage 2).
 - A user guide in `guide/`.
 
 ### Changed

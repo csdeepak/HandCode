@@ -339,3 +339,41 @@ Until the first upload, someone else can still take `handcode`.
    it, or stop there.
 2. Switch the README and quickstart to `uv tool install "handcode[openhands]"`.
 3. Bump to `0.3.0` for the release.
+
+## 10. Addendum (2026-10-04): Stage 2 built and tested; not published, one live run open
+
+**What was built** (`6fd0828`):
+
+| | |
+|---|---|
+| `Dockerfile` | `python:3.12-slim` plus `git`; **the release wheel** (not the source tree) installed with uv. The pool's proxy environment is built in at `/opt/handcode/proxy-env` (new `AGENTCTL_PROXY_ENV`), outside `$HOME`, so the volume over the home directory cannot hide it. Runs as any uid. `git safe.directory` for the mounted repository, and a fallback git identity, so the agent never sets one in the user's repository (`0044` N12) |
+| `.dockerignore` | Admits only `dist/*.whl`. Nothing else in the repository can reach an image |
+| `image.yml` | Builds from the wheel and checks the real container. Publishes to `ghcr.io/csdeepak/handcode` (amd64 and arm64; `latest` only for a final release) **on a release tag only** |
+
+**Checked in CI, against the built image, first run** (run 37158793668). Each
+item was confirmed from its log output, not only from the job's status:
+- `--version` reports `handcode 0.3.0rc1 … linux`;
+- **the demo inside the container, as an ordinary uid**: plain OpenHands
+  2 commits, agentctl 1;
+- a file written into `/work` is **owned by the host user (uid 1001), not
+  root**, and git accepts the mounted repository;
+- `proxy status` reports `/opt/handcode/proxy-env`, and its interpreter
+  imports `litellm.proxy.proxy_server`;
+- **containment**: the container appended to its `~/.bashrc` and ran `pip
+  install`; the host's `~/.bashrc` hash was unchanged.
+
+**Documented.** `guide/quickstart.md` §6 gives the `docker run` line, and why
+each part is there. `concepts.md`, `SECURITY.md` and the README now point
+untrusted tasks at the container. `SECURITY.md` says a way out of that
+boundary is a vulnerability.
+
+**Open.**
+- **One real task with a real model inside the container** (the `0041`
+  rule). This needs Docker running on the owner's machine with a key, or a
+  key as a repository secret for CI. Neither exists yet. Everything above
+  used the demo's scripted model.
+- **The I-26 canaries with a real model**, injected instructions trying to
+  leave `/work`, read keys or reach the network. The containment test above
+  proves the mechanism, not how a model behaves against it.
+- **Publishing** happens with the first release tag, after Stage 1's
+  trusted-publisher setup.
