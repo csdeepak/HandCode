@@ -41,7 +41,7 @@ Python 3.12+, `git`, and one API key (a free OpenRouter or Gemini key works).
 ```bash
 git clone https://github.com/csdeepak/HandCode && cd HandCode
 python3 -m venv .venv && source .venv/bin/activate     # Windows: see guide/quickstart.md
-pip install -e ".[openhands]"
+pip install uv && uv pip install -e ".[openhands]"     # uv: seconds, where pip takes minutes
 
 agentctl demo                                          # see what it is for
 agentctl init                                          # one key, one checked default model

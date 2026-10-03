@@ -12,7 +12,8 @@ git clone https://github.com/csdeepak/HandCode
 cd HandCode
 py -3.12 -m venv .venv
 .venv\Scripts\Activate.ps1
-pip install -e ".[openhands]"
+pip install uv
+uv pip install -e ".[openhands]"
 ```
 
 **macOS / Linux:**
@@ -22,8 +23,21 @@ git clone https://github.com/csdeepak/HandCode
 cd HandCode
 python3 -m venv .venv          # Ubuntu: sudo apt install python3.12-venv first
 source .venv/bin/activate
-pip install -e ".[openhands]"
+pip install uv
+uv pip install -e ".[openhands]"
 ```
+
+**Why `uv`:** the install is about 140 packages, almost all of them pulled in
+by the OpenHands SDK. Measured on clean machines (`docs/0051` §8):
+
+| | pip | uv |
+|---|---|---|
+| Linux | 39 s | 3 s |
+| macOS | 43 s | 4 s |
+| Windows | 48 s | 23 s |
+| one Windows laptop | 4–13 min | 21 s |
+
+Plain `pip install -e ".[openhands]"` works too; it is only slower.
 
 ## 2. See what it is for (no key, no cost)
 

@@ -249,3 +249,51 @@ Once strangers run it, three items stop being backlog:
 - the canary results in the container;
 - whether anyone other than the owner completes the quickstart (D5,
   still open).
+
+---
+
+## 8. Addendum (2026-10-04): Stage 0 results
+
+| Item | Result |
+|---|---|
+| `hook_telemetry.json` | Untracked and ignored everywhere (`0b24f65`). The local file is untouched |
+| `CONTRIBUTING.md`, `SECURITY.md`, `CHANGELOG.md`, issue templates | Added. The changelog holds the 0.x version policy, and the bug template asks for `--version`, `doctor` and whether the demo passes |
+| `agentctl --version` | Added. `--help` now says what the tool is for; it still said "Inspect and resolve the effect ledger" |
+| History scan | Clean. The only key-shaped strings in any commit are test placeholders |
+| **macOS** | Added to CI. **The whole suite passed on its first run there**, demo included, on Python 3.12 and 3.13 |
+| **Private vulnerability reporting** | **Disabled on the repository.** `SECURITY.md` points at it, so it needs turning on: Settings → Code security → Private vulnerability reporting. **Owner action** (D11) |
+
+**Install time, measured** (`install-time.yml`; fresh GitHub runners, Python
+3.12, no cache; each install then ran `agentctl demo`, and every demo
+passed):
+
+| OS | pip, cold | pip, warm | uv, cold | uv, warm |
+|---|---|---|---|---|
+| Ubuntu | 39 s | 33 s | **3 s** | 1 s |
+| macOS | 43 s | 43 s | **4 s** | 2 s |
+| Windows | 48 s | 34 s | **23 s** | 8 s |
+| The owner's Windows laptop | 4 m 20 s, 13.5 min (`0044`, `0047`) | — | **21 s** | 13 s |
+
+**What this changes.**
+- §1.3 called the install heavy, and it is: 140 distributions, almost all of
+  them through the OpenHands SDK. litellm, boto3/botocore, tokenizers,
+  lmnr→grpcio and pillow are the bulk. agentctl's own dependency is `pyyaml`.
+  Nothing on agentctl's side can slim it.
+- **But installs are slow on that laptop, not in general.** On clean
+  machines pip takes under a minute. The 4–13.5 minutes were the machine:
+  network, antivirus or disk, not investigated further.
+- **uv removes the cost everywhere**, that laptop included (21 s cold).
+
+**Decision.**
+- `uv` is the recommended installer, with pip as a fallback that only costs
+  time.
+- The README and quickstart now say `pip install uv && uv pip install -e …`
+  for the clone path.
+- Stage 1's published path becomes `uv tool install <name>[openhands]`.
+
+**First run of the measurement.** `uv` on Windows failed: the script passed
+`.../Scripts/python` without `.exe`, and uv does not add it. The script's bug
+was fixed (`ebd6be4`), and the re-run passed 6/6.
+
+**Stage 0 is done, except D11.** Stage 1 needs D3/D4 (the name) and D6
+(PyPI trusted publishing).
