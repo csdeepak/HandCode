@@ -361,17 +361,39 @@ def _failover() -> dict:
 
 
 def _effects(path: str | Path | None) -> dict:
-    p = Path(path) if path else Path("ledger.db")
-    if not p.exists():
-        return {"available": False, "why": f"no effect ledger at {p}"}
+    """Effects by state and class: one ledger, or every indexed one.
+
+    With no path and no `./ledger.db`, every ledger a recorded run wrote
+    (`~/.agentctl/runs.db`). The panel used to read only `./ledger.db`, and
+    said "no effect ledger" from inside a workspace that had one
+    (`docs/0044` F4, left open in `docs/0049` §5).
+    """
+    if path:
+        paths, where = [Path(path)], str(path)
+    elif Path("ledger.db").exists():
+        paths, where = [Path("ledger.db")], "ledger.db"
+    else:
+        try:
+            from agentctl.runtime import runs
+            paths = runs.ledgers()
+        except Exception:                               # noqa: BLE001
+            paths = []
+        where = f"{len(paths)} ledger(s), from the run index"
+    paths = [p for p in paths if p.exists()]
+    if not paths:
+        return {"available": False,
+                "why": (f"no effect ledger at {path}" if path else
+                        "no runs recorded yet -- agentctl run \"<task>\"")}
+    rows, convs = [], 0
     try:
         from agentctl.kernel.ledger.store import LedgerStore
-        with LedgerStore(p, holder="dash") as s:
-            rows = s._db.execute(
-                "SELECT state, effect_class, COUNT(*) n FROM effect_record "
-                "GROUP BY state, effect_class").fetchall()
-            convs = s._db.execute("SELECT COUNT(DISTINCT conversation_id) n "
-                                  "FROM effect_record").fetchone()["n"]
+        for p in paths:
+            with LedgerStore(p, holder="dash") as s:
+                rows += s._db.execute(
+                    "SELECT state, effect_class, COUNT(*) n FROM effect_record "
+                    "GROUP BY state, effect_class").fetchall()
+                convs += s._db.execute("SELECT COUNT(DISTINCT conversation_id) n "
+                                       "FROM effect_record").fetchone()["n"]
     except Exception as e:                              # noqa: BLE001
         return {"available": False, "why": f"{type(e).__name__}: {e}"}
 
@@ -380,7 +402,7 @@ def _effects(path: str | Path | None) -> dict:
     for r in rows:
         by_state[r["state"]] = by_state.get(r["state"], 0) + r["n"]
         by_class[r["effect_class"]] = by_class.get(r["effect_class"], 0) + r["n"]
-    return {"available": True, "path": str(p), "conversations": convs,
+    return {"available": True, "path": where, "conversations": convs,
             "total": sum(by_state.values()),
             "by_state": by_state, "by_class": by_class,
             "blocked": by_state.get("BLOCKED", 0),

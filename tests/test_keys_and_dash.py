@@ -225,6 +225,28 @@ def test_accounts_counts_credentials_not_models(monkeypatch):
     assert len(BY_KEY["OPENROUTER_API_KEY"].models) > 1
 
 
+def test_the_effects_panel_reads_every_indexed_run(tmp_path, monkeypatch):
+    """docs/0049 §5: `dash` read only ./ledger.db, and said "no effect
+    ledger" for every run outside the current directory."""
+    from agentctl.kernel.classify import Classifier
+    from agentctl.kernel.ledger.models import ToolCall
+    from agentctl.kernel.ledger.store import LedgerStore
+    from agentctl.runtime import runs
+
+    monkeypatch.setenv("AGENTCTL_HOME", str(tmp_path / "ah"))
+    monkeypatch.chdir(tmp_path)                       # no ./ledger.db here
+    for name in ("a", "b"):
+        ledger = tmp_path / name / ".agentctl" / "ledger.db"
+        with LedgerStore(ledger, holder="t") as s:
+            c = ToolCall(f"{name}1", f"conv-{name}", "t", "execute_bash",
+                         {"command": "git commit -m x"})
+            s.write_intent(c, Classifier().classify(c), s.acquire(f"conv-{name}"))
+        runs.start(f"conv-{name}", tmp_path / name, ledger, "m", None, "t")
+    e = dash.collect()["effects"]
+    assert e["available"] and e["total"] == 2 and e["conversations"] == 2
+    assert "2 ledger(s)" in e["path"]
+
+
 def test_missing_panels_say_why_instead_of_showing_zero(tmp_path):
     """`docs/0021` §5: a $0.00 that means "no data" reads as good news."""
     d = dash.collect(ledger=tmp_path / "none.db", cost_ledger=tmp_path / "none.db")

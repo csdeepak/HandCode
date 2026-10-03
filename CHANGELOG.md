@@ -26,7 +26,7 @@ The release that makes it usable by someone other than its author
   needs you. `--accept "<command>"` runs your tests after the agent and
   reports PASS or FAIL. The exit code follows the report (`docs/0048`).
 - `agentctl status`, `agentctl resume`, and a run index, so follow-up
-  commands need no path or id (`docs/0049`).
+  commands need no path or id (`docs/0049`). `agentctl dash` reads it too.
 - Ctrl-C pauses after the current step; `agentctl resume` continues.
 - Approvals without a terminal: a dangerous action is queued, and answered
   with `agentctl approve` / `agentctl deny` (`docs/0049`).

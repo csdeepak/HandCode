@@ -1000,7 +1000,11 @@ def cmd_dash(args) -> int:
     """Providers, failover, effects, spend and policy on one screen."""
     from agentctl.control.dash import collect, render, to_html
 
-    data = collect(ledger=args.ledger, cost_ledger=args.cost_ledger,
+    # The default `ledger.db` that is not there means "every indexed run",
+    # not "this one missing file" (docs/0049 §5).
+    explicit = args.ledger != DEFAULT_LEDGER or args.ledger.exists()
+    data = collect(ledger=args.ledger if explicit else None,
+                   cost_ledger=args.cost_ledger,
                    refresh_quota=args.refresh_quota)
     if args.html:
         out = Path(args.html)
