@@ -37,10 +37,13 @@ jobs:
       - name: Install, cold then warm
         run: |
           bindir() { if [ "$RUNNER_OS" = "Windows" ]; then echo "$1/Scripts"; else echo "$1/bin"; fi; }
+          EXE=""; if [ "$RUNNER_OS" = "Windows" ]; then EXE=".exe"; fi
           install() {
             if [ "${{ matrix.installer }}" = "uv" ]; then
               uv venv "$1" --python 3.12 -q
-              uv pip install -q --python "$(bindir "$1")/python" ".[openhands]"
+              # The interpreter's real file name: uv does not append `.exe`
+              # on Windows, and found no environment at `.../Scripts/python`.
+              uv pip install -q --python "$(bindir "$1")/python$EXE" ".[openhands]"
             else
               python -m venv "$1"
               "$(bindir "$1")/python" -m pip install -q --disable-pip-version-check ".[openhands]"
