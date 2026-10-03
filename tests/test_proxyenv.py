@@ -55,6 +55,14 @@ def _pid(home, pid, port):
     proxyenv._pidfile().write_text(json.dumps({"pid": pid, "port": port}))
 
 
+def test_the_proxy_env_can_live_outside_the_state_directory(home, monkeypatch):
+    """The image builds it in; a volume over ~/.agentctl must not hide it."""
+    assert proxyenv.env_dir() == home / "proxy-env"
+    monkeypatch.setenv("AGENTCTL_PROXY_ENV", "/opt/handcode/proxy-env")
+    assert str(proxyenv.env_dir()).replace("\\", "/") == "/opt/handcode/proxy-env"
+    assert proxyenv.run_dir() == home / "proxy"          # state stays in the volume
+
+
 # ══ status ═════════════════════════════════════════════════════════════
 def test_nothing_running_is_stopped(home, monkeypatch):
     monkeypatch.setattr(proxyenv, "DEFAULT_PORT", _free_port())

@@ -1,0 +1,99 @@
+name: image
+
+# docs/0051 Stage 2. Builds the container image from the release wheel and
+# checks, against the real container, the claims the guide makes about it.
+# Publishes to ghcr.io ONLY on a release tag -- which only the owner pushes.
+
+on:
+  push:
+    branches: [main]
+    paths: [Dockerfile, .dockerignore, "agentctl/**", pyproject.toml,
+            .github/workflows/image.yml]
+    tags: ["v*"]
+  pull_request:
+    paths: [Dockerfile, .dockerignore, "agentctl/**", pyproject.toml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q uv && uv build --wheel
+      - id: v
+        run: echo "version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")" >> "$GITHUB_OUTPUT"
+
+      - name: Build the image
+        run: docker build -t handcode:test .
+
+      - name: It is the version that was built
+        run: docker run --rm handcode:test --version | grep -F "handcode ${{ steps.v.outputs.version }} "
+
+      - name: The demo passes inside the container, as an ordinary uid
+        run: docker run --rm --user "$(id -u):$(id -g)" handcode:test demo
+
+      - name: Files written into /work belong to the user, and git accepts the repo
+        run: |
+          ws="$RUNNER_TEMP/ws"; mkdir -p "$ws"; git -C "$ws" init -q
+          docker run --rm --user "$(id -u):$(id -g)" -v "$ws:/work" --entrypoint sh \
+            handcode:test -c 'git status --short && echo hi > made.txt'
+          test "$(stat -c %u "$ws/made.txt")" = "$(id -u)"
+          echo "made.txt is owned by uid $(id -u), not root"
+
+      - name: The pool's environment is built in, with the proxy importable
+        run: |
+          docker run --rm handcode:test proxy status | grep -F "/opt/handcode/proxy-env"
+          docker run --rm --entrypoint /opt/handcode/proxy-env/bin/python handcode:test \
+            -c "import litellm.proxy.proxy_server; print('litellm proxy imports')"
+
+      - name: What runs inside stays inside (the containment the guide claims)
+        run: |
+          ws="$RUNNER_TEMP/ws2"; mkdir -p "$ws"
+          before=$(sha256sum ~/.bashrc | cut -d' ' -f1)
+          docker run --rm --user "$(id -u):$(id -g)" -v "$ws:/work" --entrypoint sh \
+            handcode:test -c 'echo "touched by the container" >> ~/.bashrc;
+                              pip install -q --user six && python -c "import six"'
+          test "$(sha256sum ~/.bashrc | cut -d' ' -f1)" = "$before"
+          echo "host ~/.bashrc unchanged; the container's pip install stayed in the container"
+
+  publish:
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q uv && uv build --wheel
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tags -- `latest` only for a final release, never a candidate
+        id: tags
+        run: |
+          v="${{ needs.build-and-test.outputs.version }}"
+          t="ghcr.io/csdeepak/handcode:$v"
+          case "$v" in *rc*|*a*|*b*) ;; *) t="$t,ghcr.io/csdeepak/handcode:latest";; esac
+          echo "tags=$t" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}

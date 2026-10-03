@@ -1,0 +1,4 @@
+# The image is built from dist/*.whl. Nothing else needs to be in the context,
+# and some of what is in the repository must never be in an image.
+*
+!dist/*.whl

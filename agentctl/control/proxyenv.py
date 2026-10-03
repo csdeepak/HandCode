@@ -43,6 +43,15 @@ def home() -> Path:
 
 
 def env_dir() -> Path:
+    """`~/.agentctl/proxy-env`, or `AGENTCTL_PROXY_ENV`.
+
+    The override is for the container image (`docs/0051` Stage 2), which
+    builds the environment in at `/opt/handcode/proxy-env`. Under
+    `~/.agentctl` it would be hidden by the volume that keeps `status` and
+    `resume` working across containers.
+    """
+    if (p := os.environ.get("AGENTCTL_PROXY_ENV")):
+        return Path(p)
     return home() / "proxy-env"
 
 
