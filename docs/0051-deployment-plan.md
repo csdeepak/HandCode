@@ -1,0 +1,251 @@
+---
+Number:        0051
+Title:         Deployment — The Plan
+Type:          DECISION
+Status:        DRAFT
+Created:       2026-10-04
+Supersedes:    —
+Superseded-by: —
+Depends-on:    0042, 0043, 0047, 0050
+---
+
+# 0051 — Deployment: The Plan
+
+The owner's third goal: deploy agentctl on the most suitable platform, so that
+people can use it with their own API keys. `0043` (user-centric) is done
+(`0050` §4). This plans what comes next. **Nothing in it is built.**
+
+---
+
+## 1. What kind of thing is being deployed
+
+The answer decides the platform, so it comes first.
+
+agentctl is a **local tool that acts**:
+- It runs a coding agent against the user's repository.
+- It executes the agent's shell commands.
+- It spends the user's API key.
+
+Three facts follow, and every option below is judged against them:
+
+1. **Where it runs is where commands run.** agentctl is not a sandbox
+   (`guide/concepts.md`). On a laptop, an allowed command can touch the whole
+   laptop. In a container, only what the container can reach.
+2. **Whoever runs it holds the key.** Key custody is the one thing a hosted
+   service cannot avoid, and the one thing every other option avoids
+   entirely.
+3. **It is heavy.** A clean install is 141 packages and 417 MB, of which
+   litellm is 132 MB, through the OpenHands SDK. Measured install times were
+   4 m 20 s and 13.5 min (`0044`, `0047`). Whatever ships must make that
+   cost paid once, or not at all.
+
+## 2. The options
+
+| Option | Who holds the key | Where commands run | Owner's running cost | Fit |
+|---|---|---|---|---|
+| **A. PyPI package** (`pipx` / `uv tool install`) | The user, locally | The user's machine | none | The baseline every other option is built from. Heavy install (§1.3) |
+| **B. Container image** (GitHub Container Registry) | The user, passed in at `docker run` | **A container**: only the mounted repo is writable | none | Install cost paid once, as a pull. The nearest thing to a sandbox the project can offer today |
+| **C. GitHub Action** (`uses: …@v1`) | The user's repository secrets | GitHub's ephemeral runner VM | none (minutes are the user's) | "Use it from GitHub, with your key, results as a PR." The hosted experience without hosting |
+| D. Hosted web service | **The operator: us** | Our infrastructure, one sandbox per user | real, and growing with use | See §4: not now |
+| E. Docs site (GitHub Pages from `guide/`) | — | — | none | Cheap discoverability. Optional |
+
+"The most suitable platform" is therefore not one thing. **A is the
+foundation, B makes it safe and fast to try, and C is the hosted experience.**
+None of them needs anyone but the user to hold a key.
+
+## 3. The stages
+
+Each stage ends the way `0041` requires: run once, live, from the published
+artifact rather than the repository.
+
+### Stage 0: release readiness (owner decisions plus hygiene, about 1 day)
+
+**Owner decisions (§6).** The name (D3/D4), a PyPI account with trusted
+publishing, and whether the multi-account pool is described publicly at all
+(D7).
+
+**Hygiene, before strangers arrive:**
+- **Untrack `hook_telemetry.json`.** It holds run telemetry (deployment ids,
+  conversation ids, token counts), not secrets, and has been noise in every
+  commit since `0042`. Add it to `.gitignore`.
+- **Add `CONTRIBUTING.md`** (how to run the tests and `verify.py`; the docs
+  stream; the "run it live once" rule), **`SECURITY.md`** (private
+  vulnerability reporting, since this tool runs commands), **`CHANGELOG.md`**,
+  and issue templates that ask for `agentctl doctor` output.
+- **Set a version policy.** 0.x while the CLI may still change; a release is
+  a tag.
+- **History scan, done 2026-10-04.** Every commit was searched for
+  OpenRouter, Gemini, Groq, Anthropic, Cerebras and OpenAI key shapes. The
+  only hits are test placeholders (`sk-or-v1-NEVERSHOWTHIS…`).
+- **macOS has never been run.** CI covers Linux and Windows. Add macOS to the
+  matrix before claiming it.
+
+**Measure the install** before deciding how to cut it:
+- `pip` versus `uv`, both cold and warm, on all three OS;
+- what `[openhands]` pulls, and whether any heavy dependency (`botocore`,
+  `grpc`, `PIL`) can be avoided.
+
+`uv` is the likely answer, but it is unmeasured here, so it is not a
+conclusion.
+
+### Stage 1: PyPI (about 1 day after Stage 0)
+
+- **A release workflow, run on a tag:**
+  1. Build the sdist and wheel.
+  2. Install **from the built wheel** into clean environments on Linux,
+     macOS and Windows, outside the repository.
+  3. Run `agentctl demo` and the unit suite against that install.
+  4. Publish to **TestPyPI**, install from there, and repeat step 3.
+  5. Only then publish to **PyPI**.
+- **Trusted publishing (OIDC).** GitHub Actions publishes without a stored
+  token. Nobody, including this assistant, handles a PyPI credential.
+- **The install command in the README and guide becomes**
+  `uv tool install <name>[openhands]`, or `pipx`, replacing the clone.
+
+**Done when** a clean machine of each OS goes from the install command to
+`agentctl demo` passing, then `agentctl init` and a real task, using the
+published package.
+
+**Risks.**
+- The `mcp`/`litellm[proxy]` conflict is avoided because the proxy lives in
+  its own environment (`0047`), but a future SDK release could reintroduce
+  another. The weekly CI run (`0044` §10) is the alarm.
+- Unpinned dependencies drift. Publish a tested constraints file with each
+  release, so "known to work" can be reproduced.
+
+### Stage 2: the container image (about 2 days)
+
+```
+docker run --rm -it -v "$PWD:/work" --env-file ~/.agentctl/keys.env \
+    -v agentctl-home:/root/.agentctl  ghcr.io/csdeepak/<name>  run "<task>"
+```
+
+- **The image:** a slim Python 3.12 base, `git`, the published package, and
+  the **proxy environment pre-built**, so `--pool` starts in seconds rather
+  than minutes. Built for `amd64` and `arm64`, and published to GitHub
+  Container Registry from the same release workflow.
+- **What it changes about safety.** Only `/work` (the user's repository) is
+  writable from the host. A `pip install` the agent runs unasked (`0047` §5)
+  lands in the container and dies with it. A write to `~/.bashrc` writes the
+  container's. **This is the first deployment shape that limits what an
+  allowed command can reach.** The guide should recommend it for any task
+  you would not run in your own shell.
+- **Details to get right:**
+  - file ownership on the mounted repository (run as the host user's uid);
+  - `git safe.directory` for `/work`;
+  - a git identity inside the container (`0044` N12, where the agent set its
+    own);
+  - a named volume for `~/.agentctl`, so `status` and `resume` survive the
+    container;
+  - Windows paths under Docker Desktop.
+- **Experiment, `0042` I-26 in miniature.** The canary tasks (write outside
+  the workspace, read `keys.env`, `pip install`), run inside the image. Each
+  must stay inside the container or be refused. This is the evidence for the
+  safety claim, and the claim is not made without it.
+
+**Done when** the demo and one real task run through a single `docker run` on
+Linux, macOS and Windows, and the canaries cannot reach the host.
+
+### Stage 3: the GitHub Action (about 3 days)
+
+```yaml
+- uses: csdeepak/<name>@v1
+  with:
+    task: ${{ github.event.issue.body }}        # or a workflow_dispatch input
+    accept: python -m pytest -q
+  env:
+    OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+```
+
+- **How it runs.** A container action built on the Stage 2 image. It runs
+  the task in the repository's checkout, runs `--accept`, and opens a pull
+  request with the end-of-run report (`0048`) as its description. It never
+  pushes to the default branch.
+- **Why this is the "hosted" answer.**
+  - The user's key stays in their repository's secrets.
+  - Commands run on GitHub's ephemeral VM, not on anyone's laptop and not on
+    our servers.
+  - The owner runs no infrastructure and pays nothing.
+  - **agentctl's own value shows up here naturally.** Jobs time out and get
+    cancelled. Persisting `.agentctl/` as a workflow artifact lets the next
+    job `agentctl resume` instead of starting over, which is the
+    crash-and-resume story in a setting where crashes are routine.
+- **The hard part is prompt injection.** An issue body is text from
+  strangers, and the agent will act on it. Before the Action accepts issue
+  text as a task, **I-26 must have run**: injected instructions in issue
+  text, README and tool output, each trying a canary.
+  - The Action's token gets the least it needs: `contents: write`,
+    `pull-requests: write`, nothing else.
+  - Workflows triggered from forks get no secrets (GitHub's own rule, which
+    the docs must state).
+  - Dangerous actions queue for approval (`0049`) and cannot be approved
+    from inside the run.
+
+**Done when** a sample repository with a labelled issue gets a pull request
+with a PASS report, and the injection canaries from issue text are refused or
+contained.
+
+### Stage 4 (optional): a documentation site
+
+`guide/` published to GitHub Pages (mkdocs, or plain Markdown). It is cheap,
+and it gives the project a URL that is not a repository page. It needs
+nothing from Stages 1–3.
+
+## 4. Not now: a hosted web service
+
+"Paste your key, point at a repository, get a pull request." It is attractive,
+and it is the wrong next step:
+
+| Why not | What it would take |
+|---|---|
+| **Key custody.** We would hold every user's provider key | Encryption at rest, a breach plan, and liability for every key |
+| **A sandbox per user.** Strangers' agents running arbitrary commands on our machines | Container or microVM isolation, egress control, resource limits, abuse handling. Vercel Sandbox or Firecracker are candidates (unevaluated) |
+| **Cost that grows with use.** Compute, storage, bandwidth | A billing model, for a project whose users mostly come for free tiers |
+| **Terms of service.** Pooling free accounts (`0042` §4.C) on a service *we* operate is a different question from a user doing it for themselves | Legal review per provider |
+| **No evidence of demand.** 0 stars, 0 forks today | — |
+
+**Revisit when** Stage 3 shows people want agentctl without running it
+themselves, and the GitHub Action does not serve them. Most of what a hosted
+service would offer, the Action already offers with none of the custody.
+
+**Serverless platforms in general** (Vercel functions, Lambda) do not fit the
+core loop at all. A run is minutes long, needs `git` and a shell, and holds a
+local ledger. A docs site is the only part that belongs there.
+
+## 5. What deployment changes about the open risks
+
+Once strangers run it, three items stop being backlog:
+
+| Item | Why it moves up |
+|---|---|
+| **I-26, prompt-injection canaries** | A gate for Stage 3. Issue text is untrusted input |
+| **The `pip install` hazard** (`0047` §5) | Contained by Stage 2. On a bare install, package installs could become "asks first" (a classifier change) |
+| **The multi-account pool** (`0042` §4.C) | A public tool must not encourage something a provider's terms forbid. The docs already hedge it (`0044` N9); D7 decides whether it is documented at all |
+
+## 6. Decisions for the owner
+
+| # | Decision | Recommendation |
+|---|---|---|
+| D3/D4 | Package and project name | One name for the repository, the package and the image. `agentctl` is taken on PyPI. `handcode`, `effectledger` and `agentctl-ledger` were free on 2026-10-02. The command can stay `agentctl` |
+| D6 | PyPI account, and trusted publishing configured on PyPI for this repository | **You do this.** It is an account action, and the point of trusted publishing is that no token is handed to anyone |
+| D7 | Document the multi-account pool publicly? | Document **multi-provider** pooling. Leave same-provider multi-account out of the public docs until each provider's terms are checked |
+| D8 | Publish the image and the Action under `csdeepak`? | Yes. The image and Action follow the package name |
+| D9 | Supported platforms for 1.0 | Linux and macOS first-class; Windows supported, since it is where this was built and tested most |
+| D10 | Stage 3 trigger | `workflow_dispatch` (typed by a maintainer) before issue-triggered runs. Issue text only after I-26 |
+
+## 7. Order and size
+
+| Stage | Size | Needs |
+|---|---|---|
+| 0 Readiness | about 1 day, plus owner decisions | D3/D4, D6, D7 |
+| 1 PyPI | about 1 day | Stage 0 |
+| 2 Image | about 2 days | Stage 1; Docker running locally |
+| 3 Action | about 3 days | Stage 2; I-26 before issue triggers |
+| 4 Docs site | about ½ day | nothing |
+
+**Measures of success:**
+- time from "never heard of it" to a finished task, per channel;
+- install time, cold and warm;
+- the canary results in the container;
+- whether anyone other than the owner completes the quickstart (D5,
+  still open).
