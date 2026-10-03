@@ -219,13 +219,18 @@ class Report:
     ledger: str
     conversation_id: str
     workspace: str
+    #: (tool_call_id, what it would do) for actions queued for approval
+    #: rather than refused -- a different question from an ambiguous effect.
+    awaiting: list[tuple[str, str]] = field(default_factory=list)
+    #: Stopped by Ctrl-C after a step. Not done, and resumable.
+    paused: bool = False
 
     @property
     def ok(self) -> bool:
-        """Done, as far as anything here can tell: nothing failed a check and
-        nothing waits on a human. "not checked" is not a failure -- and is
-        never printed as a success either."""
-        return self.outcome != "FAIL" and not self.blocked
+        """Done, as far as anything here can tell: nothing failed a check,
+        nothing waits on a human, and the user did not pause it. "not
+        checked" is not a failure -- and is never printed as a success."""
+        return self.outcome != "FAIL" and not self.blocked and not self.paused
 
     def lines(self) -> list[str]:
         out = ["", "  ── result " + "─" * 58]
@@ -291,14 +296,30 @@ class Report:
             out.append(f"  actions     {plural(len(self.decisions), 'action')}: "
                        f"{parts}" + (" · " + ", ".join(extra) if extra else ""))
 
-        if self.blocked:
-            out.append(f"  needs you   {plural(len(self.blocked), 'action')} "
-                       f"paused for your decision:")
-            out.append(f"                agentctl --ledger {self.ledger} blocked")
-        else:
+        waiting = {tid for tid, _ in self.awaiting}
+        other = [b for b in self.blocked if b not in waiting]
+        if not self.blocked:
             out.append("  needs you   nothing")
-        out.append(f"  resume      agentctl run \"\" --workspace {self.workspace} "
-                   f"--resume {self.conversation_id}")
+        if self.awaiting:
+            out.append(f"  needs you   {plural(len(self.awaiting), 'action')} "
+                       f"waiting for your approval:")
+            for tid, what in self.awaiting:
+                short = tid[:12]
+                out.append(f"                {what[:70]}")
+                out.append(f"                  agentctl approve {short}   |   "
+                           f"agentctl deny {short}")
+        if other:
+            label = "             " if self.awaiting else "  needs you  "
+            out.append(f"{label} {plural(len(other), 'action')} whose outcome "
+                       f"is unknown: agentctl blocked")
+        short_cid = self.conversation_id[:8]
+        if self.paused:
+            out.append(f"  paused      by you. Continue:  agentctl resume {short_cid}")
+        elif self.awaiting:
+            out.append(f"  then        agentctl resume {short_cid}   (the agent is "
+                       f"told what you decided)")
+        else:
+            out.append(f"  resume      agentctl resume {short_cid}")
         return out
 
 

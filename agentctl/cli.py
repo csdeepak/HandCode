@@ -102,7 +102,38 @@ def cmd_init(args) -> int:
                     check_paid=args.check_paid)
 
 
+def _status_runs() -> int:
+    """What happened while you were away (`docs/0013` §3, Panel 3)."""
+    from agentctl.runtime import runs
+    rows = runs.recent(15)
+    if not rows:
+        print("no runs recorded yet. Start one:  agentctl run \"<task>\"")
+        return 0
+    print(f"  {'RUN':<9} {'STARTED (UTC)':<20} {'STATE':<13} {'OUTCOME':<12} "
+          f"{'REQ':>4}  WORKSPACE")
+    for r in rows:
+        print(f"  {r.conversation_id[:8]:<9} {_ts(r.started):<20} {r.state:<13} "
+              f"{(r.outcome or '-'):<12} {(r.requests if r.requests is not None else '-'):>4}"
+              f"  {r.workspace}")
+    waiting = 0
+    for path in runs.ledgers():
+        with LedgerStore(path, holder="cli") as s:
+            waiting += len(s.blocked())
+    print()
+    if waiting:
+        print(f"  {waiting} action(s) need you -> agentctl blocked")
+    died = [r for r in rows if r.state in ("died", "interrupted", "rate_limited")]
+    if died:
+        print(f"  continue the latest unfinished one:  agentctl resume "
+              f"{died[0].conversation_id[:8]}")
+    if not waiting and not died:
+        print("  nothing waiting")
+    return 0
+
+
 def cmd_status(args) -> int:
+    if args.ledger == DEFAULT_LEDGER and not args.ledger.exists():
+        return _status_runs()
     with _open(args.ledger) as s:
         rows = s._db.execute(
             "SELECT state, effect_class, COUNT(*) n FROM effect_record "
@@ -135,10 +166,23 @@ def cmd_status(args) -> int:
 
 
 def cmd_blocked(args) -> int:
-    with _open(args.ledger) as s:
-        recs = s.blocked(args.conversation)
+    from agentctl.runtime.runner import AWAITING
+    recs = []
+    for path in _ledgers(args):
+        with LedgerStore(path, holder="cli") as s:
+            recs += s.blocked(args.conversation)
     if not recs:
         print("nothing blocked")
+        return 0
+    approvals = [r for r in recs if (r.error or "").startswith(AWAITING)]
+    for r in approvals:
+        print(f"  {short_id(r.tool_call_id)}  waiting for your approval")
+        print(f"    {(r.error or '').split('): ', 1)[-1][:120]}")
+        print(f"    agentctl approve {r.tool_call_id[:SHORT_ID]}   |   "
+              f"agentctl deny {r.tool_call_id[:SHORT_ID]}")
+        print()
+    recs = [r for r in recs if r not in approvals]
+    if not recs:
         return 0
 
     print(f"{len(recs)} effect(s) awaiting a decision:\n")
@@ -159,8 +203,10 @@ def cmd_blocked(args) -> int:
 
 
 def cmd_show(args) -> int:
-    with _open(args.ledger) as s:
-        full = _resolve_id(s, args.tool_call_id)
+    if (found := _find_effect(args, args.tool_call_id)) is None:
+        return 2
+    path, full = found
+    with LedgerStore(path, holder="cli") as s:
         r = s.lookup(full) if full else None
     if r is None:
         print(f"no such effect: {args.tool_call_id}", file=sys.stderr)
@@ -189,8 +235,10 @@ def cmd_show(args) -> int:
 
 
 def cmd_resolve(args) -> int:
-    with _open(args.ledger) as s:
-        full = _resolve_id(s, args.tool_call_id)
+    if (found := _find_effect(args, args.tool_call_id)) is None:
+        return 2
+    path, full = found
+    with LedgerStore(path, holder="cli") as s:
         r = s.lookup(full) if full else None
         if r is None:
             print(f"no such effect: {args.tool_call_id}", file=sys.stderr)
@@ -324,15 +372,38 @@ def cmd_run(args) -> int:
         return 2
     elif model:
         print(f"  model from    {m.source}")
-    result = run(
-        task=args.task, workspace=args.workspace, model=model or "replay",
-        base_url=base_url, ledger=args.ledger if args.ledger != DEFAULT_LEDGER
-        else None,
-        confirm_destructive=not args.allow_destructive,
-        max_iterations=args.max_iterations, max_budget_usd=args.max_budget,
-        resume=args.resume, record=args.record, replay=args.replay,
-        policy=args.policy, takeover=args.takeover, accept=args.accept,
-    )
+    from agentctl.runtime.runner import RateLimited
+
+    # `--wait`: a rate limit is waited out and the SAME conversation resumed,
+    # bounded in time and attempts (`docs/0042` I-05, wait-only half). Without
+    # it the run ends with the one command that continues it.
+    limit = _duration_s(getattr(args, "wait", None))
+    resume, waited, attempt = args.resume, 0.0, 0
+    while True:
+        try:
+            result = run(
+                task=args.task if not resume else "",
+                workspace=args.workspace, model=model or "replay",
+                base_url=base_url,
+                ledger=args.ledger if args.ledger != DEFAULT_LEDGER else None,
+                confirm_destructive=not args.allow_destructive,
+                max_iterations=args.max_iterations, max_budget_usd=args.max_budget,
+                resume=resume, record=args.record, replay=args.replay,
+                policy=args.policy, takeover=args.takeover, accept=args.accept,
+            )
+            break
+        except RateLimited as rl:
+            print(f"\n  {rl.text}")
+            pause = _rate_limit_pause(rl, limit, waited, attempt)
+            short = rl.conversation_id[:8]
+            if pause is None:
+                print(f"\n  continue later:  agentctl resume {short}"
+                      + ("" if limit else "   (or add --wait 30m to wait it out)"))
+                return 1
+            print(f"\n  waiting {_fmt_s(pause)} for the limit to reset, then "
+                  f"resuming {short} (--wait {args.wait}) ...")
+            time.sleep(pause)
+            waited, attempt, resume = waited + pause, attempt + 1, rl.conversation_id
 
     if rec := result.get("recorded"):
         print(f"  recorded      {rec['turns']} turns -> {rec['cassette']}"
@@ -361,6 +432,140 @@ def cmd_run(args) -> int:
     for line in report.lines():
         print(line)
     return 0 if report.ok else 1
+
+
+def _duration_s(text: str | None) -> float:
+    """`90s`, `30m`, `2h`, or bare seconds. 0 when not given."""
+    if not text:
+        return 0.0
+    text = str(text).strip().lower()
+    mult = {"s": 1, "m": 60, "h": 3600}.get(text[-1:], None)
+    try:
+        return float(text[:-1]) * mult if mult else float(text)
+    except ValueError:
+        raise SystemExit(f"--wait wants a duration like 90s, 30m or 2h, not {text!r}")
+
+
+def _fmt_s(s: float) -> str:
+    s = int(round(s))
+    return f"{s // 60}m {s % 60:02d}s" if s >= 60 else f"{s}s"
+
+
+def _rate_limit_pause(rl, limit: float, waited: float, attempt: int) -> float | None:
+    """How long to wait before resuming, or None to stop and say so.
+
+    The provider's reset time when it gave one; otherwise a doubling backoff
+    from a minute (per-minute limits give no header). Never past `--wait`,
+    and never more than five attempts: an auto-resume loop that cannot end
+    is a way to spend a day of quota on one failure.
+    """
+    if not limit or attempt >= 5:
+        return None
+    if rl.reset_at:
+        pause = max(5.0, rl.reset_at - time.time() + 5)
+    else:
+        pause = 60.0 * (2 ** attempt)
+    if waited + pause > limit:
+        print(f"  the limit resets in {_fmt_s(pause)}, which is past --wait "
+              f"({_fmt_s(limit - waited)} left)")
+        return None
+    return pause
+
+
+def _ledgers(args) -> list[Path]:
+    """The ledgers a follow-up command should read.
+
+    An explicit `--ledger`, or `./ledger.db` when there is one; otherwise
+    every ledger a recorded run wrote (`~/.agentctl/runs.db`). Phase 0 found
+    `status` saying "no ledger at ledger.db" from inside a workspace that had
+    one (`docs/0044` F4).
+    """
+    if args.ledger != DEFAULT_LEDGER or args.ledger.exists():
+        return [args.ledger]
+    from agentctl.runtime import runs
+    found = runs.ledgers()
+    if not found:
+        print("no runs recorded yet, and no ledger here. Start one:  "
+              "agentctl run \"<task>\"", file=sys.stderr)
+        raise SystemExit(2)
+    return found
+
+
+def _find_effect(args, given: str) -> tuple[Path, str] | None:
+    """(ledger, full tool_call_id) for an id prefix, across every ledger.
+
+    Refuses rather than guesses when the prefix is in more than one ledger:
+    this is the path that records an effect as having happened."""
+    hits: list[tuple[Path, str]] = []
+    for path in _ledgers(args):
+        with LedgerStore(path, holder="cli") as s:
+            if (full := _resolve_id(s, given)):
+                hits.append((path, full))
+    if not hits:
+        print(f"no such effect: {given}", file=sys.stderr)
+        return None
+    if len(hits) > 1:
+        print(f"{given!r} matches effects in {len(hits)} ledgers:", file=sys.stderr)
+        for path, full in hits:
+            print(f"  {short_id(full)}   in {path}", file=sys.stderr)
+        print("  give more characters, or --ledger <path>.", file=sys.stderr)
+        raise SystemExit(2)
+    return hits[0]
+
+
+def cmd_resume(args) -> int:
+    """Continue a run: the last one here, or one named by an id prefix."""
+    import argparse as _ap
+
+    from agentctl.runtime import runs
+    r = runs.find(args.id, workspace=Path.cwd())
+    print(f"resuming {r.conversation_id[:8]}  ({r.state}, started "
+          f"{_ts(r.started)})")
+    print(f"  in        {r.workspace}")
+    if r.task:
+        print(f"  task      {r.task[:90]}")
+    pool = bool(r.model and r.model.startswith("openai/pool"))
+    ns = _ap.Namespace(
+        task="", workspace=Path(r.workspace), model=args.model or r.model,
+        base_url=None if pool else r.base_url, pool=pool and not args.model,
+        source=None, resume=r.conversation_id, takeover=args.takeover,
+        accept=args.accept, wait=args.wait, ledger=args.ledger,
+        cost_ledger=getattr(args, "cost_ledger", DEFAULT_COST_LEDGER),
+        allow_destructive=False, max_iterations=args.max_iterations,
+        max_budget=None, record=None, replay=None, policy=None)
+    return cmd_run(ns)
+
+
+def _decide(args, decision: str) -> int:
+    from agentctl.runtime.runner import AWAITING
+    if (found := _find_effect(args, args.tool_call_id)) is None:
+        return 2
+    path, full = found
+    with LedgerStore(path, holder="cli") as s:
+        rec = s.lookup(full)
+        if rec is None or rec.state is not EffectState.BLOCKED or \
+                not (rec.error or "").startswith(AWAITING):
+            what = rec.state.value if rec else "missing"
+            print(f"{short_id(full)} is not waiting for approval ({what}). "
+                  f"An effect whose OUTCOME is unknown is answered with "
+                  f"`agentctl resolve`.", file=sys.stderr)
+            return 2
+        summary = (rec.error or "").split("): ", 1)[-1]
+        s._fences[rec.conversation_id] = rec.fence_token   # the CLI holds no lease
+        s.decide(rec, decision, summary)
+    verb = "approved" if decision == "approve" else "denied"
+    print(f"{short_id(full)} {verb}: {summary}")
+    print(f"  continue the run, and the agent is told:  agentctl resume "
+          f"{rec.conversation_id[:8]}")
+    return 0
+
+
+def cmd_approve(args) -> int:
+    return _decide(args, "approve")
+
+
+def cmd_deny(args) -> int:
+    return _decide(args, "deny")
 
 
 def cmd_doctor(args) -> int:
@@ -979,7 +1184,25 @@ def build_parser() -> argparse.ArgumentParser:
                     help="allow the check to call a PAID provider (a few tokens)")
     it.set_defaults(fn=cmd_init)
 
-    sub.add_parser("status", help="summary of the ledger").set_defaults(fn=cmd_status)
+    sub.add_parser("status", help="recent runs, and what needs you").set_defaults(fn=cmd_status)
+
+    rs = sub.add_parser("resume", help="continue the last run here, or one by id")
+    rs.add_argument("id", nargs="?", help="a conversation id or its first "
+                                         "characters (default: the latest run "
+                                         "in this directory, else anywhere)")
+    rs.add_argument("--takeover", action="store_true",
+                    help="take it from a run that may still be alive")
+    rs.add_argument("--accept", metavar="CMD", help="check the result, as for run")
+    rs.add_argument("--wait", metavar="DURATION", help="as for run")
+    rs.add_argument("--model", help="continue on a different model")
+    rs.add_argument("--max-iterations", type=int, default=30)
+    rs.set_defaults(fn=cmd_resume)
+
+    for name, fn, what in (("approve", cmd_approve, "let a queued action run"),
+                           ("deny", cmd_deny, "refuse a queued action")):
+        ap_ = sub.add_parser(name, help=f"{what} (the agent is told on resume)")
+        ap_.add_argument("tool_call_id", help="its id, or the first characters")
+        ap_.set_defaults(fn=fn)
 
     b = sub.add_parser("blocked", help="effects awaiting a human decision")
     b.add_argument("--conversation", help="limit to one conversation")
@@ -1020,6 +1243,10 @@ def build_parser() -> argparse.ArgumentParser:
                     help="a command agentctl runs itself when the agent is "
                          "done, e.g. \"python -m pytest -q\". Exit 0 = PASS. "
                          "Without it the outcome is reported as not checked")
+    rn.add_argument("--wait", metavar="DURATION",
+                    help="if a provider rate-limits the run, wait up to this "
+                         "long (90s, 30m, 2h) for the limit to reset and "
+                         "resume automatically")
     rn.add_argument("--max-iterations", type=int, default=30)
     rn.add_argument("--max-budget", type=float, help="hard USD ceiling for the run")
     rn.add_argument("--resume", help="conversation id to continue")

@@ -43,3 +43,20 @@ CREATE TABLE IF NOT EXISTS lease (
     fence_token     INTEGER NOT NULL,
     expires_at      REAL    NOT NULL
 );
+
+-- Decisions a human made on actions that asked first (docs/0042 I-06). With
+-- no terminal to ask at, a dangerous action is queued as BLOCKED awaiting
+-- approval; `agentctl approve` / `deny` records the answer here, keyed by
+-- what the action IS (its intent hash), so the identical call the agent makes
+-- on resume is recognised. An approval is used once.
+CREATE TABLE IF NOT EXISTS approval (
+    conversation_id TEXT    NOT NULL,
+    intent_hash     TEXT    NOT NULL,
+    tool_call_id    TEXT,
+    summary         TEXT,
+    decision        TEXT    NOT NULL CHECK (decision IN ('approve', 'deny')),
+    decided_at      REAL    NOT NULL,
+    told_at         REAL,
+    used_at         REAL,
+    PRIMARY KEY (conversation_id, intent_hash)
+);

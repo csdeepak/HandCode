@@ -159,9 +159,28 @@ def test_a_failed_check_shows_why_and_fails_the_run():
 
 
 def test_a_paused_action_is_what_needs_you():
+    """An effect whose outcome is unknown. `agentctl blocked` finds it through
+    the run index -- no `--ledger` (docs/0049)."""
     r = _report(blocked=["call_abc"])
     text = "\n".join(r.lines())
-    assert "needs you   1 action paused" in text and "agentctl --ledger L blocked" in text
+    assert "1 action whose outcome is unknown: agentctl blocked" in text
+    assert "--ledger" not in text
+    assert not r.ok
+
+
+def test_an_action_waiting_for_approval_says_how_to_answer():
+    r = _report(blocked=["call_abcdef123456789"],
+                awaiting=[("call_abcdef123456789", "bash: rm -rf build")])
+    text = "\n".join(r.lines())
+    assert "waiting for your approval" in text and "rm -rf build" in text
+    assert "agentctl approve call_abcdef1" in text and "agentctl deny call_abcdef1" in text
+    assert "outcome is unknown" not in text
+    assert "agentctl resume C" in text and not r.ok
+
+
+def test_a_paused_run_is_not_done_and_says_how_to_continue():
+    r = _report(paused=True)
+    assert "paused      by you. Continue:  agentctl resume C" in "\n".join(r.lines())
     assert not r.ok
 
 

@@ -358,15 +358,41 @@ after the work is an audit:
 refusing to start: budget exceeded: $1.5000 of $1.00 (daily)
 ```
 
-### When something blocks
+### Stopping, coming back, and deciding
 
-The gate fails closed when it cannot tell whether an effect happened. That
-needs a human, so it needs an interface:
+Every run is recorded in `~/.agentctl/runs.db`, so none of these needs a path
+or an id copied out of the scrollback (`docs/0049`):
 
 ```bash
-agentctl status                       # what is in the ledger
-agentctl blocked                      # effects awaiting a decision
-agentctl show <tool_call_id>          # everything known about one
+agentctl status                       # recent runs: done, died, paused, waiting on you
+agentctl resume                       # continue the last run here (or: resume <id prefix>)
+agentctl blocked                      # everything waiting on you, in every workspace
+```
+
+- **Ctrl-C** pauses after the current step, and the report says how to
+  continue. A second Ctrl-C stops at once. Either way nothing is lost: the
+  ledger reconciles whatever was in flight on resume.
+- **A run that died** (a killed terminal, a closed laptop) shows as `died`,
+  and `agentctl resume` continues it.
+- **`--wait 30m`** on `run` or `resume` waits out a rate limit and resumes
+  the same conversation, up to that long and at most five times. Without it,
+  the run ends with the command that continues it.
+
+**Approvals.** A dangerous action (`rm -rf`, or a write outside the
+workspace) asks first. With nobody at a terminal, it is **queued** rather
+than refused: the agent is told it is waiting and not to repeat it.
+
+```bash
+agentctl approve <id>                 # let it run: the agent is told on resume
+agentctl deny <id>                    # refuse it: likewise
+agentctl resume                       # the approved action runs without asking again
+```
+
+**Unknown outcomes.** The gate fails closed when it cannot tell whether an
+effect happened. That is a different question, with a different command:
+
+```bash
+agentctl show <id>                    # everything known about one
 agentctl resolve <id> --landed        # it did happen; do not re-run it
 agentctl resolve <id> --retry         # it did not; allow a retry
 ```

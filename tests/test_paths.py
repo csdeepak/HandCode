@@ -141,22 +141,34 @@ def test_a_sibling_directory_with_a_shared_prefix_does_not_count_as_inside(tmp_p
 
 # ── the mechanism the operator actually meets ──────────────────────────
 class _FakeGate:
-    def __init__(self, decision):
+    def __init__(self, decision, store):
         self._d = decision
+        self.store, self.fence = store, 0
         self.guard = lambda call: self._d
 
 
 class _FakeGuard:
-    def __init__(self, decision):
-        self.gate = _FakeGate(decision)
+    def __init__(self, decision, store):
+        self.gate = _FakeGate(decision, store)
+
+
+def _store(ws):
+    from agentctl.kernel.ledger.store import LedgerStore
+    return LedgerStore(ws / ".l.db")
 
 
 def _wire(decision, ws, answer, monkeypatch):
-    """Install the confirmation wrapper and answer its prompt with `answer`."""
+    """Install the confirmation wrapper and answer its prompt with `answer`.
+
+    `interactive=True`: under pytest stdin is not a terminal, and without a
+    terminal the wrapper queues for approval rather than asking (docs/0049).
+    These tests are about the question, so they say there is someone to ask.
+    """
+    from agentctl.kernel.ledger.store import LedgerStore
     from agentctl.runtime.runner import _install_confirmation
     monkeypatch.setattr("builtins.input", lambda *_: answer)
-    guard = _FakeGuard(decision)
-    _install_confirmation(guard, verbose=False, workspace=ws)
+    guard = _FakeGuard(decision, LedgerStore(ws / ".l.db"))
+    _install_confirmation(guard, verbose=False, workspace=ws, interactive=True)
     return guard.gate.guard
 
 
@@ -193,7 +205,7 @@ def test_ordinary_work_is_never_interrupted(ws, monkeypatch):
     monkeypatch.setattr("builtins.input", _explode)
 
     from agentctl.runtime.runner import _install_confirmation
-    guard = _FakeGuard(allow)
+    guard = _FakeGuard(allow, _store(ws))
     _install_confirmation(guard, verbose=False, workspace=ws)
     assert guard.gate.guard(call(command="echo x > notes.md")).verdict is Verdict.EXECUTE
 
@@ -208,7 +220,7 @@ def test_a_blocked_decision_is_not_second_guessed(ws, monkeypatch):
     monkeypatch.setattr("builtins.input", _explode)
 
     from agentctl.runtime.runner import _install_confirmation
-    guard = _FakeGuard(blocked)
+    guard = _FakeGuard(blocked, _store(ws))
     _install_confirmation(guard, verbose=False, workspace=ws)
     assert guard.gate.guard(call(command="rm -rf /x")).verdict is Verdict.BLOCK
 

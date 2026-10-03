@@ -330,11 +330,27 @@ def run(
         print(f"  destructive   {'CONFIRM' if confirm_destructive else 'ALLOWED'}")
         print()
 
+    from agentctl.runtime import runs
+    run_id = runs.start(str(cid), ws, ledger_path, model, base_url,
+                        task or None)
+
     used_before = rp.Usage.of(conv)
+    stop = _PauseOnInterrupt(conv, verbose)
     try:
         if not resume:
             conv.send_message(task)
-        conv.run()
+        elif (told := _tell_decisions(guard.store, str(cid))):
+            # What the user decided while the run was paused (`docs/0049`).
+            conv.send_message(told)
+        with stop:
+            conv.run()
+    except KeyboardInterrupt:
+        # The second Ctrl-C: stop now, not after the step. The ledger is
+        # fenced and fsynced, so whatever was in flight is reconciled on resume.
+        guard.close()
+        runs.end(run_id, "interrupted", detail="stopped with a second Ctrl-C")
+        raise SystemExit(f"\n  stopped. Nothing is lost: agentctl resume "
+                         f"{str(cid)[:8]}") from None
     except Exception as e:                              # noqa: BLE001
         # Give the lease back first: this run is over either way, and a held
         # lease would make the very next `--resume` wait or ask.
@@ -344,6 +360,10 @@ def run(
         # github.com/OpenHands" -- which sends you to the wrong place. Say what
         # actually happened (`docs/0031`).
         detail = _explain_provider_error(e)
+        if detail and _is_rate_limit(e):
+            runs.end(run_id, "rate_limited", detail=detail)
+            raise RateLimited(detail, str(cid), _reset_at(e)) from None
+        runs.end(run_id, "error", detail=detail or f"{type(e).__name__}: {e}")
         if detail:
             raise SystemExit(detail) from None
         raise
@@ -372,7 +392,15 @@ def run(
         usage=rp.Usage.of(conv) - used_before, model=model,
         seconds=time.time() - start.at, decisions=decisions,
         blocked=[b.tool_call_id for b in blocked], ledger=str(ledger_path),
-        conversation_id=str(cid), workspace=str(ws))
+        conversation_id=str(cid), workspace=str(ws),
+        awaiting=[(b.tool_call_id, (b.error or "").split("): ", 1)[-1])
+                  for b in blocked if (b.error or "").startswith(AWAITING)],
+        paused=stop.paused)
+    runs.end(run_id,
+             "interrupted" if stop.paused else
+             ("done" if report.ok else
+              ("failed" if report.outcome == "FAIL" else "needs_you")),
+             outcome=report.outcome, requests=report.usage.requests)
 
     out = {"conversation_id": str(cid), "workspace": str(ws),
            "ledger": str(ledger_path), "decisions": decisions,
@@ -390,7 +418,20 @@ def run(
     return out
 
 
-def _install_confirmation(guard, verbose: bool, workspace: Path | None = None) -> None:
+#: Marks a BLOCKED record as waiting on a human's approval, rather than on a
+#: human's judgement of whether an ambiguous effect landed. Different questions,
+#: different commands: `approve`/`deny` versus `resolve --landed/--retry`.
+AWAITING = "AWAITING APPROVAL"
+
+
+def _command_summary(call) -> str:
+    args = call.args or {}
+    text = args.get("command") or args.get("path") or str(args)
+    return f"{call.tool_name}: {str(text)[:200]}"
+
+
+def _install_confirmation(guard, verbose: bool, workspace: Path | None = None,
+                          interactive: bool | None = None) -> None:
     """Ask before an effect that is dangerous, or that lands outside the workspace.
 
     The gate is about replay safety, so a first-time `rm -rf` passes it. This is
@@ -407,11 +448,47 @@ def _install_confirmation(guard, verbose: bool, workspace: Path | None = None) -
     Escalating the *class* for the second case would have been the easy fix and
     the wrong one: the ledger would then treat a replayable write as
     unrecoverable, and a safe resume would start failing closed.
+
+    **With nobody at a terminal** (`docs/0042` I-06, `docs/0044` F7) it used to
+    call `input()`: unattended it hung, detached it read EOF and refused,
+    silently. Now the action is QUEUED -- recorded BLOCKED awaiting approval,
+    and the agent is told so and not to repeat it -- and `agentctl approve` /
+    `deny` answers it later. A decision already recorded is honoured without
+    asking again, which is what lets an approved action run on resume.
     """
     from agentctl.kernel.ledger.models import EffectClass, GateDecision, Verdict
     from agentctl.kernel.paths import escaping_writes
 
     inner = guard.gate.guard
+    store, gate = guard.gate.store, guard.gate
+    ask = sys.stdin.isatty() if interactive is None else interactive
+
+    def _not_run(call, why: str) -> None:
+        # A refused action provably did not run. Leaving its INTENT record
+        # behind made a later identical call look like a crash to reconcile.
+        try:
+            if (rec := store.lookup(call.tool_call_id)) is not None and                     rec.state.value == "INTENT":
+                store.fail(call.tool_call_id, why)
+        except Exception:                               # noqa: BLE001
+            pass
+
+    def _queue(call, cls, why: str) -> GateDecision:
+        try:
+            if store.lookup(call.tool_call_id) is None:
+                store.write_intent(call, cls, gate.fence)
+            store.block(call.tool_call_id,
+                        f"{AWAITING} ({why}): {_command_summary(call)}")
+        except Exception:                               # noqa: BLE001
+            pass
+        if verbose:
+            print(f"  [agentctl] queued for your approval: {_command_summary(call)}",
+                  file=sys.stderr)
+        return GateDecision(
+            Verdict.BLOCK, cls,
+            reason=(f"This action needs the user's approval ({why}) and has been "
+                    f"queued for them; it did not run. Do NOT repeat it. Carry "
+                    f"on with anything that does not depend on it, then finish "
+                    f"and say it is waiting for approval."))
 
     def guard_with_confirmation(call):
         decision = inner(call)
@@ -426,19 +503,127 @@ def _install_confirmation(guard, verbose: bool, workspace: Path | None = None) -
                            + ", ".join(outside[:4]))
         if not reasons:
             return decision
+        why = " | ".join(reasons)
 
-        print(f"\n  !! {' | '.join(reasons)}", file=sys.stderr)
+        prior = store.approval(call.conversation_id, call.intent_hash())
+        if prior == "approve":
+            store.use_approval(call.conversation_id, call.intent_hash())
+            if verbose:
+                print(f"  [agentctl] approved earlier by you: "
+                      f"{_command_summary(call)}", file=sys.stderr)
+            return decision
+        if prior == "deny":
+            _not_run(call, "denied by the operator")
+            return GateDecision(Verdict.BLOCK, decision.effect_class,
+                                reason="The user denied this action. Do not run "
+                                       "it, and do not try to achieve the same "
+                                       "effect another way.")
+        if not ask:
+            return _queue(call, decision.effect_class, why)
+
+        print(f"\n  !! {why}", file=sys.stderr)
         print(f"     {call.tool_name} {str(call.args)[:200]}", file=sys.stderr)
         try:
             answer = input("     allow? [y/N] ").strip().lower()
         except EOFError:
-            answer = "n"
+            # A terminal that closed mid-question: queue it, as for no terminal.
+            return _queue(call, decision.effect_class, why)
         if answer != "y":
+            _not_run(call, "refused by the operator")
             return GateDecision(Verdict.BLOCK, decision.effect_class,
                                 reason="refused by the operator")
         return decision
 
     guard.gate.guard = guard_with_confirmation
+
+
+class RateLimited(SystemExit):
+    """The provider refused for quota. Carries what a wait-and-resume needs:
+    the conversation, and the reset time when the provider said one."""
+
+    def __init__(self, text: str, conversation_id: str, reset_at: float | None):
+        super().__init__(text)
+        self.text, self.conversation_id, self.reset_at = text, conversation_id, reset_at
+
+
+def _is_rate_limit(e: Exception) -> bool:
+    low = str(e).lower()
+    return ("rate limit" in low or "429" in str(e) or "ratelimiterror" in low
+            or "quota" in low)
+
+
+def _reset_at(e: Exception) -> float | None:
+    """The provider's reset time, epoch seconds, when its error carried one."""
+    import re
+    if m := re.search(r'"X-RateLimit-Reset":"(\d{10,13})"', str(e)):
+        ts = int(m.group(1))
+        return ts / 1000 if ts > 10_000_000_000 else float(ts)
+    return None
+
+
+class _PauseOnInterrupt:
+    """Ctrl-C pauses the conversation after its current step; a second one
+    stops at once (`docs/0043` Phase 4).
+
+    `pause()` takes effect between steps, and is callable from a signal
+    handler: the conversation's lock is re-entrant (`docs/0042` §8.2). The
+    paused conversation is persisted, so `agentctl resume` continues it.
+    Only installed on the main thread -- signals cannot be anywhere else.
+    """
+
+    def __init__(self, conv, verbose: bool):
+        self.conv, self.verbose, self.paused, self._old = conv, verbose, False, {}
+
+    def _handle(self, signum, frame):
+        if self.paused:
+            raise KeyboardInterrupt
+        self.paused = True
+        if self.verbose:
+            print("\n  [agentctl] pausing after the current step "
+                  "(Ctrl-C again to stop now)", file=sys.stderr)
+        try:
+            self.conv.pause()
+        except Exception:                               # noqa: BLE001
+            raise KeyboardInterrupt from None
+
+    def __enter__(self):
+        import signal
+        import threading
+        if threading.current_thread() is not threading.main_thread():
+            return self
+        for name in ("SIGINT", "SIGBREAK"):
+            if (sig := getattr(signal, name, None)) is not None:
+                self._old[sig] = signal.signal(sig, self._handle)
+        return self
+
+    def __exit__(self, *exc):
+        import signal
+        for sig, old in self._old.items():
+            signal.signal(sig, old)
+        return False
+
+
+def _tell_decisions(store, conversation_id: str) -> str | None:
+    """The message a resumed agent gets about approvals decided meanwhile."""
+    try:
+        rows = store.untold(conversation_id)
+    except Exception:                                   # noqa: BLE001
+        return None
+    if not rows:
+        return None
+    lines = ["While this run was paused, the user decided on actions that "
+             "needed approval:"]
+    for r in rows:
+        what = r.get("summary") or "an action"
+        if r["decision"] == "approve":
+            lines.append(f"- APPROVED: {what}. You may run it now if it is "
+                         f"still needed.")
+        else:
+            lines.append(f"- DENIED: {what}. Do not run it, and do not try to "
+                         f"achieve the same effect another way.")
+    lines.append("Continue the task.")
+    store.told(conversation_id)
+    return "\n".join(lines)
 
 
 # ── policy enforcement (M7, docs/0030) ─────────────────────────────────

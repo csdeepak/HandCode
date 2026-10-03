@@ -438,6 +438,52 @@ class LedgerStore:
             "error": error[:2000] if error else None,
         })
 
+    # ── approvals (`docs/0042` I-06) ──────────────────────────────────────
+    def decide(self, rec: EffectRecord, decision: str, summary: str = "") -> None:
+        """A human's answer to an action that asked first.
+
+        The record leaves BLOCKED for FAILED -- "did not run" is the truth for
+        an action that was queued rather than executed -- and the answer is
+        kept by intent hash, so the identical call on resume is recognised.
+        """
+        if decision not in ("approve", "deny"):
+            raise ValueError(decision)
+        self._db.execute(
+            "INSERT INTO approval(conversation_id, intent_hash, tool_call_id, "
+            "summary, decision, decided_at) VALUES(?,?,?,?,?,?) "
+            "ON CONFLICT(conversation_id, intent_hash) DO UPDATE SET "
+            "decision=excluded.decision, decided_at=excluded.decided_at, "
+            "summary=excluded.summary, told_at=NULL, used_at=NULL",
+            (rec.conversation_id, rec.intent_hash, rec.tool_call_id, summary,
+             decision, time.time()))
+        self.fail(rec.tool_call_id,
+                  "approved by the operator; not yet run" if decision == "approve"
+                  else "denied by the operator; not run")
+
+    def approval(self, conversation_id: str, intent_hash: str) -> str | None:
+        """'approve' | 'deny' for an unused decision on this action, or None."""
+        row = self._db.execute(
+            "SELECT decision FROM approval WHERE conversation_id=? AND "
+            "intent_hash=? AND used_at IS NULL", (conversation_id, intent_hash)
+        ).fetchone()
+        return row["decision"] if row else None
+
+    def use_approval(self, conversation_id: str, intent_hash: str) -> None:
+        self._db.execute("UPDATE approval SET used_at=? WHERE conversation_id=? "
+                         "AND intent_hash=?", (time.time(), conversation_id,
+                                               intent_hash))
+
+    def untold(self, conversation_id: str) -> list[dict]:
+        """Decisions the agent has not been told about yet, oldest first."""
+        rows = self._db.execute(
+            "SELECT * FROM approval WHERE conversation_id=? AND told_at IS NULL "
+            "ORDER BY decided_at", (conversation_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def told(self, conversation_id: str) -> None:
+        self._db.execute("UPDATE approval SET told_at=? WHERE conversation_id=? "
+                         "AND told_at IS NULL", (time.time(), conversation_id))
+
     def reconcile(self, tool_call_id: str, verdict: str, landed: bool) -> None:
         """Resolve an ambiguous INTENT using out-of-band evidence."""
         target = EffectState.COMMITTED if landed else EffectState.FAILED
