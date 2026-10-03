@@ -457,7 +457,7 @@ def _install_confirmation(guard, verbose: bool, workspace: Path | None = None,
     asking again, which is what lets an approved action run on resume.
     """
     from agentctl.kernel.ledger.models import EffectClass, GateDecision, Verdict
-    from agentctl.kernel.paths import escaping_writes
+    from agentctl.kernel.paths import environment_installs, escaping_writes
 
     inner = guard.gate.guard
     store, gate = guard.gate.store, guard.gate
@@ -501,6 +501,12 @@ def _install_confirmation(guard, verbose: bool, workspace: Path | None = None,
         if outside := escaping_writes(call, workspace):
             reasons.append("writes outside the workspace: "
                            + ", ".join(outside[:4]))
+        # Software installed into YOUR environment (`docs/0052`). Not asked
+        # inside the image: there it lands in the container and dies with it,
+        # which is the containment the image exists to provide.
+        if not os.environ.get("HANDCODE_CONTAINER") and \
+                (installs := environment_installs(call, workspace)):
+            reasons.append("installs into your environment: " + installs[0][:80])
         if not reasons:
             return decision
         why = " | ".join(reasons)

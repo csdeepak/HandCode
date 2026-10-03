@@ -36,7 +36,10 @@ RUN python -c "from agentctl.control.proxyenv import ensure_env; ensure_env()" \
 # /work belong to you, not to root). HOME is world-writable for that reason:
 # keys, config, the run index and the proxy's state live there, and a named
 # volume keeps them across containers.
+# HANDCODE_CONTAINER: a package install the agent runs lands here and dies
+# with the container, so agentctl does not stop to ask about it (docs/0052).
 ENV HOME=/home/handcode \
+    HANDCODE_CONTAINER=1 \
     OPENHANDS_SUPPRESS_BANNER=1 \
     PYTHONIOENCODING=utf-8
 # safe.directory: the mounted repository belongs to a different uid than the

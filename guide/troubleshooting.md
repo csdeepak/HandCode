@@ -70,6 +70,16 @@ A dangerous action was queued because nobody was at a terminal to ask.
 `agentctl approve <id>` or `agentctl deny <id>`, then `agentctl resume`. The
 agent is told what you decided.
 
+### `!! installs into your environment: pip install ...`
+
+The agent wanted to install software into an environment outside your
+repository, usually the Python on your PATH. Say `y` if that is fine. Better
+options:
+- let it install into a virtual environment *inside* the repository
+  (`.venv/bin/pip install ...` does not ask);
+- or run the task in the container (`quickstart.md` §6), where installs
+  cannot reach your machine.
+
 ### `needs you   N action(s) whose outcome is unknown: agentctl blocked`
 
 A crash left an action whose result nobody can confirm. `agentctl blocked`

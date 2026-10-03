@@ -138,3 +138,66 @@ def escaping_writes(call: ToolCall, root: str | Path | None) -> list[str]:
         return []
     return [t for t in write_targets(call)
             if t.lower() not in _SINKS and escapes(t, root)]
+
+
+# ── installs into the user's environment (docs/0047 §5, docs/0052) ─────
+#
+# A package install writes no file this module can name -- it writes into an
+# interpreter's site-packages, a global node_modules, /usr/bin -- so neither
+# `escaping_writes` nor the effect class caught it. A live run showed the
+# agent running `pip install pytest` on the host, unasked. It is not
+# destructive, and it is not the agent's business either: the same
+# authorization question as a write outside the workspace.
+_INSTALLERS = re.compile(
+    r"^\s*(?:sudo\s+)?(?:"
+    r"(?P<pip>(?:\S*[/\\])?(?:pip3?(?:\.\d+)?|python3?(?:\.\d+)?(?:\.exe)?\s+-m\s+pip))"
+    r"\s+install\b"
+    r"|uv\s+(?:pip\s+install|tool\s+install|add\s+--global)\b"
+    r"|pipx\s+(?:install|inject)\b"
+    r"|(?:npm|pnpm)\s+(?:install|i|add)\b(?=.*\s(?:-g|--global)\b)"
+    r"|yarn\s+global\s+add\b"
+    r"|(?:apt|apt-get|dnf|yum|apk|zypper)\s+(?:install|add)\b"
+    r"|pacman\s+-S\b"
+    r"|(?:brew|cargo|gem|conda|mamba|choco|winget|scoop)\s+install\b"
+    r"|go\s+install\b"
+    r")")
+
+
+def environment_installs(call: ToolCall, root: str | Path | None) -> list[str]:
+    """Shell segments that install software outside the workspace.
+
+    An install into an environment that lives INSIDE the workspace is not
+    flagged: `.venv/bin/pip install pytest`, `uv pip install --python
+    .venv/...`, or `pip install --target ./vendor` change only the repo, which
+    is the agent's to change. A plain `pip install` goes to whichever
+    interpreter is on PATH -- usually the user's own -- and is flagged.
+    """
+    command = call.args.get("command")
+    if not isinstance(command, str) or root is None:
+        return []
+    from .classify import Classifier          # same layer, no cycle at import
+
+    out = []
+    for segment in Classifier._segments(command):
+        m = _INSTALLERS.match(segment)
+        if not m:
+            continue
+        if _lands_inside(segment, m, root):
+            continue
+        out.append(segment.strip())
+    return out
+
+
+def _lands_inside(segment: str, m: re.Match, root) -> bool:
+    """Does this install target an environment inside the workspace?"""
+    # The installer itself lives in the workspace: `.venv/bin/pip`,
+    # `./venv/Scripts/python -m pip`.
+    exe = (m.group("pip") or "").split()[0] if m.group("pip") else ""
+    if exe and ("/" in exe or "\\" in exe) and not escapes(exe, root):
+        return True
+    # An explicit destination inside the workspace.
+    for flag in ("--target", "-t", "--prefix", "--root", "--python", "-p"):
+        if (d := re.search(rf"(?:^|\s){re.escape(flag)}[=\s]+(\S+)", segment)):
+            if not escapes(d.group(1).strip("'\""), root):
+                return True
+    return False

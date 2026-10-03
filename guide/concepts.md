@@ -46,8 +46,12 @@ what they will do.
 
 They are different questions, so they use different commands:
 
-- **"May this dangerous action run?"** Asked before an `rm -rf`, or a write
-  outside your workspace. With a terminal, it asks there. Without one, the
+- **"May this dangerous action run?"** Asked before an `rm -rf`, a write
+  outside your workspace, or installing software into your environment
+  (`pip install`, `npm install -g`, `apt install`, `brew install` and the
+  like). An install into a virtual environment inside the repository does not
+  ask, and nothing asks inside the container, where an install cannot reach
+  your machine. With a terminal, it asks there. Without one, the
   action is queued, and you answer with `agentctl approve <id>` or
   `agentctl deny <id>`, then `agentctl resume`.
 - **"Did this action happen?"** Asked only when a crash left it truly

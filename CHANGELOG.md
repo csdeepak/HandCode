@@ -41,6 +41,10 @@ The release that makes it usable by someone other than its author
 - A user guide in `guide/`.
 
 ### Changed
+- Installing software into your environment (`pip install`, `npm install -g`,
+  `apt`, `brew`, …) asks first, or queues when nobody is at a terminal.
+  Installs into a venv inside the repository do not, and nothing asks in
+  the container (`docs/0052`).
 - An identical command the agent re-runs after seeing its result now runs
   (the edit, test, re-test loop). It used to get stale output or be blocked
   (`docs/0045`).
