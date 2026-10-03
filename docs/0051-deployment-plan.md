@@ -297,3 +297,45 @@ was fixed (`ebd6be4`), and the re-run passed 6/6.
 
 **Stage 0 is done, except D11.** Stage 1 needs D3/D4 (the name) and D6
 (PyPI trusted publishing).
+
+## 9. Addendum (2026-10-04): Stage 1 built; publishing waits on the owner
+
+**The name is `handcode`** (owner's decision on D3/D4). It was free on PyPI
+and TestPyPI, and so were the separator variants PyPI would treat as
+colliding (`hand-code`, `hand_code`, `hand.code`). The command stays
+`agentctl` and is also installed as `handcode`; the import package stays
+`agentctl`. The README title is now HandCode.
+
+**What was built** (`47ff51d`):
+
+| | |
+|---|---|
+| `pyproject.toml` | `handcode` 0.3.0rc1, with readme, URLs, classifiers, keywords and both entry points. No author email published |
+| README | Links made absolute, because PyPI renders the README and does not resolve relative links |
+| `release.yml` | On a tag matching the version: build, `twine check`, a refusal if the sdist holds telemetry, ledgers or keys; `uv tool install` of the wheel plus `handcode demo` on Linux, macOS and Windows; TestPyPI; the same three-OS check installed from TestPyPI; PyPI behind the `pypi` environment's approval; a GitHub release. Trusted publishing only, so no token exists anywhere |
+| `RELEASING.md` | The owner's one-time setup, and the release steps |
+
+**A dependency-confusion trap, avoided in review.** The first draft installed
+from TestPyPI with `--index-strategy unsafe-best-match`. That lets *any*
+dependency resolve from TestPyPI, where anyone can upload a lookalike. The
+check now downloads only `handcode` from there and takes every dependency
+from PyPI.
+
+**Verified:**
+- **Locally.** `uv build`; `twine check` passed; the sdist holds only the
+  package, the tests and metadata. `uv tool install` of the wheel, with uv's
+  tool directories isolated, took 9 s, gave both commands at `0.3.0rc1`, and
+  `handcode demo` passed outside the repository.
+- **On GitHub, the dry run** (`publish: none`). Build and wheel on all three
+  OS passed, demo included; every publish job was skipped, as designed.
+
+**Not verified: publishing itself.** It needs the owner's setup (`RELEASING.md`):
+pending publishers on test.pypi.org and pypi.org, and a required reviewer on
+the `pypi` environment. **A pending publisher does not reserve the name.**
+Until the first upload, someone else can still take `handcode`.
+
+**Next, once the setup exists:**
+1. Tag `v0.3.0rc1`. That goes through TestPyPI to the approval gate. Approve
+   it, or stop there.
+2. Switch the README and quickstart to `uv tool install "handcode[openhands]"`.
+3. Bump to `0.3.0` for the release.
