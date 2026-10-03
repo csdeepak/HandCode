@@ -229,6 +229,9 @@ most user-visible defect.
 
 ### Phase 5 — Try it before you trust it (P6), and docs for users
 
+> **Done (`0050`)**, except the second person (D5) and the name (D4).
+> `0050` §4 records where all six promises stand.
+
 - **`agentctl demo`**:
   - It ships a small sample repository and a recorded cassette.
   - It replays a real task at **$0, with no key and no network** (M6).

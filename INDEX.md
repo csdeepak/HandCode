@@ -1,6 +1,9 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0049**.
+**The highest number is the newest document.** Current head: **0050**.
+
+**New here and want to USE it?** Start with the [user guide](guide/README.md),
+not this index.
 
 Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 
@@ -55,6 +58,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0047](docs/0047-a-pool-in-one-flag.md) | A Pool in One Flag | DECISION | ACCEPTED | 2026-10-02 | Phase 2. `init` + flagless `run`; `run --pool` starts a LiteLLM proxy in its own environment. The first live run found four defects (detached launch, unverified later models, Groq rejecting `prompt_cache_key`, `/dev/null` as an escape); all fixed, then exit 0 in 40 s. PyPI name `agentctl` is taken |
 | [0048](docs/0048-a-run-you-can-read.md) | A Run You Can Read | DECISION | ACCEPTED | 2026-10-03 | Phase 3. End-of-run report (checked outcome, git changes, usage, plain actions, what needs you), `--accept`, exit code from it. I-09 fixed from a captured proxy dict (18/18 attributed); I-10's known-free state, so report and cost ledger agree |
 | [0049](docs/0049-stopping-and-coming-back.md) | Stopping, Coming Back, and Deciding | DECISION | ACCEPTED | 2026-10-04 | Phase 4. Run index (`status`, `resume`, no paths), Ctrl-C pauses after the step, unattended dangerous actions are queued and `approve`/`deny` answer them, `--wait` for rate limits. Live: queue -> approve -> resume deleted the dir; Ctrl-Break -> resume finished the task |
+| [0050](docs/0050-try-it-before-you-trust-it.md) | Try It Before You Trust It | DECISION | ACCEPTED | 2026-10-04 | Phase 5, the last. `agentctl demo`: plain OpenHands commits twice across a real crash, agentctl once ($0, no key, every OS, verified from an installed wheel). A `guide/` for users; the README opens with demo and quickstart. Where 0043's six promises stand |
 
 ---
 
