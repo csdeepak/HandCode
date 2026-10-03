@@ -207,6 +207,9 @@ most user-visible defect.
 
 ### Phase 4 — Interruptions and decisions (P3, P5)
 
+> **Done (`0049`).** `--wait` is unit-tested only; `dash` does not read the
+> index yet.
+
 - **A run index** (I-17), `~/.agentctl/runs.db`. `status`, `blocked`, `dash` and
   `cost` read it, and no follow-up command needs `--ledger`. Fixes F4.
 - **`agentctl resume`**, with no argument, continues the last run in this
