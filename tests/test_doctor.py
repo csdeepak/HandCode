@@ -43,8 +43,11 @@ def test_it_says_switching_model_will_not_help():
     assert "account-wide" in out and "does not help" in out
 
 
-def test_it_offers_the_offline_route():
-    assert "--replay" in explain(Exception(RATE_LIMIT))
+def test_it_offers_the_routes_that_continue_the_work():
+    """It used to offer `--replay <cassette>`, which re-runs a recording and
+    does not continue the task. Waiting, or another provider, does (docs/0049)."""
+    out = explain(Exception(RATE_LIMIT))
+    assert "--wait" in out and "--pool" in out
 
 
 @pytest.mark.parametrize("text,expect", [

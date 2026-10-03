@@ -1171,6 +1171,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser = add_parser                 # every subcommand gets them
 
+    dm = sub.add_parser("demo", help="see a crash duplicate a commit, and agentctl "
+                                     "prevent it. No key, no network, $0")
+    dm.add_argument("--keep", action="store_true",
+                    help="keep the demo's repos and logs, and print where")
+    dm.set_defaults(fn=lambda a: __import__("agentctl.demo", fromlist=["run_demo"])
+                    .run_demo(keep=a.keep))
+
     it = sub.add_parser("init", help="set up a key and a default model, once")
     it.add_argument("--provider", metavar="NAME",
                     help="the provider to use (default: the first you hold a "

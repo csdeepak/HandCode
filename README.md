@@ -2,17 +2,96 @@
 
 [![CI](https://github.com/csdeepak/HandCode/actions/workflows/ci.yml/badge.svg)](https://github.com/csdeepak/HandCode/actions/workflows/ci.yml)
 
-Making long-running LLM agent work **recoverable, measurable, and
-cost-efficient** across changes of provider, account, and model.
+**agentctl keeps a coding agent's work safe across crashes, restarts and
+provider switches.**
 
-> The model/provider endpoint can change; the logical agent work must remain
-> recoverable, measurable, and cost-efficient.
+When an agent's process dies in the middle of a task and you resume it, the
+agent framework re-runs whatever was in flight, so a commit can happen twice.
+agentctl records every action before it runs. A resumed run never repeats one
+that already happened, and when agentctl cannot tell whether it did, it stops
+and asks you instead of guessing.
 
-**Status: the correctness core works.** M0, M2a, M4 and M2b are complete and
-verified. 690 tests — including a chaos suite that crashes at ten points with
-real process death — plus four end-to-end crash experiments. All green.
+It wraps the [OpenHands](https://github.com/OpenHands/software-agent-sdk)
+agent SDK and works with any provider LiteLLM supports, free tiers included.
+
+## See it in a minute
+
+```bash
+agentctl demo          # no API key, no network, $0
+```
+
+```
+  1. Plain OpenHands, no agentctl
+     the agent committed, then its process was killed ... 1 new commit
+     resumed ............................................ 2 new commits   <- the same commit, twice
+
+  2. With agentctl
+     the agent committed, then its process was killed ... 1 new commit
+     resumed ............................................ 1 new commit    <- once
+     the ledger: the commit is OBSERVED (git probe: LANDED) · 0 waiting on you
+```
+
+Real git, real process death and the real SDK. Only the model is scripted,
+which is what makes it free and identical on every OS.
+
+## Quickstart
+
+Python 3.12+, `git`, and one API key (a free OpenRouter or Gemini key works).
+
+```bash
+git clone https://github.com/csdeepak/HandCode && cd HandCode
+python3 -m venv .venv && source .venv/bin/activate     # Windows: see guide/quickstart.md
+pip install -e ".[openhands]"
+
+agentctl demo                                          # see what it is for
+agentctl init                                          # one key, one checked default model
+cd ../your-project
+agentctl run "fix the failing date test" --accept "python -m pytest -q"
+```
+
+Every run ends with a report of what was checked, what changed, what it cost,
+and what needs you:
+
+```
+  outcome     PASS   `python -m pytest -q` exited 0 (run by agentctl after the agent finished)
+  changed     1 file  +5 -1
+  used        9 requests · 43.7K tokens · $0.00 (free-tier model) · 12s
+  actions     8 actions: 3 reads, 3 file writes, 2 commands
+  needs you   nothing
+```
+
+The **[user guide](guide/README.md)** covers the
+[quickstart](guide/quickstart.md) step by step (Windows included),
+[concepts in plain words](guide/concepts.md),
+[troubleshooting by the exact text you see](guide/troubleshooting.md), and an
+[FAQ](guide/faq.md).
+
+## What it protects you from
+
+| | Without agentctl | With it |
+|---|---|---|
+| The process dies mid-action, then you resume | The in-flight action runs again | It runs at most once. If it already landed, the agent gets its result back |
+| You cannot tell whether something happened | It is guessed | It is checked (did HEAD move?), or you are asked |
+| Ctrl-C, a closed laptop, a killed terminal | Start again | `agentctl resume` |
+| A rate limit mid-task | The run dies | `--wait 30m` waits it out and resumes, or `--pool` routes to another provider |
+| A dangerous command with nobody watching | It runs, or the run hangs on a prompt | It is queued for `agentctl approve` / `deny` |
+| "Done!" from the agent | Taken on trust | `--accept` runs your tests and reports PASS or FAIL |
+| Two terminals resuming the same run | Both drive it | The second is refused and told which process holds it |
+
+**What it does not do:** it is not a sandbox. Commands run on your machine.
+agentctl stops actions repeating and asks before dangerous ones, but it does
+not contain what an allowed command does
+([concepts](guide/concepts.md#what-agentctl-does-not-do)).
+
+**Status.** 822 tests, including a chaos suite that kills the process at ten
+points in the protocol, plus `verify.py`'s end-to-end crash experiments. All
+run at no cost, on Linux and Windows in CI. Every feature here has also been
+run at least once against a real provider. The design history, with what was
+measured and what was found, is the numbered [`docs/`](INDEX.md) stream.
 
 ---
+
+# Reference
 
 ## The problem, in one example
 

@@ -750,9 +750,9 @@ def _explain_provider_error(exc: Exception) -> str | None:
                    if "free-models-per-day" in low else "")
         return (f"the provider is rate limiting you. This is not an agent "
                 f"error.{remaining}{when}{per_day}\n"
-                f"  options      wait for the reset, use a different provider "
-                f"key,\n               or run offline:  agentctl run '' "
-                f"--replay <cassette>")
+                f"  options      wait for the reset (run with --wait 30m to "
+                f"wait automatically),\n               or route through the "
+                f"pool so another provider serves:  --pool")
 
     if "insufficient" in low and "credit" in low:
         return ("the provider says the account is out of credit. Nothing was "
@@ -776,6 +776,6 @@ def _explain_provider_error(exc: Exception) -> str | None:
     if "overloaded" in low or "503" in text or "502" in text:
         return ("the provider is overloaded and refused the request. Free-tier "
                 "endpoints do this under load.\n"
-                "  options      retry, or point --base-url at a proxy with a "
-                "pool so a failure fails over.")
+                "  options      agentctl resume, or route through the pool so a "
+                "failure fails over:  --pool")
     return None

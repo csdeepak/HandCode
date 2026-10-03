@@ -59,12 +59,17 @@ document that reinterprets it instead.
 
 ```
 docs/            The numbered stream. The project's memory.
+guide/           For USERS: quickstart, concepts, troubleshooting, FAQ. Living.
 research/raw/    Unprocessed source material (PDFs, exports, transcripts).
 experiments/     Scripts, configs, and logs for reproducible experiments.
 issues/          Working notes on open problems. Promoted to docs/ when resolved.
 ```
 
 Only `docs/` is numbered. Everything else is supporting material.
+
+`guide/` is edited in place, like code. Unlike `docs/`, it describes the
+tool as it is now, not how it came to be. `troubleshooting.md` quotes the
+exact text the CLI prints, so changing a message means changing its entry.
 
 ## Commit messages
 
