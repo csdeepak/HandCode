@@ -148,7 +148,16 @@ class RequestHook:
             self.affinity.remember(turn, data.get("model"))
             meta["agentctl_mid_turn"] = False
 
+        # Where the proxy ACTUALLY puts it (`docs/0042` I-09, `docs/0048`).
+        # OpenHands sends the conversation id as the `x-litellm-session-id`
+        # header, and the proxy maps it to `litellm_session_id` and
+        # `metadata.session_id` -- captured from a real pre-call `data` dict,
+        # not assumed. `extra_headers` is a CLIENT-side kwarg that never
+        # reaches the proxy, so reading it alone gave `unknown:` on every live
+        # record (23/23, then 10/10). It stays last, for a direct caller.
         conv = (meta.get("conversation_id")
+                or data.get("litellm_session_id")
+                or meta.get("session_id")
                 or (data.get("extra_headers") or {}).get("x-litellm-session-id")
                 or "unknown")
         meta["agentctl_trace_id"] = f"{conv}:{turn or 'turn0'}"
@@ -180,10 +189,13 @@ class RequestHook:
         trace = (meta.get("agentctl_trace_id")
                  or nested.get("agentctl_trace_id")
                  or (nested.get("requester_metadata") or {}).get("agentctl_trace_id"))
+        info = (kwargs.get("litellm_params") or {}).get("model_info") or {}
         rec = {
             "model": kwargs.get("model"),
-            "deployment": ((kwargs.get("litellm_params") or {})
-                           .get("model_info") or {}).get("id"),
+            "deployment": info.get("id"),
+            # The generated config's own claim (`model_info.free`). The cost
+            # ledger's third state reads it (`docs/0042` I-10).
+            "free": info.get("free"),
             "trace_id": trace,
             "prompt_tokens": _get(usage, "prompt_tokens"),
             "completion_tokens": _get(usage, "completion_tokens"),

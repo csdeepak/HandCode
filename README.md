@@ -150,6 +150,29 @@ unless you pass `--check-paid`.
 `run` takes its model from `--model`, then `AGENTCTL_MODEL`, then that config,
 then the first provider you hold a key for, and prints which one it used.
 
+Every run ends with a report:
+
+```
+  outcome     PASS   `python -m pytest -q` exited 0 (run by agentctl after the agent finished)
+  changed     1 file  +5 -1
+                stats.py  +5 -1
+  agent said  "The median function in stats.py has been fixed to correctly handle..."
+  used        9 requests · 43.7K tokens · $0.00 (free-tier model) · 12s
+  actions     8 actions: 3 reads, 3 file writes, 2 commands
+  needs you   nothing
+```
+
+- **`outcome` is only what was checked.** Pass `--accept "<command>"` (your
+  test suite, usually) and agentctl runs it itself once the agent has
+  finished, outside the agent's loop: exit 0 is PASS. Without it the outcome
+  reads `not checked`, never an implied success.
+- **`changed`** is measured with git against where the run started, commits
+  included.
+- **`used`** says what a cost figure can be trusted for. Free-tier models read
+  `$0.00`, and list prices that a free key is not billed are labelled as such.
+- **The exit code is 0** when nothing failed a check and nothing is waiting on
+  you, and 1 otherwise.
+
 ```bash
 agentctl doctor --workspace ./myproject     # check everything BEFORE you spend
 ```

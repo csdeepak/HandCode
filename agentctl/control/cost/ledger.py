@@ -38,6 +38,10 @@ CREATE TABLE IF NOT EXISTS usage_record (
     -- The Q18 column. 0 means litellm could not price this call, so cost_usd
     -- is meaningless rather than zero. docs/0021 §5.
     priced            INTEGER NOT NULL DEFAULT 0,
+    -- The third state (docs/0042 I-10): the proxy config says this
+    -- deployment is a free tier, so its cost is a known zero -- whatever list
+    -- price litellm attached, and even when litellm attached none.
+    free              INTEGER NOT NULL DEFAULT 0,
     latency_s         REAL,
     ts                REAL NOT NULL,
     UNIQUE(trace_id, ts)
@@ -57,15 +61,21 @@ class Totals:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     cached_tokens: int = 0
+    free_calls: int = 0
+
+    @property
+    def known_calls(self) -> int:
+        """Calls whose cost is known: priced, or free per the proxy config."""
+        return self.priced_calls + self.free_calls
 
     @property
     def coverage(self) -> float:
-        """Share of calls litellm could actually price. 1.0 means trustworthy."""
-        return (self.priced_calls / self.calls) if self.calls else 0.0
+        """Share of calls whose cost is known. 1.0 means trustworthy."""
+        return (self.known_calls / self.calls) if self.calls else 0.0
 
     @property
     def trustworthy(self) -> bool:
-        return self.calls > 0 and self.priced_calls == self.calls
+        return self.calls > 0 and self.known_calls == self.calls
 
     @property
     def cache_hit_ratio(self) -> float:
@@ -75,12 +85,14 @@ class Totals:
         """Never render an unpriced total as though it were a real zero."""
         if self.calls == 0:
             return "no calls"
-        if self.priced_calls == 0:
+        free = (f" ({self.free_calls} call(s) free tier, per proxy config)"
+                if self.free_calls else "")
+        if self.known_calls == 0:
             return f"unknown (0/{self.calls} calls priced)"
         if not self.trustworthy:
             return (f"${self.cost_usd:.4f} + unknown "
-                    f"({self.priced_calls}/{self.calls} priced)")
-        return f"${self.cost_usd:.4f}"
+                    f"({self.known_calls}/{self.calls} known){free}")
+        return f"${self.cost_usd:.4f}{free}"
 
 
 class CostLedger:
@@ -92,6 +104,12 @@ class CostLedger:
         self._db = sqlite3.connect(str(self.path), isolation_level=None)
         self._db.row_factory = sqlite3.Row
         self._db.executescript(SCHEMA)
+        # A ledger written before the `free` column existed. CREATE TABLE IF
+        # NOT EXISTS does not add columns, so add it, once.
+        cols = {r["name"] for r in self._db.execute("PRAGMA table_info(usage_record)")}
+        if "free" not in cols:
+            self._db.execute("ALTER TABLE usage_record ADD COLUMN "
+                             "free INTEGER NOT NULL DEFAULT 0")
 
     def close(self) -> None:
         self._db.close()
@@ -108,20 +126,24 @@ class CostLedger:
         trace = rec.get("trace_id") or ""
         conv, _, turn = trace.partition(":")
         cost = rec.get("cost")
+        # Free per the proxy config: a known zero, whatever litellm said. Its
+        # list price is NOT spend -- counting it put phantom dollars against
+        # `daily_usd` on a pool that bills nothing (docs/0042 I-10).
+        free = 1 if rec.get("free") is True else 0
         # THE Q18 DISTINCTION: a falsy cost means litellm could not price it.
         # Storing 0.0 as though it were a measured zero is the whole hazard.
-        priced = 1 if cost else 0
+        priced = 1 if (cost and not free) else 0
         try:
             self._db.execute(
                 "INSERT OR IGNORE INTO usage_record(trace_id, conversation_id, "
                 "turn_id, model, deployment, prompt_tokens, completion_tokens, "
-                "cached_tokens, cost_usd, priced, latency_s, ts) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                "cached_tokens, cost_usd, priced, free, latency_s, ts) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (trace or None, conv or None, turn or None,
                  rec.get("model"), rec.get("deployment"),
                  rec.get("prompt_tokens") or 0, rec.get("completion_tokens") or 0,
                  rec.get("cached_tokens") or 0,
-                 float(cost) if priced else 0.0, priced,
+                 float(cost) if priced else 0.0, priced, free,
                  rec.get("latency_s"), rec.get("ts") or time.time()))
             return True
         except sqlite3.Error:
@@ -148,17 +170,19 @@ class CostLedger:
         clause = f"WHERE {' AND '.join(where)}" if where else ""
         row = self._db.execute(
             "SELECT COUNT(*) calls, COALESCE(SUM(priced),0) priced_calls, "
+            "COALESCE(SUM(free),0) free_calls, "
             "COALESCE(SUM(cost_usd),0) cost, "
             "COALESCE(SUM(prompt_tokens),0) pt, "
             "COALESCE(SUM(completion_tokens),0) ct, "
             "COALESCE(SUM(cached_tokens),0) cached "
             f"FROM usage_record {clause}", args).fetchone()
         return Totals(row["calls"], row["priced_calls"], row["cost"],
-                      row["pt"], row["ct"], row["cached"])
+                      row["pt"], row["ct"], row["cached"], row["free_calls"])
 
     def by_conversation(self, limit: int = 20) -> list[dict]:
         rows = self._db.execute(
             "SELECT conversation_id, COUNT(*) calls, SUM(priced) priced_calls, "
+            "SUM(free) free_calls, "
             "SUM(cost_usd) cost, SUM(prompt_tokens) pt, MAX(ts) last_ts "
             "FROM usage_record WHERE conversation_id IS NOT NULL "
             "GROUP BY conversation_id ORDER BY last_ts DESC LIMIT ?",
@@ -168,6 +192,7 @@ class CostLedger:
     def by_deployment(self) -> list[dict]:
         rows = self._db.execute(
             "SELECT deployment, COUNT(*) calls, SUM(priced) priced_calls, "
+            "SUM(free) free_calls, "
             "SUM(cost_usd) cost, SUM(cached_tokens) cached, SUM(prompt_tokens) pt "
             "FROM usage_record WHERE deployment IS NOT NULL "
             "GROUP BY deployment ORDER BY calls DESC").fetchall()
@@ -177,7 +202,7 @@ class CostLedger:
         """Endpoints whose spend is invisible. The budget guard's blind spot."""
         rows = self._db.execute(
             "SELECT deployment FROM usage_record WHERE deployment IS NOT NULL "
-            "GROUP BY deployment HAVING SUM(priced)=0").fetchall()
+            "GROUP BY deployment HAVING SUM(priced)=0 AND SUM(free)=0").fetchall()
         return [r["deployment"] for r in rows]
 
     def cost_per_task(self, conversation_id: str) -> Totals:

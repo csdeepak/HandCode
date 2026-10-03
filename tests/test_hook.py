@@ -112,6 +112,30 @@ def test_trace_id_falls_back_to_the_sdk_session_header():
     assert data["metadata"]["agentctl_trace_id"] == "conv_from_header:call_7"
 
 
+def test_trace_id_reads_where_the_proxy_actually_puts_the_session():
+    """`docs/0042` I-09. The shape of a REAL pre-call `data` dict, captured
+    at a litellm 1.103.2 proxy during an `agentctl run` (`docs/0048`): the
+    session id is `litellm_session_id` and `metadata.session_id`, and
+    `extra_headers` does not exist. Reading only that gave `unknown:` on
+    every live record (23/23, then 10/10)."""
+    hook = RequestHook()
+    cid = "25c66374-ef4e-46dc-be45-682424cdabc1"
+    data = {"model": "pool-gemini", "messages": [assistant("call_7")],
+            "litellm_call_id": "x", "litellm_session_id": cid,
+            "litellm_trace_id": "y", "metadata": {"session_id": cid},
+            "prompt_cache_key": "k", "proxy_server_request": {}}
+    hook.apply(data)
+    assert data["metadata"]["agentctl_trace_id"] == f"{cid}:call_7"
+
+
+def test_metadata_session_id_alone_is_enough():
+    hook = RequestHook()
+    data = {"model": "m", "messages": [assistant("call_7")],
+            "metadata": {"session_id": "conv_meta"}}
+    hook.apply(data)
+    assert data["metadata"]["agentctl_trace_id"] == "conv_meta:call_7"
+
+
 # ── telemetry the cost ledger will need ───────────────────────────────
 def test_record_extracts_cost_and_cache_tokens():
     hook = RequestHook()

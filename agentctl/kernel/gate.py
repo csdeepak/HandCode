@@ -23,7 +23,7 @@ from .ledger.models import (
     ToolCall,
     Verdict,
 )
-from .ledger.store import LedgerStore
+from .ledger.store import LedgerStore, StaleFence
 
 log = logging.getLogger("agentctl.gate")
 
@@ -52,6 +52,17 @@ class EffectGate:
     def guard(self, call: ToolCall) -> GateDecision:
         try:
             return self._guard(call)
+        except StaleFence as exc:
+            # Not a bug in the gate: another process took this conversation
+            # over (`docs/0046`). Said as such, rather than as "gate error,
+            # failing closed: StaleFence(...)" -- accurate, and meaningless to
+            # the person reading it (`docs/0048`).
+            log.warning("superseded: %s", exc)
+            return GateDecision(
+                Verdict.BLOCK,
+                reason="another process has taken over this conversation, so "
+                       "this run may not start new actions; let the other "
+                       "run finish, or stop this one")
         except Exception as exc:                       # noqa: BLE001
             # Fail closed. Never let a gate bug become an unguarded effect.
             log.exception("gate failure for %s", call.tool_call_id)

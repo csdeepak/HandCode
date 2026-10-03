@@ -127,3 +127,68 @@ def test_totals_of_an_empty_ledger_are_safe():
     t = Totals()
     assert t.coverage == 0.0 and t.cache_hit_ratio == 0.0
     assert not t.trustworthy
+
+
+# ══ the third state: free per the proxy config (docs/0042 I-10) ═══════
+def test_a_free_pool_costs_a_known_zero(ledger):
+    """Live 2026-10-03: `cost --conversation` said `$0.0141 + unknown
+    (12/18 priced)` for a pool of free deployments, while the run's own
+    report said $0.00. List prices on free calls, and OpenRouter `:free`
+    calls as unknown -- wrong in both directions."""
+    for i, c in enumerate((0.0021, 0.0, 0.0034)):
+        ledger.ingest_record(rec(ts=1000.0 + i, cost=c, free=True))
+    t = ledger.totals()
+    assert t.trustworthy and t.cost_usd == 0.0 and t.free_calls == 3
+    assert t.describe_cost().startswith("$0.0000") and "per proxy config" in t.describe_cost()
+
+
+def test_a_list_price_on_a_free_call_is_not_spend(ledger):
+    ledger.ingest_record(rec(cost=0.25, free=True))
+    ledger.ingest_record(rec(ts=1001.0, cost=0.01))           # a paid call
+    t = ledger.totals()
+    assert t.cost_usd == pytest.approx(0.01) and t.trustworthy
+
+
+def test_free_and_unknown_are_still_distinct(ledger):
+    ledger.ingest_record(rec(cost=0.0, free=True))
+    ledger.ingest_record(rec(ts=1001.0, cost=0.0))            # not free, unpriced
+    t = ledger.totals()
+    assert not t.trustworthy and t.known_calls == 1
+    assert "unknown" in t.describe_cost()
+
+
+def test_only_an_explicit_true_counts_as_free(ledger):
+    """A config claim, read literally. "yes", 1 or a missing key is not it."""
+    for i, v in enumerate(("yes", 1, None)):
+        ledger.ingest_record(rec(ts=1000.0 + i, cost=0.0, free=v))
+    assert ledger.totals().free_calls == 0
+
+
+def test_a_free_deployment_is_not_listed_as_unpriced(ledger):
+    ledger.ingest_record(rec(deployment="gemini-a1-m0", cost=0.0, free=True))
+    ledger.ingest_record(rec(ts=1001.0, deployment="mystery", cost=0.0))
+    assert ledger.unpriced_deployments() == ["mystery"]
+
+
+def test_a_ledger_from_before_the_free_column_is_migrated(tmp_path):
+    import sqlite3
+    p = tmp_path / "old.db"
+    db = sqlite3.connect(p)
+    db.execute("CREATE TABLE usage_record (id INTEGER PRIMARY KEY, trace_id TEXT, "
+               "conversation_id TEXT, turn_id TEXT, model TEXT, deployment TEXT, "
+               "prompt_tokens INTEGER, completion_tokens INTEGER, cached_tokens "
+               "INTEGER, cost_usd REAL, priced INTEGER NOT NULL DEFAULT 0, "
+               "latency_s REAL, ts REAL NOT NULL, UNIQUE(trace_id, ts))")
+    db.commit(); db.close()
+    with CostLedger(p) as c:
+        c.ingest_record(rec(cost=0.0, free=True))
+        assert c.totals().free_calls == 1
+
+
+def test_the_hook_records_the_configs_free_flag():
+    from agentctl.kernel.hook import RequestHook
+    r = RequestHook().record(
+        {"model": "m", "litellm_params": {"model_info": {"id": "groq-a1-m0",
+                                                          "free": True}}},
+        {"usage": {"prompt_tokens": 1, "completion_tokens": 1}})
+    assert r["free"] is True and r["deployment"] == "groq-a1-m0"

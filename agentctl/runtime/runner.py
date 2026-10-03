@@ -164,18 +164,26 @@ def run(
     cost_ledger: str | Path | None = None,
     verbose: bool = True,
     takeover: bool = False,
+    accept: str | None = None,
 ) -> dict:
     """Run one agent task. Returns a summary dict.
 
     `record` writes every completion to a cassette; `replay` serves them back
     from disk with no API key, no network and no sampling (M6, `docs/0029`).
+
+    `accept` is a command agentctl runs itself once the agent has finished --
+    the test suite, usually. Its exit code is the run's outcome; without it
+    the outcome is "not checked", never an implied success (`docs/0048`).
     """
     from agentctl.adapters.openhands import protect
     from agentctl.runtime import tools as rt
     from openhands.sdk import LLM, Conversation
 
+    from agentctl.runtime import report as rp
+
     ws = Path(workspace).resolve()
     ws.mkdir(parents=True, exist_ok=True)
+    start = rp.snapshot(ws)
     state = state_dir(ws)
     ledger_path = Path(ledger) if ledger else state / "ledger.db"
 
@@ -248,9 +256,15 @@ def run(
     def on_decision(call, decision):
         decisions.append({"tool": call.tool_name,
                           "verdict": decision.verdict.value,
+                          "class": (decision.effect_class.value
+                                    if decision.effect_class else None),
                           "reason": decision.reason})
         if verbose and decision.verdict.value != "EXECUTE":
-            print(f"  [agentctl] {decision.verdict.value} {call.tool_name}: "
+            # The user's words, not the gate's (`docs/0044` F10).
+            word = {"SUBSTITUTE": "reused", "BLOCK": "paused",
+                    "ESCALATE": "paused"}.get(decision.verdict.value,
+                                              decision.verdict.value)
+            print(f"  [agentctl] {word} {call.tool_name}: "
                   f"{decision.reason}", file=sys.stderr)
 
     # One driver per conversation (`docs/0042` I-02). This used to be
@@ -316,6 +330,7 @@ def run(
         print(f"  destructive   {'CONFIRM' if confirm_destructive else 'ALLOWED'}")
         print()
 
+    used_before = rp.Usage.of(conv)
     try:
         if not resume:
             conv.send_message(task)
@@ -342,9 +357,26 @@ def run(
     blocked = guard.blocked()
     guard.close()
 
+    checked = None
+    if accept:
+        if verbose:
+            print(f"\n  checking      {accept}")
+        checked = rp.accept(accept, ws)
+
+    from agentctl.runtime.subagent import _final_text
+    said = _final_text(conv)
+    report = rp.Report(
+        outcome=("PASS" if checked["passed"] else "FAIL") if checked else "not checked",
+        accept=checked, changes=rp.changes(ws, start),
+        agent_said=None if said.startswith("[subagent") else said,
+        usage=rp.Usage.of(conv) - used_before, model=model,
+        seconds=time.time() - start.at, decisions=decisions,
+        blocked=[b.tool_call_id for b in blocked], ledger=str(ledger_path),
+        conversation_id=str(cid), workspace=str(ws))
+
     out = {"conversation_id": str(cid), "workspace": str(ws),
            "ledger": str(ledger_path), "decisions": decisions,
-           "blocked": [b.tool_call_id for b in blocked]}
+           "blocked": [b.tool_call_id for b in blocked], "report": report}
 
     if recorder is not None:
         out["recorded"] = {"cassette": str(record),

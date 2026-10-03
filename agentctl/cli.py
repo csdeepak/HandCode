@@ -84,6 +84,17 @@ def _resolve_id(store: LedgerStore, given: str) -> str | None:
 
 
 # ── commands ───────────────────────────────────────────────────────────
+def _row_cost(r: dict) -> str:
+    """One row's cost, in the ledger's three states (docs/0042 I-10)."""
+    if r["priced_calls"]:
+        extra = " +free" if r["free_calls"] else ""
+        return f"${r['cost']:.4f}{extra}" + ("" if r["priced_calls"] + r["free_calls"]
+                                              == r["calls"] else " +?")
+    if r["free_calls"] == r["calls"]:
+        return "free"
+    return "unknown"
+
+
 def cmd_init(args) -> int:
     from agentctl.runtime.init import run_init
     return run_init(provider=args.provider, model=args.model,
@@ -225,7 +236,7 @@ def cmd_cost(args) -> int:
         if not t.trustworthy and t.calls:
             print()
             print(f"  ! PRICING COVERAGE {t.coverage:.0%} "
-                  f"({t.priced_calls}/{t.calls} calls)")
+                  f"({t.known_calls}/{t.calls} calls known)")
             print("    litellm reports 0.0 for endpoints it cannot price, so an")
             print("    unpriced call is indistinguishable from a free one. The")
             print("    real total is HIGHER than the figure above.")
@@ -237,8 +248,8 @@ def cmd_cost(args) -> int:
             if rows:
                 print(f"\n  {'DEPLOYMENT':<18} {'CALLS':>6} {'PRICED':>7} {'COST':>10}")
                 for r in rows:
-                    priced = f"{r['priced_calls']}/{r['calls']}"
-                    cost = (f"${r['cost']:.4f}" if r["priced_calls"] else "unknown")
+                    priced = f"{r['priced_calls'] + r['free_calls']}/{r['calls']}"
+                    cost = _row_cost(r)
                     print(f"  {(r['deployment'] or '-'):<18} {r['calls']:>6} "
                           f"{priced:>7} {cost:>10}")
 
@@ -247,7 +258,7 @@ def cmd_cost(args) -> int:
             if rows:
                 print(f"\n  {'CONVERSATION':<38} {'CALLS':>6} {'COST':>10}")
                 for r in rows:
-                    cost = (f"${r['cost']:.4f}" if r["priced_calls"] else "unknown")
+                    cost = _row_cost(r)
                     print(f"  {(r['conversation_id'] or '-')[:36]:<38} "
                           f"{r['calls']:>6} {cost:>10}")
     return 0
@@ -320,15 +331,8 @@ def cmd_run(args) -> int:
         confirm_destructive=not args.allow_destructive,
         max_iterations=args.max_iterations, max_budget_usd=args.max_budget,
         resume=args.resume, record=args.record, replay=args.replay,
-        policy=args.policy, takeover=args.takeover,
+        policy=args.policy, takeover=args.takeover, accept=args.accept,
     )
-    print()
-    print(f"  conversation  {result['conversation_id']}")
-    print(f"  ledger        {result['ledger']}")
-    verdicts = {}
-    for d in result["decisions"]:
-        verdicts[d["verdict"]] = verdicts.get(d["verdict"], 0) + 1
-    print(f"  decisions     {verdicts or 'none'}")
 
     if rec := result.get("recorded"):
         print(f"  recorded      {rec['turns']} turns -> {rec['cassette']}"
@@ -348,15 +352,15 @@ def cmd_run(args) -> int:
         else:
             print("  identical     the run matched the recording exactly")
 
-    if result["blocked"]:
-        print(f"  BLOCKED       {len(result['blocked'])} effect(s) need you:")
-        print(f"                agentctl --ledger {result['ledger']} blocked")
-        return 1
-    print()
-    print(f"  resume with:  agentctl run '' "
-          f"--workspace {result['workspace']} "
-          f"--resume {result['conversation_id']}")
-    return 0
+    # One report in place of `decisions {'EXECUTE': 9}` (docs/0044 F6, F10).
+    # Exit 0 means: nothing failed a check and nothing waits on you. It used
+    # to be 1 for any blocked effect, including after a fully successful task.
+    report = result.get("report")
+    if report is None:                          # an embedder's stub, say
+        return 1 if result["blocked"] else 0
+    for line in report.lines():
+        print(line)
+    return 0 if report.ok else 1
 
 
 def cmd_doctor(args) -> int:
@@ -1012,6 +1016,10 @@ def build_parser() -> argparse.ArgumentParser:
                          "models`). Narrower than the default pool, so a "
                          "daily cap has less to fail over to. Needs "
                          "--base-url.")
+    rn.add_argument("--accept", metavar="CMD",
+                    help="a command agentctl runs itself when the agent is "
+                         "done, e.g. \"python -m pytest -q\". Exit 0 = PASS. "
+                         "Without it the outcome is reported as not checked")
     rn.add_argument("--max-iterations", type=int, default=30)
     rn.add_argument("--max-budget", type=float, help="hard USD ceiling for the run")
     rn.add_argument("--resume", help="conversation id to continue")

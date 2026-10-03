@@ -62,6 +62,9 @@ def test_the_zombies_gate_fails_closed(tmp_path):
 
     d = gate.guard(_call("fresh_id"))
     assert d.verdict is Verdict.BLOCK, d
+    # Said as what it is, not as "gate error ... StaleFence(...)" (docs/0048).
+    assert "another process has taken over" in d.reason
+    assert "StaleFence" not in d.reason
     zombie.close()
 
 
