@@ -85,7 +85,7 @@ shell with, run it in the [container image](https://github.com/csdeepak/HandCode
 where only the mounted repository is reachable
 ([concepts](https://github.com/csdeepak/HandCode/blob/main/guide/concepts.md#what-agentctl-does-not-do)).
 
-**Status.** 822 tests, including a chaos suite that kills the process at ten
+**Status.** 852 tests, including a chaos suite that kills the process at ten
 points in the protocol, plus `verify.py`'s end-to-end crash experiments. All
 run at no cost, on Linux and Windows in CI. Every feature here has also been
 run at least once against a real provider. The design history, with what was
@@ -567,7 +567,7 @@ agentctl/         the code
   adapters/       harness-specific. The portability cost lives here.
 docs/             the numbered document stream. Highest number is newest.
 experiments/      reproducible crash experiments, zero cost
-tests/            690 tests, including the ten-point chaos suite
+tests/            852 tests, including the ten-point chaos suite
 verify.py         one command that proves all of the above
 ```
 
