@@ -4,7 +4,7 @@
 # as a second name for the same command, so `uv tool install handcode` gives a
 # command named after what was installed.
 name = "handcode"
-version = "0.3.0"
+version = "0.3.1"
 description = "A coding agent whose work survives crashes, restarts and provider switches"
 readme = "README.md"
 requires-python = ">=3.12"

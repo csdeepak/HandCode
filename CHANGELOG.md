@@ -10,6 +10,19 @@ is a git tag; nothing between tags is a release.
 
 Nothing yet.
 
+## 0.3.1 (2026-10-05)
+
+Three rough edges from the first real run of 0.3.0 (`docs/0056`).
+
+### Fixed
+- The report no longer lists `__pycache__` and other files that running
+  Python leaves behind. It counts them in one line, and `--accept` no longer
+  writes bytecode of its own.
+- The agent is told which command runs Python in its shell when `python`
+  is not it, instead of finding out from `command not found`.
+- The OpenHands SDK's INFO log lines no longer interrupt agentctl's output;
+  set `LOG_LEVEL=INFO` to see them.
+
 ## 0.3.0 (2026-10-04)
 
 The first release. Everything in 0.3.0rc1 below, plus:

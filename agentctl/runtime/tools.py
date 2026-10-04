@@ -190,12 +190,66 @@ class BashExecutor(ToolExecutor):
             return BashObservation.make(1, f"{type(e).__name__}: {e}")
 
 
+#: Tried in this order; the first that actually runs Python wins.
+PYTHONS = ("python", "python3", "py")
+
+
+def first_python(run=None) -> str | None:
+    """The first of `PYTHONS` that runs Python in the agent's own shell.
+
+    "Runs" means it printed, not that a file by that name exists: Windows
+    puts a `python.exe` on PATH that only opens the Microsoft Store. `run`
+    takes a command and returns its stdout, or None; tests pass their own.
+    """
+    if run is None:
+        argv = _shell()
+        if argv is None:
+            return None
+
+        def run(cmd: str) -> str | None:
+            try:
+                r = subprocess.run(argv + [cmd], capture_output=True, text=True,
+                                   encoding="utf-8", errors="replace", timeout=15)
+            except Exception:                           # noqa: BLE001
+                return None
+            return r.stdout if r.returncode == 0 else None
+
+    for name in PYTHONS:
+        if (run(f'{name} -c "print(12345)"') or "").strip() == "12345":
+            return name
+    return None
+
+
+def python_note(found: str | None) -> str:
+    """What the agent is told, if anything. Nothing when `python` works: that
+    is what a model tries first. A run on Windows spent a step on `python:
+    command not found` before trying `python3` (docs/0056)."""
+    if found == "python":
+        return ""
+    if found:
+        others = " or ".join(f"`{p}`" for p in PYTHONS[:PYTHONS.index(found)])
+        return f" In this shell Python runs as `{found}`, not {others}."
+    return ""
+
+
+_NOTE: str | None = None
+
+
+def _python_note() -> str:
+    """`python_note(first_python())`, worked out once per process."""
+    global _NOTE
+    if _NOTE is None:
+        _NOTE = python_note(first_python())
+    return _NOTE
+
+
 class BashTool(ToolDefinition[BashAction, BashObservation]):
     @classmethod
     def create(cls, conv_state=None, **params) -> Sequence["BashTool"]:
         return [cls(name="execute_bash",
                     description="Run a shell command in the workspace and "
-                                "return its exit code and output.",
+                                "return its exit code and output."
+                                + _python_note(),
                     action_type=BashAction, observation_type=BashObservation,
                     executor=BashExecutor())]
 

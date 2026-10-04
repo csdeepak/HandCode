@@ -181,6 +181,7 @@ def run(
 
     from agentctl.runtime import report as rp
 
+    _quiet_sdk_logs()
     ws = Path(workspace).resolve()
     ws.mkdir(parents=True, exist_ok=True)
     start = rp.snapshot(ws)
@@ -433,6 +434,19 @@ def _command_summary(call) -> str:
     args = call.args or {}
     text = args.get("command") or args.get("path") or str(args)
     return f"{call.tool_name}: {str(text)[:200]}"
+
+
+def _quiet_sdk_logs() -> None:
+    """Hide the SDK's INFO lines; warnings and errors still show.
+
+    It logs each conversation it creates and each tool load at INFO,
+    timestamped, into the middle of agentctl's own header (docs/0056).
+    `LOG_LEVEL`, the SDK's own switch, wins when set. Not done by setting
+    LOG_LEVEL here: every command the agent runs would inherit it.
+    """
+    import logging
+    if not os.environ.get("LOG_LEVEL"):
+        logging.getLogger("openhands").setLevel(logging.WARNING)
 
 
 def _effect_rules(pol) -> dict:

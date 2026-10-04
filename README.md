@@ -93,7 +93,7 @@ repository's secrets, and the job that runs the agent holds no token that can
 write ([the GitHub Action](https://github.com/csdeepak/HandCode/blob/main/guide/github-action.md)).
 It has run on GitHub with a real model and opened a real pull request.
 
-**Status.** 897 tests, including a chaos suite that kills the process at ten
+**Status.** 917 tests, including a chaos suite that kills the process at ten
 points in the protocol, plus `verify.py`'s end-to-end crash experiments. All
 run at no cost, on Linux and Windows in CI. Every feature here has also been
 run at least once against a real provider. The design history, with what was
@@ -591,7 +591,7 @@ docs/             the numbered document stream. Highest number is newest.
 examples/         a workflow to copy into your repository
 experiments/      reproducible crash experiments, zero cost
 guide/            the user guide; website/ builds it into the docs site
-tests/            897 tests, including the ten-point chaos suite
+tests/            917 tests, including the ten-point chaos suite
 verify.py         one command that proves all of the above
 ```
 

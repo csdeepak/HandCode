@@ -21,7 +21,8 @@ HELLO = [("write_file", {"path": "hello.txt", "content": "hello\n"})]
 
 
 def bash(command: str) -> tuple[str, dict]:
-    return ("execute_bash", {"command": command})
+    # `bash` is what the model sees; `execute_bash` is only the registry name.
+    return ("bash", {"command": command})
 
 
 def _completion(model: str, message: dict, finish: str) -> dict:

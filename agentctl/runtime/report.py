@@ -14,6 +14,7 @@ wrong things (`docs/0039`):
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -95,12 +96,26 @@ def snapshot(ws: str | Path) -> Start:
                  prefix, top)
 
 
+#: What running Python or its tests leaves behind. Never something the agent
+#: wrote on purpose, so a NEW untracked one is counted, not listed. A tracked
+#: file is listed whatever its name: changing what git tracks is real.
+_BYPRODUCT_DIRS = ("__pycache__", ".pytest_cache")
+_BYPRODUCT_SUFFIXES = (".pyc", ".pyo")
+
+
+def byproduct(path: str) -> bool:
+    parts = path.replace("\\", "/").split("/")
+    return any(p in _BYPRODUCT_DIRS for p in parts) or path.endswith(_BYPRODUCT_SUFFIXES)
+
+
 @dataclass
 class Changes:
     files: list[tuple[str, int | None, int | None]] = field(default_factory=list)
     commits: int = 0
     already_dirty: int = 0
     note: str = ""
+    #: New untracked byproducts (`byproduct`), counted rather than listed.
+    generated: int = 0
 
     @property
     def added(self) -> int:
@@ -140,6 +155,9 @@ def changes(ws: str | Path, start: Start) -> Changes:
                             None if d == "-" else int(d)))
             seen.add(path)
     for path in sorted(_porcelain(ws, start.prefix) - start.dirty - seen):
+        if byproduct(path):
+            c.generated += 1
+            continue
         p = ws / path
         try:
             n = sum(1 for _ in p.open(encoding="utf-8", errors="replace"))
@@ -241,6 +259,7 @@ class Report:
             "accept": ({k: self.accept.get(k) for k in ("command", "exit", "passed")}
                        if self.accept else None),
             "files": [p for p, _, _ in self.changes.files],
+            "generated": self.changes.generated,
             "commits": self.changes.commits,
             "awaiting": [{"id": t, "what": w} for t, w in self.awaiting],
             "blocked": len(self.blocked),
@@ -282,6 +301,9 @@ class Report:
             if c.already_dirty:
                 out.append(f"                ({plural(c.already_dirty, 'file')} "
                            f"already had changes before the run)")
+        if c.generated:
+            out.append(f"                ({plural(c.generated, 'generated file')} "
+                       f"left out: __pycache__ and the like)")
         if c.note.startswith("(inside"):
             out.append(f"                {c.note}")
 
@@ -349,10 +371,13 @@ def accept(command: str, ws: str | Path, timeout_s: float = 900.0) -> dict:
     the harness's own observation rather than the agent's claim about itself.
     """
     t0 = time.time()
+    # No bytecode: the check must not leave its own __pycache__ behind to be
+    # reported as something the agent changed.
+    env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
     try:
         r = subprocess.run(command, shell=True, cwd=str(ws), capture_output=True,
                            text=True, encoding="utf-8", errors="replace",
-                           timeout=timeout_s)
+                           timeout=timeout_s, env=env)
         code, text = r.returncode, (r.stdout or "") + (r.stderr or "")
     except subprocess.TimeoutExpired:
         code, text = None, f"timed out after {timeout_s:.0f}s"

@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0055**.
+**The highest number is the newest document.** Current head: **0056**.
 
 **New here and want to USE it?** Start with the [user guide](guide/README.md),
 not this index.
@@ -64,6 +64,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0053](docs/0053-the-github-action.md) | The GitHub Action — Two Jobs, and the Agent's Holds Nothing Worth Stealing | DECISION | ACCEPTED | 2026-10-04 | Stage 3: the agent's job holds the model key and a read-only checkout; a second job on a fresh machine checks the git bundle against `GITHUB_SHA`, refuses workflow edits and opens the PR. Refuses stranger-writable events and a checkout that kept its token; strips GitHub tokens; a subreaper stops leftover processes; no cache. Ran on GitHub with a scripted model, then a real one (PASS, $0.00), and opened csdeepak/HandCode#1 |
 | [0054](docs/0054-the-docs-site.md) | The Documentation Site — The Guide, Built Without a Framework | DECISION | ACCEPTED | 2026-10-04 | Stage 4: `website/build.py` (markdown-it-py, one template) builds the README's first half, `guide/` and the changelog; links work on GitHub and on the site, GitHub's anchors, a broken link fails the build. Deploys only when Pages deploys from Actions. Published at csdeepak.github.io/HandCode on the owner's go-ahead |
 | [0055](docs/0055-policy-effect-rules.md) | A Policy's Effect Rules Hold for Every Class | DECISION | ACCEPTED | 2026-10-04 | Of four effect rules the policy compiler accepted, one was enforced for one class: `external: block` compiled and allowed everything. Now `block`, `require_human_approval` and `allow` act for every class, and `--allow-destructive` cannot loosen them. Two end-to-end runs fail on the old runner and pass on the new |
+| [0056](docs/0056-first-run-rough-edges.md) | Three Rough Edges from the First Real Run of 0.3.0 | DECISION | ACCEPTED | 2026-10-05 | The owner's first PyPI install: the report listed `__pycache__` as changes, the agent hit `python: command not found`, and SDK INFO lines broke the header. All three fixed in 0.3.1; the end-to-end test fails on 0.3.0 with the owner's symptom |
 
 ---
 
