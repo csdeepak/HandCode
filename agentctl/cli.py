@@ -431,6 +431,11 @@ def cmd_run(args) -> int:
         return 1 if result["blocked"] else 0
     for line in report.lines():
         print(line)
+    if getattr(args, "report_json", None):
+        import json
+        args.report_json.parent.mkdir(parents=True, exist_ok=True)
+        args.report_json.write_text(json.dumps(report.to_json(), indent=2),
+                                    encoding="utf-8")
     return 0 if report.ok else 1
 
 
@@ -1278,6 +1283,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="if a provider rate-limits the run, wait up to this "
                          "long (90s, 30m, 2h) for the limit to reset and "
                          "resume automatically")
+    rn.add_argument("--report-json", type=Path, metavar="PATH",
+                    help="also write the end-of-run report as JSON, for a "
+                         "program to read (the GitHub Action does)")
     rn.add_argument("--max-iterations", type=int, default=30)
     rn.add_argument("--max-budget", type=float, help="hard USD ceiling for the run")
     rn.add_argument("--resume", help="conversation id to continue")

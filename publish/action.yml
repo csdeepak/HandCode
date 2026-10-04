@@ -1,0 +1,53 @@
+name: HandCode publish
+description: >-
+  Open a pull request from the work of the HandCode action, in a job of its
+  own that runs none of the repository's code.
+author: csdeepak
+branding:
+  icon: git-pull-request
+  color: green
+
+# The second job. docs/0053. A fresh machine: it never checks out the agent's
+# files and runs nothing from the repository, so the token below is never on a
+# machine where the agent ran. It checks the agent's work against the commit
+# this workflow run is for, refuses edits to workflow files, pushes a new
+# branch (never the base), and opens the pull request. It needs
+#   permissions:
+#     contents: write
+#     pull-requests: write
+# and the repository setting "Allow GitHub Actions to create and approve pull
+# requests" (Settings > Actions > General). Without the setting it pushes the
+# branch and prints the link that opens the pull request.
+
+inputs:
+  github-token:
+    description: The token that pushes the branch and opens the pull request.
+    default: ${{ github.token }}
+  dry-run:
+    description: "true: check everything and print the pull request, but push nothing."
+    default: "false"
+
+outputs:
+  pull-request:
+    description: The pull request's URL, if one was opened.
+    value: ${{ steps.publish.outputs.pull-request }}
+  branch:
+    description: The branch the work was pushed to.
+    value: ${{ steps.publish.outputs.branch }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: handcode-${{ github.run_id }}
+        path: ${{ runner.temp }}/handcode-in
+
+    - name: Check the agent's work and open the pull request
+      id: publish
+      shell: bash
+      env:
+        HANDCODE_IN: ${{ runner.temp }}/handcode-in
+        HANDCODE_TOKEN: ${{ inputs.github-token }}
+        HANDCODE_DRY_RUN: ${{ inputs.dry-run }}
+      run: python3 "$GITHUB_ACTION_PATH/../agentctl/gha.py" publish

@@ -1,0 +1,77 @@
+name: action
+
+# docs/0053. The GitHub Action, run for real on GitHub, against this
+# repository, with a scripted model: no key, no network beyond GitHub, $0.
+# The publish half runs as a DRY RUN, so nothing is pushed and no pull request
+# is opened here. A real model and a real pull request need a key secret and
+# a repository setting, which are the owner's to add (guide/github-action.md).
+
+on:
+  push:
+    branches: [main]
+    paths: [action.yml, "publish/**", agentctl/gha.py, "agentctl/runtime/**",
+            agentctl/cli.py, tests/scripted_model.py, examples/handcode.yml,
+            .github/workflows/action-test.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: A scripted model on 127.0.0.1
+        run: nohup python3 tests/scripted_model.py 8765 >/dev/null 2>&1 &
+
+      - uses: ./
+        id: hc
+        with:
+          task: Create hello.txt containing the word hello
+          accept: grep -qx hello hello.txt
+          model: openai/scripted
+          args: --base-url http://127.0.0.1:8765/v1
+
+      - name: The run reports PASS, with one commit to propose
+        env:
+          OUTCOME: ${{ steps.hc.outputs.outcome }}
+          COMMITS: ${{ steps.hc.outputs.commits }}
+        run: |
+          echo "outcome=$OUTCOME commits=$COMMITS"
+          test "$OUTCOME" = PASS && test "$COMMITS" = 1
+
+      - name: The checkout kept its token out of reach (the refusal is real)
+        run: |
+          ws="$RUNNER_TEMP/kept-token"; git clone -q "$GITHUB_WORKSPACE" "$ws"
+          git -C "$ws" config http.https://github.com/.extraheader "AUTHORIZATION: basic eDp5"
+          if GITHUB_WORKSPACE="$ws" HANDCODE_TASK=x HANDCODE_OUT="$RUNNER_TEMP/o2" \
+             GITHUB_SHA="$(git -C "$ws" rev-parse HEAD)" python3 agentctl/gha.py run; then
+            echo "a checkout holding a token was NOT refused"; exit 1
+          fi
+
+  publish:
+    needs: run
+    runs-on: ubuntu-latest
+    steps:
+      # Only for `./handcode-src/publish` to exist: a published action is
+      # fetched by `uses:`, and needs no checkout.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          path: handcode-src
+
+      - uses: ./handcode-src/publish
+        id: pub
+        with:
+          dry-run: "true"
+
+      - name: It would push the agent's commit to a new branch
+        env:
+          BRANCH: ${{ steps.pub.outputs.branch }}
+        run: |
+          echo "branch=$BRANCH"
+          test "$BRANCH" = "handcode/run-${{ github.run_id }}-${{ github.run_attempt }}"

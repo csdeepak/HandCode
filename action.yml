@@ -1,0 +1,103 @@
+name: HandCode
+description: >-
+  Run a coding agent on this repository, with its work checked by your tests.
+  The publish action (csdeepak/HandCode/publish) turns it into a pull request.
+author: csdeepak
+branding:
+  icon: shield
+  color: green
+
+# The agent's job. docs/0053. It holds the model key and a read-only checkout,
+# and nothing that can write to the repository: a job running a model's
+# commands cannot keep a secret from them. The pull request is opened by the
+# publish action, in a second job on a fresh machine.
+#
+# Inputs reach the scripts through `env:` only, never interpolated into a
+# `run:` line, so a task containing shell syntax stays text.
+
+inputs:
+  task:
+    description: What you want done, in plain words.
+    required: true
+  accept:
+    description: >-
+      A command HandCode runs itself after the agent finishes, e.g.
+      "python -m pytest -q". Exit 0 is PASS. Without it the outcome is
+      "not checked", and the pull request is opened as a draft.
+    default: ""
+  model:
+    description: A litellm model id. Default, the first provider whose key is set.
+    default: ""
+  max-iterations:
+    description: The most steps the agent may take.
+    default: "30"
+  max-budget:
+    description: A hard ceiling in USD for the run.
+    default: ""
+  args:
+    description: More `agentctl run` arguments, e.g. "--wait 30m" or "--pool".
+    default: ""
+
+outputs:
+  outcome:
+    description: PASS, FAIL, "not checked", or "no report".
+    value: ${{ steps.run.outputs.outcome }}
+  ok:
+    description: "true when nothing failed a check and nothing waits on a person."
+    value: ${{ steps.run.outputs.ok }}
+  commits:
+    description: How many commits the agent's work became. 0 means nothing to propose.
+    value: ${{ steps.run.outputs.commits }}
+  conversation-id:
+    description: The run's conversation id.
+    value: ${{ steps.run.outputs.conversation-id }}
+
+runs:
+  using: composite
+  steps:
+    - name: Linux only, for now
+      if: runner.os != 'Linux'
+      shell: bash
+      run: |
+        echo "::error title=HandCode::the action runs on Linux runners (runs-on: ubuntu-latest). It stops processes the agent leaves running, and that needs Linux."
+        exit 2
+
+    - uses: astral-sh/setup-uv@v6
+
+    - name: Install HandCode, the version this action is
+      id: install
+      shell: bash
+      run: |
+        uv build -q --wheel --out-dir "$RUNNER_TEMP/handcode-dist" "$GITHUB_ACTION_PATH"
+        uv tool install -q --python 3.12 "$(ls "$RUNNER_TEMP"/handcode-dist/handcode-*.whl)[openhands]"
+        echo "agentctl=$(uv tool dir --bin)/agentctl" >> "$GITHUB_OUTPUT"
+        "$(uv tool dir --bin)/agentctl" --version
+
+    - name: Run the agent
+      id: run
+      shell: bash
+      env:
+        HANDCODE_TASK: ${{ inputs.task }}
+        HANDCODE_ACCEPT: ${{ inputs.accept }}
+        HANDCODE_MODEL: ${{ inputs.model }}
+        HANDCODE_MAX_ITERATIONS: ${{ inputs.max-iterations }}
+        HANDCODE_MAX_BUDGET: ${{ inputs.max-budget }}
+        HANDCODE_ARGS: ${{ inputs.args }}
+        HANDCODE_AGENTCTL: ${{ steps.install.outputs.agentctl }}
+        HANDCODE_OUT: ${{ runner.temp }}/handcode-out
+        HANDCODE_RUNNER_ENV: ${{ runner.environment }}
+        OPENHANDS_SUPPRESS_BANNER: "1"
+        PYTHONIOENCODING: utf-8
+      run: python3 "$GITHUB_ACTION_PATH/agentctl/gha.py" run
+
+    # The hand-over to the publish job: the agent's commits as a git bundle,
+    # and the report. Readable by anyone who can read the repository, as the
+    # pull request will be; kept for a day.
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: handcode-${{ github.run_id }}
+        path: ${{ runner.temp }}/handcode-out/
+        retention-days: 1
+        if-no-files-found: ignore
+        overwrite: true

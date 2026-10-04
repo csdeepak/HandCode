@@ -232,6 +232,24 @@ class Report:
         checked" is not a failure -- and is never printed as a success."""
         return self.outcome != "FAIL" and not self.blocked and not self.paused
 
+    def to_json(self) -> dict:
+        """What a program reading the report needs (`--report-json`, the
+        GitHub Action of `docs/0053`). `text` is the report as printed, so a
+        reader never re-renders it and drifts from the terminal."""
+        return {
+            "outcome": self.outcome, "ok": self.ok, "paused": self.paused,
+            "accept": ({k: self.accept.get(k) for k in ("command", "exit", "passed")}
+                       if self.accept else None),
+            "files": [p for p, _, _ in self.changes.files],
+            "commits": self.changes.commits,
+            "awaiting": [{"id": t, "what": w} for t, w in self.awaiting],
+            "blocked": len(self.blocked),
+            "model": self.model, "requests": self.usage.requests,
+            "tokens": self.usage.tokens, "seconds": round(self.seconds, 1),
+            "conversation_id": self.conversation_id,
+            "text": "\n".join(self.lines()).strip("\n"),
+        }
+
     def lines(self) -> list[str]:
         out = ["", "  ── result " + "─" * 58]
         if self.accept:

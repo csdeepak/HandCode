@@ -1,0 +1,46 @@
+# HandCode from the Actions tab: type a task, get a pull request.
+#
+# Copy this file to .github/workflows/handcode.yml in your repository, add your
+# model key as a repository secret (Settings > Secrets and variables > Actions),
+# and run it from Actions > handcode > Run workflow. guide/github-action.md
+# explains each part.
+
+name: handcode
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: What you want done
+        required: true
+
+jobs:
+  # The agent's job: the model key and a read-only checkout, nothing more.
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false    # keeps the job's token away from the agent
+
+      # Set up what your tests need here, so `accept` can run them, e.g.
+      #   - run: pip install -e ".[test]"
+
+      - uses: csdeepak/HandCode@v0
+        with:
+          task: ${{ inputs.task }}
+          accept: python -m pytest -q
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
+  # A fresh machine that runs none of your code opens the pull request.
+  pull-request:
+    needs: run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: csdeepak/HandCode/publish@v0
