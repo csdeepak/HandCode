@@ -20,11 +20,11 @@ The plan sketched **one step** that runs the task and opens a pull request.
 Building it showed why one step cannot be made safe. This document records the
 shape that replaced it.
 
-DRAFT because the `0041` rule is half met:
+DRAFT because one step is left:
 - it **has** run on GitHub, for real, with a scripted model;
-- it **has not** run with a real model, or opened a real pull request.
-
-Both need things only the owner can add (§6).
+- it **has** run with a real model, from the owner's key secret (§3);
+- it **has not** opened a real pull request yet. The owner decides when one
+  is opened in this repository (§6).
 
 ## 1. Why one job cannot work
 
@@ -153,6 +153,22 @@ Each item was read from the log, not only the job status:
 - The one entry saved earlier came from the scripted model, so it holds
   nothing hostile. GitHub evicts it after 7 days unused.
 
+**With a real model** (`action-live.yml`, run 37203707506, publish as a dry
+run). This was the `0041` live run, once the owner had added the
+`OPENROUTER_API_KEY` secret.
+
+| | |
+|---|---|
+| Model | `openrouter/nvidia/nemotron-3-super-120b-a12b:free`, derived from the key |
+| Task | write `examples/README.md` (three to five sentences), changing no other file |
+| Report | `outcome PASS`, `changed 1 file`, `11 actions: 10 reads, 1 file write`, `needs you nothing` |
+| Cost | 12 requests · 59.7K tokens · $0.00 (free-tier model) · 13 s |
+| Publish | `1 commit(s), 1 file(s), 235c02a9b416..d5c52aeae09f -> handcode/run-37203707506-1`, nothing pushed |
+
+The bundle was downloaded and read back. It holds one commit by
+`github-actions[bot]`, touching only `examples/README.md`, three accurate
+sentences.
+
 ## 4. Left open
 
 - **Prompt injection is contained, not prevented.**
@@ -183,8 +199,9 @@ Each item was read from the log, not only the job status:
 
 ## 6. For the owner
 
-1. **A real run.** Add `OPENROUTER_API_KEY` as a repository secret, and the
-   self-test can run one real task. That meets the `0041` rule.
+1. **A real run: done** (§3, run 37203707506). The owner added
+   `OPENROUTER_API_KEY`, and `action-live.yml` ran one real task with it.
+   That meets the `0041` rule.
 2. **A real pull request.** "Allow GitHub Actions to create and approve pull
    requests" is **on**. The owner asked for it to be set through the API on
    2026-10-04, and reading it back gives `can_approve_pull_request_reviews:
