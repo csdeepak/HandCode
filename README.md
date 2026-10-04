@@ -91,12 +91,12 @@ where only the mounted repository is reachable
 request back, with the report as its description. Your key stays in your
 repository's secrets, and the job that runs the agent holds no token that can
 write ([the GitHub Action](https://github.com/csdeepak/HandCode/blob/main/guide/github-action.md)).
-It has run on GitHub with a scripted model; a run with a real model is next.
+It has run on GitHub with a real model and opened a real pull request.
 
 **Status.** 887 tests, including a chaos suite that kills the process at ten
 points in the protocol, plus `verify.py`'s end-to-end crash experiments. All
 run at no cost, on Linux and Windows in CI. Every feature here has also been
-run at least once against a real provider, except the GitHub Action (above). The design history, with what was
+run at least once against a real provider. The design history, with what was
 measured and what was found, is the numbered [`docs/`](https://github.com/csdeepak/HandCode/blob/main/INDEX.md) stream.
 
 ---

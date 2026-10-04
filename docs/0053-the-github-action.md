@@ -2,7 +2,7 @@
 Number:        0053
 Title:         The GitHub Action — Two Jobs, and the Agent's Holds Nothing Worth Stealing
 Type:          DECISION
-Status:        DRAFT
+Status:        ACCEPTED
 Created:       2026-10-04
 Supersedes:    —
 Superseded-by: —
@@ -20,11 +20,10 @@ The plan sketched **one step** that runs the task and opens a pull request.
 Building it showed why one step cannot be made safe. This document records the
 shape that replaced it.
 
-DRAFT because one step is left:
-- it **has** run on GitHub, for real, with a scripted model;
-- it **has** run with a real model, from the owner's key secret (§3);
-- it **has not** opened a real pull request yet. The owner decides when one
-  is opened in this repository (§6).
+It meets the `0041` rule in full (§3):
+- it has run on GitHub with a scripted model;
+- it has run with a real model, from the owner's key secret;
+- it has opened a real pull request, at the owner's word.
 
 ## 1. Why one job cannot work
 
@@ -169,6 +168,22 @@ The bundle was downloaded and read back. It holds one commit by
 `github-actions[bot]`, touching only `examples/README.md`, three accurate
 sentences.
 
+**A real pull request** (run 37205284118, `publish: open`, at the owner's
+word). It opened [csdeepak/HandCode#1](https://github.com/csdeepak/HandCode/pull/1):
+
+| | |
+|---|---|
+| Report | `outcome PASS`, `changed 1 file +3 -0`, `2 actions: 1 file write, 1 read`, 3 requests · 13.6K tokens · $0.00 · 6 s |
+| Publish | `1 commit(s), 1 file(s), 912c438b2b50..c29f9c16c68b -> handcode/run-37205284118-1`, then `opened .../pull/1` |
+| The pull request | base `main`, head `handcode/run-37205284118-1`, author `app/github-actions`. Not a draft, because the report was ok. One file, `examples/README.md`, +3 −0 |
+| Its description | the task quoted, the report fenced, and the "Before you merge" notes |
+| `main` | still `912c438` after the run: nothing pushed to the base |
+
+The agent's wording differs from the dry run's (§3), as a re-run of a model
+does. One sentence is slightly off: "This repository contains ..." should say
+the file is for *your* repository. Review is for exactly this, and merging
+is the owner's call.
+
 ## 4. Left open
 
 - **Prompt injection is contained, not prevented.**
@@ -210,7 +225,7 @@ sentences.
      `pull-requests: write` gets it.
    - The setting also lets such a job **approve** a pull request, though
      nothing in HandCode does.
-   - Left: run `publish` without `dry-run`, so a real pull request is opened.
+   - A real pull request was opened (§3, #1).
 3. **`@v0`.** The guide and `examples/handcode.yml` use `csdeepak/HandCode@v0`.
    That tag should move with each `0.x` release. `RELEASING.md` can add it to
    the release steps once the first release is out.
