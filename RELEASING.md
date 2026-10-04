@@ -49,6 +49,14 @@ automation should hold credentials for.
    Only then does it stop at the `pypi` environment for your approval.
 5. Approve, and it publishes to PyPI and creates a GitHub release with the
    files attached.
+6. **For a final release** (not a candidate), move the GitHub Action's major
+   tag to it, since `examples/handcode.yml` uses `csdeepak/HandCode@v0`
+   (`docs/0053`):
+
+   ```bash
+   git tag -f v0 v0.3.0
+   git push -f origin v0
+   ```
 
 A tag that does not match `pyproject.toml`'s version fails at the first step.
 A version can be uploaded to an index only once, ever, so a failed release

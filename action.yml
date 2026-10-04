@@ -62,7 +62,11 @@ runs:
         echo "::error title=HandCode::the action runs on Linux runners (runs-on: ubuntu-latest). It stops processes the agent leaves running, and that needs Linux."
         exit 2
 
+    # No cache: this job runs the agent, and a cache it saved would be
+    # restored by your other workflows (cache poisoning).
     - uses: astral-sh/setup-uv@v6
+      with:
+        enable-cache: false
 
     - name: Install HandCode, the version this action is
       id: install

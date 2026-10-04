@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0052**.
+**The highest number is the newest document.** Current head: **0053**.
 
 **New here and want to USE it?** Start with the [user guide](guide/README.md),
 not this index.
@@ -61,6 +61,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0050](docs/0050-try-it-before-you-trust-it.md) | Try It Before You Trust It | DECISION | ACCEPTED | 2026-10-04 | Phase 5, the last. `agentctl demo`: plain OpenHands commits twice across a real crash, agentctl once ($0, no key, every OS, verified from an installed wheel). A `guide/` for users; the README opens with demo and quickstart. Where 0043's six promises stand |
 | [0051](docs/0051-deployment-plan.md) | Deployment — The Plan | DECISION | DRAFT | 2026-10-04 | PyPI as the foundation, a container image as the near-sandbox, a GitHub Action as the hosted experience; nobody but the user holds a key. A hosted service is not now (key custody, per-user sandboxes, cost, ToS). Nothing built |
 | [0052](docs/0052-installs-ask-first.md) | Installing Software Into Your Environment Asks First | DECISION | ACCEPTED | 2026-10-04 | `pip install` and 17 other installers ask (or queue) like a write outside the workspace; installs into a venv inside the repo do not, and nothing asks in the container. Live: an unattended `pip install cowsay` was queued and nothing was installed |
+| [0053](docs/0053-the-github-action.md) | The GitHub Action — Two Jobs, and the Agent's Holds Nothing Worth Stealing | DECISION | DRAFT | 2026-10-04 | Stage 3: the agent's job holds the model key and a read-only checkout; a second job on a fresh machine checks the git bundle against `GITHUB_SHA`, refuses workflow edits and opens the PR. Refuses stranger-writable events and a checkout that kept its token; strips GitHub tokens; a subreaper stops leftover processes; no cache. Ran on GitHub with a scripted model; a real model waits on a key secret |
 
 ---
 

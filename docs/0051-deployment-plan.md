@@ -377,3 +377,24 @@ boundary is a vulnerability.
   proves the mechanism, not how a model behaves against it.
 - **Publishing** happens with the first release tag, after Stage 1's
   trusted-publisher setup.
+
+## 11. Addendum (2026-10-04): Stage 3 built, as two jobs; recorded in `0053`
+
+The one-step action sketched in §3 could not keep its own token. A hijacked
+agent can read anything on its machine, including the environment of the
+process holding the token. So Stage 3 is **two jobs**:
+- the agent's, with the model key and a read-only checkout;
+- a publish job on a fresh machine, which checks the git bundle and opens the
+  pull request.
+
+`docs/0053` has the design, the refusals and the evidence. It ran on GitHub with
+a scripted model (first attempt green, every claim read from the log).
+
+**Still open:**
+- the `0041` live run with a real model, which needs a key secret;
+- a real pull request, which needs the "Allow GitHub Actions to create and
+  approve pull requests" setting;
+- issue triggers, which wait for I-26 as D10 says.
+
+The §3 "done when" (a labelled issue gets a PASS pull request) is therefore
+**not** met yet.

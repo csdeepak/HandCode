@@ -259,6 +259,8 @@ def test_the_run_job_is_never_handed_a_token():
         if line.strip().startswith("run:"):
             assert "${{" not in line, line
     assert "HANDCODE_TOKEN" in (ROOT / "publish" / "action.yml").read_text(encoding="utf-8")
+    # A cache saved by the agent's job is restored by other workflows.
+    assert "enable-cache: false" in run_action
     example = (ROOT / "examples" / "handcode.yml").read_text(encoding="utf-8")
     run_job = example.split("pull-request:")[0]
     assert "persist-credentials: false" in run_job

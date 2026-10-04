@@ -85,10 +85,16 @@ shell with, run it in the [container image](https://github.com/csdeepak/HandCode
 where only the mounted repository is reachable
 ([concepts](https://github.com/csdeepak/HandCode/blob/main/guide/concepts.md#what-agentctl-does-not-do)).
 
-**Status.** 852 tests, including a chaos suite that kills the process at ten
+**On GitHub.** Type a task in your repository's Actions tab and get a pull
+request back, with the report as its description. Your key stays in your
+repository's secrets, and the job that runs the agent holds no token that can
+write ([the GitHub Action](https://github.com/csdeepak/HandCode/blob/main/guide/github-action.md)).
+It has run on GitHub with a scripted model; a run with a real model is next.
+
+**Status.** 879 tests, including a chaos suite that kills the process at ten
 points in the protocol, plus `verify.py`'s end-to-end crash experiments. All
 run at no cost, on Linux and Windows in CI. Every feature here has also been
-run at least once against a real provider. The design history, with what was
+run at least once against a real provider, except the GitHub Action (above). The design history, with what was
 measured and what was found, is the numbered [`docs/`](https://github.com/csdeepak/HandCode/blob/main/INDEX.md) stream.
 
 ---
@@ -565,9 +571,13 @@ agentctl/         the code
   kernel/         in-band, must not fail. No network, no harness imports.
   control/        out-of-band, may fail. Never imported by the kernel.
   adapters/       harness-specific. The portability cost lives here.
+  gha.py          the GitHub Action's logic; standard library only
+action.yml        the GitHub Action's run job; publish/ is its second job
 docs/             the numbered document stream. Highest number is newest.
+examples/         a workflow to copy into your repository
 experiments/      reproducible crash experiments, zero cost
-tests/            852 tests, including the ten-point chaos suite
+guide/            the user guide
+tests/            879 tests, including the ten-point chaos suite
 verify.py         one command that proves all of the above
 ```
 

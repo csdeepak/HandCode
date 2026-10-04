@@ -38,6 +38,12 @@ The release that makes it usable by someone other than its author
 - A container image (`Dockerfile`; published to `ghcr.io/csdeepak/handcode`
   with each release). Only the mounted repository is reachable, and the
   pool's environment is built in (`docs/0051` Stage 2).
+- A GitHub Action (`csdeepak/HandCode` and `csdeepak/HandCode/publish`): type
+  a task in the Actions tab, get a pull request whose description is the
+  report. Two jobs, so the one running the agent holds no token that can
+  write. Started by a person only, not by issues yet
+  (`guide/github-action.md`, `docs/0053`).
+- `agentctl run --report-json PATH`: the report, for a program to read.
 - A user guide in `guide/`.
 
 ### Changed

@@ -130,3 +130,18 @@ install, not a result. Run `agentctl doctor`.
 ### `The demo did NOT show what it claims`
 
 Please report it, with `agentctl demo --keep` and the folder it prints.
+
+---
+
+### `handcode: refused: ...` (in a GitHub Actions log)
+
+The GitHub Action stopped before the agent started, or before it opened a pull
+request. Each refusal says what to change. The table in
+[github-action.md](github-action.md#what-it-refuses-and-why) says why each one
+exists.
+
+### `the branch is pushed, but GitHub did not let the workflow open the pull request`
+
+The repository does not let workflows open pull requests. Turn on *Settings >
+Actions > General > Workflow permissions > "Allow GitHub Actions to create and
+approve pull requests"*, or use the link printed below the message.

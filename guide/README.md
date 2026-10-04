@@ -8,5 +8,6 @@ to use the tool.
 |---|---|
 | [quickstart.md](quickstart.md) | You are starting. Ten minutes, one API key |
 | [concepts.md](concepts.md) | You want to know what agentctl protects you from, and what it does not |
+| [github-action.md](github-action.md) | You want to give it tasks from your repository's Actions tab, and get pull requests back |
 | [troubleshooting.md](troubleshooting.md) | agentctl printed something you do not understand. Search for the exact text |
 | [faq.md](faq.md) | You have a question the others do not answer |
