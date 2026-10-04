@@ -1303,7 +1303,8 @@ def build_parser() -> argparse.ArgumentParser:
                          "network, no tokens, no sampling")
     rn.add_argument("--allow-destructive", action="store_true",
                     help="do not ask before rm -rf, or before a write that "
-                         "lands outside the workspace. Think first.")
+                         "lands outside the workspace. Think first. A --policy "
+                         "rule that blocks or needs approval still holds")
     rn.set_defaults(fn=cmd_run)
 
     ky = sub.add_parser("keys", help="provider keys: what is set, where to get more")

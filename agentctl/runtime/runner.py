@@ -248,6 +248,10 @@ def run(
         # as requiring approval turns the confirmation on regardless of flags.
         if pol.requires_approval("DESTRUCTIVE"):
             confirm_destructive = True
+    # Every effect rule the policy has, for every class (docs/0055). The
+    # runner used to read only DESTRUCTIVE's, so `external: block` compiled
+    # and then allowed everything.
+    rules = _effect_rules(pol)
 
     cid = uuid.UUID(resume) if resume else uuid.uuid4()
 
@@ -294,8 +298,9 @@ def run(
         # Taken between the check and the acquire. The same refusal.
         raise SystemExit(f"{e}\n  If that run is gone:  add --takeover") from None
 
-    if confirm_destructive:
-        _install_confirmation(guard, verbose, workspace=ws)
+    if confirm_destructive or rules:
+        _install_confirmation(guard, verbose, workspace=ws, rules=rules,
+                              confirm=confirm_destructive)
 
     llm = LLM(model=model, api_key=api_key, base_url=base_url,
               service_id="agentctl-run", temperature=0.0,
@@ -430,8 +435,17 @@ def _command_summary(call) -> str:
     return f"{call.tool_name}: {str(text)[:200]}"
 
 
+def _effect_rules(pol) -> dict:
+    """{EffectClass: rule} for every class the policy has a rule for."""
+    from agentctl.kernel.ledger.models import EffectClass
+    if not pol:
+        return {}
+    return {c: r for c in EffectClass if (r := pol.effect_rule(c.value))}
+
+
 def _install_confirmation(guard, verbose: bool, workspace: Path | None = None,
-                          interactive: bool | None = None) -> None:
+                          interactive: bool | None = None,
+                          rules: dict | None = None, confirm: bool = True) -> None:
     """Ask before an effect that is dangerous, or that lands outside the workspace.
 
     The gate is about replay safety, so a first-time `rm -rf` passes it. This is
@@ -455,6 +469,19 @@ def _install_confirmation(guard, verbose: bool, workspace: Path | None = None,
     and the agent is told so and not to repeat it -- and `agentctl approve` /
     `deny` answers it later. A decision already recorded is honoured without
     asking again, which is what lets an approved action run on resume.
+
+    **A policy's effect rules** (`rules`, from `effects:` in a policy) apply to
+    every class, not only DESTRUCTIVE (docs/0055). Each one used to compile
+    and then do nothing:
+
+        block                   refused outright; it does not run
+        require_human_approval  asked, or queued, like DESTRUCTIVE
+        allow                   on DESTRUCTIVE: not asked (as --allow-destructive)
+        reconcile_or_block      what the gate always does; nothing more here
+
+    `confirm=False` is `--allow-destructive`: the built-in questions are off,
+    but a policy's `block` and `require_human_approval` still hold. A flag
+    must not quietly loosen a rule the operator wrote down.
     """
     from agentctl.kernel.ledger.models import EffectClass, GateDecision, Verdict
     from agentctl.kernel.paths import environment_installs, escaping_writes
@@ -495,18 +522,33 @@ def _install_confirmation(guard, verbose: bool, workspace: Path | None = None,
         if decision.verdict is not Verdict.EXECUTE:
             return decision
 
+        cls = decision.effect_class
+        rule = (rules or {}).get(cls)
+        if rule == "block":
+            _not_run(call, f"blocked by your policy ({cls.value}: block)")
+            return GateDecision(
+                Verdict.BLOCK, cls,
+                reason=(f"The user's policy blocks every {cls.value} action, so "
+                        f"this did not run. Do not try to achieve the same effect "
+                        f"another way; finish, and say what was blocked."))
+
         reasons: list[str] = []
-        if decision.effect_class is EffectClass.DESTRUCTIVE:
-            reasons.append("DESTRUCTIVE")
-        if outside := escaping_writes(call, workspace):
-            reasons.append("writes outside the workspace: "
-                           + ", ".join(outside[:4]))
-        # Software installed into YOUR environment (`docs/0052`). Not asked
-        # inside the image: there it lands in the container and dies with it,
-        # which is the containment the image exists to provide.
-        if not os.environ.get("HANDCODE_CONTAINER") and \
-                (installs := environment_installs(call, workspace)):
-            reasons.append("installs into your environment: " + installs[0][:80])
+        if confirm:
+            if cls is EffectClass.DESTRUCTIVE and rule != "allow":
+                reasons.append("DESTRUCTIVE")
+            if outside := escaping_writes(call, workspace):
+                reasons.append("writes outside the workspace: "
+                               + ", ".join(outside[:4]))
+            # Software installed into YOUR environment (`docs/0052`). Not
+            # asked inside the image: there it lands in the container and
+            # dies with it, which is the containment the image provides.
+            if not os.environ.get("HANDCODE_CONTAINER") and \
+                    (installs := environment_installs(call, workspace)):
+                reasons.append("installs into your environment: " + installs[0][:80])
+        if rule == "require_human_approval" and "DESTRUCTIVE" not in reasons:
+            # Not dangerous by itself; the operator said every such effect is
+            # theirs to approve.
+            reasons.append(f"{cls.value}, which your policy says needs approval")
         if not reasons:
             return decision
         why = " | ".join(reasons)

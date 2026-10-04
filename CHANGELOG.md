@@ -8,7 +8,13 @@ is a git tag; nothing between tags is a release.
 
 ## Unreleased
 
-Nothing yet.
+### Fixed
+- A policy's effect rules now hold for every effect class (`docs/0055`).
+  `external: block` used to compile and then allow everything, and
+  `require_human_approval` was enforced for `destructive` only. Now `block`
+  refuses the action, `require_human_approval` asks (or queues), and
+  `allow` on `destructive` stops the question. `--allow-destructive` no longer
+  overrides a policy's `block` or approval rule.
 
 ## 0.3.0rc1 (2026-10-04)
 

@@ -93,7 +93,7 @@ repository's secrets, and the job that runs the agent holds no token that can
 write ([the GitHub Action](https://github.com/csdeepak/HandCode/blob/main/guide/github-action.md)).
 It has run on GitHub with a real model and opened a real pull request.
 
-**Status.** 887 tests, including a chaos suite that kills the process at ten
+**Status.** 897 tests, including a chaos suite that kills the process at ten
 points in the protocol, plus `verify.py`'s end-to-end crash experiments. All
 run at no cost, on Linux and Windows in CI. Every feature here has also been
 run at least once against a real provider. The design history, with what was
@@ -440,6 +440,18 @@ only safe response is to stop. A typo like `desctructive` would otherwise
 compile into an artifact where `DESTRUCTIVE` has no rule at all, and the file
 would still read like protection.
 
+Effect rules hold for every effect class, not only `destructive`:
+
+```yaml
+effects:
+  destructive: require_human_approval   # asked; queued when nobody is at a terminal
+  external:    block                    # refused: it does not run
+```
+
+`allow` on `destructive` stops the question. `--allow-destructive` turns off
+the built-in questions but never a policy's `block` or approval rule
+(`docs/0055`).
+
 The cap is enforced *before* the run starts, because a budget check that runs
 after the work is an audit:
 
@@ -579,7 +591,7 @@ docs/             the numbered document stream. Highest number is newest.
 examples/         a workflow to copy into your repository
 experiments/      reproducible crash experiments, zero cost
 guide/            the user guide; website/ builds it into the docs site
-tests/            887 tests, including the ten-point chaos suite
+tests/            897 tests, including the ten-point chaos suite
 verify.py         one command that proves all of the above
 ```
 
