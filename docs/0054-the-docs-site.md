@@ -94,6 +94,14 @@ turning it on is the single act that publishes.
   - the deep link `quickstart.html#6-run-it-in-a-container-...` lands at the
     heading, just under the sticky header;
   - all 10 code blocks on the quickstart have a copy button.
+- **On GitHub** (`site.yml`, its first run on `0b7599c`):
+  - `build` printed *"built 8 pages into _site; every internal link
+    resolves"*;
+  - `pages-on` printed the notice *"GitHub Pages is not set to deploy from
+    Actions ... nothing was published"*;
+  - `deploy` was skipped;
+  - afterwards the repository's environment list was still empty, so no
+    `github-pages` environment was created.
 
 ## 5. For the owner
 
