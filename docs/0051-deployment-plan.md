@@ -398,3 +398,16 @@ a scripted model (first attempt green, every claim read from the log).
 
 The §3 "done when" (a labelled issue gets a PASS pull request) is therefore
 **not** met yet.
+
+## 12. Addendum (2026-10-04): Stage 4 built; publishing is one setting, recorded in `0054`
+
+The guide builds into a site with no framework (`website/build.py`). A broken
+link fails the build, and the ordinary test run checks it too.
+
+`site.yml` deploys only once the owner sets Pages to deploy from Actions.
+Until then it builds, checks and publishes nothing. `docs/0054` has the
+details.
+
+With this, every stage of the plan is built:
+- Stages 1 to 4 each wait on an owner's setting or secret to go live;
+- issue-triggered runs wait on I-26.

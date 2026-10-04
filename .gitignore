@@ -62,3 +62,6 @@ keys.env
 # writes it into its working directory, and the copy at the repo root was
 # noise in every commit from 0042 on (docs/0051 Stage 0).
 hook_telemetry.json
+
+# The documentation site, built by website/build.py
+_site/

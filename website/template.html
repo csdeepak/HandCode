@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+<meta name="description" content="HandCode keeps a coding agent's work safe across crashes, restarts and provider switches.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html">HandCode</a>
+  <span class="version">{version}</span>
+  <a class="repo" href="{repo}">GitHub</a>
+</header>
+<div class="layout">
+  <nav class="side" aria-label="Pages">
+    <ul>
+{nav}
+    </ul>
+  </nav>
+  <main class="doc">
+{body}
+    <footer>
+      <a href="{edit}">This page on GitHub</a> · built{built}
+    </footer>
+  </main>
+</div>
+<script src="site.js" defer></script>
+</body>
+</html>

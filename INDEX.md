@@ -1,6 +1,6 @@
 # Document Index
 
-**The highest number is the newest document.** Current head: **0053**.
+**The highest number is the newest document.** Current head: **0054**.
 
 **New here and want to USE it?** Start with the [user guide](guide/README.md),
 not this index.
@@ -62,6 +62,7 @@ Conventions for adding to this stream: [CONVENTIONS.md](CONVENTIONS.md).
 | [0051](docs/0051-deployment-plan.md) | Deployment — The Plan | DECISION | DRAFT | 2026-10-04 | PyPI as the foundation, a container image as the near-sandbox, a GitHub Action as the hosted experience; nobody but the user holds a key. A hosted service is not now (key custody, per-user sandboxes, cost, ToS). Nothing built |
 | [0052](docs/0052-installs-ask-first.md) | Installing Software Into Your Environment Asks First | DECISION | ACCEPTED | 2026-10-04 | `pip install` and 17 other installers ask (or queue) like a write outside the workspace; installs into a venv inside the repo do not, and nothing asks in the container. Live: an unattended `pip install cowsay` was queued and nothing was installed |
 | [0053](docs/0053-the-github-action.md) | The GitHub Action — Two Jobs, and the Agent's Holds Nothing Worth Stealing | DECISION | DRAFT | 2026-10-04 | Stage 3: the agent's job holds the model key and a read-only checkout; a second job on a fresh machine checks the git bundle against `GITHUB_SHA`, refuses workflow edits and opens the PR. Refuses stranger-writable events and a checkout that kept its token; strips GitHub tokens; a subreaper stops leftover processes; no cache. Ran on GitHub with a scripted model; a real model waits on a key secret |
+| [0054](docs/0054-the-docs-site.md) | The Documentation Site — The Guide, Built Without a Framework | DECISION | DRAFT | 2026-10-04 | Stage 4: `website/build.py` (markdown-it-py, one template) builds the README's first half, `guide/` and the changelog; links work on GitHub and on the site, GitHub's anchors, a broken link fails the build. Deploys only once the owner sets Pages to deploy from Actions; not published |
 
 ---
 

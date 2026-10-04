@@ -58,7 +58,7 @@ openhands = ["openhands-sdk>=1.45.0"]
 # `verify.py` is what certifies the combination, and CI asserts the mcp major
 # version directly rather than trusting either package's metadata.
 proxy = ["litellm[proxy]>=1.100.0"]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "markdown-it-py>=3"]    # markdown-it: website/build.py
 
 [build-system]
 requires = ["setuptools>=68"]

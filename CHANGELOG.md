@@ -44,7 +44,8 @@ The release that makes it usable by someone other than its author
   write. Started by a person only, not by issues yet
   (`guide/github-action.md`, `docs/0053`).
 - `agentctl run --report-json PATH`: the report, for a program to read.
-- A user guide in `guide/`.
+- A user guide in `guide/`, also built as a website (`website/build.py`),
+  ready for GitHub Pages (`docs/0054`).
 
 ### Changed
 - Installing software into your environment (`pip install`, `npm install -g`,

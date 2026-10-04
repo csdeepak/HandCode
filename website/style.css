@@ -1,0 +1,122 @@
+/* HandCode documentation. docs/0054. */
+:root {
+  --bg: #fbfbf9;
+  --surface: #f2f1ec;
+  --text: #1d1f21;
+  --muted: #5d636b;
+  --line: #dddbd3;
+  --accent: #1f6f50;
+  --accent-soft: #e3f0e9;
+  --code-bg: #f2f1ec;
+  --mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15171a;
+    --surface: #1d2024;
+    --text: #e4e6e8;
+    --muted: #9aa1a9;
+    --line: #2e3238;
+    --accent: #6cc39a;
+    --accent-soft: #1f3329;
+    --code-bg: #1d2024;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15171a;
+  --surface: #1d2024;
+  --text: #e4e6e8;
+  --muted: #9aa1a9;
+  --line: #2e3238;
+  --accent: #6cc39a;
+  --accent-soft: #1f3329;
+  --code-bg: #1d2024;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.6 var(--sans);
+}
+a { color: var(--accent); text-underline-offset: 2px; }
+
+.top {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: baseline; gap: .75rem;
+  padding: .7rem 1.25rem;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.brand { font-weight: 700; font-size: 1.1rem; color: var(--text); text-decoration: none; }
+.version { color: var(--muted); font: .8rem var(--mono); }
+.repo { margin-left: auto; font-size: .9rem; }
+
+.layout {
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr);
+  gap: 2.5rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+.side ul { list-style: none; margin: 0; padding: 1.5rem 0; position: sticky; top: 3.2rem; }
+.side li a {
+  display: block; padding: .3rem .7rem; border-radius: 6px;
+  color: var(--muted); text-decoration: none; font-size: .95rem;
+}
+.side li a:hover { color: var(--text); background: var(--surface); }
+.side li a[aria-current] { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+
+.doc { max-width: 46rem; padding: 1.5rem 0 4rem; min-width: 0; }
+.doc h1 { font-size: 2rem; line-height: 1.2; margin: .5rem 0 1rem; }
+.doc h2 { font-size: 1.4rem; margin: 2.4rem 0 .8rem; padding-top: .4rem; border-top: 1px solid var(--line); }
+.doc h3 { font-size: 1.1rem; margin: 1.8rem 0 .6rem; }
+.doc h1, .doc h2, .doc h3 { scroll-margin-top: 4rem; }
+.doc blockquote {
+  margin: 1rem 0; padding: .6rem 1rem;
+  border-left: 3px solid var(--accent); background: var(--surface); border-radius: 0 6px 6px 0;
+}
+.doc blockquote p { margin: .3rem 0; }
+
+code { font: .88em var(--mono); background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+pre {
+  position: relative;
+  background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+  padding: .9rem 1rem; overflow-x: auto; line-height: 1.45;
+}
+pre code { background: none; padding: 0; font-size: .85rem; }
+.copy {
+  position: absolute; top: .4rem; right: .4rem;
+  font: .75rem var(--sans); color: var(--muted);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 5px;
+  padding: .15rem .5rem; cursor: pointer; opacity: 0; transition: opacity .15s;
+}
+pre:hover .copy, .copy:focus { opacity: 1; }
+
+.table { overflow-x: auto; margin: 1rem 0; }
+table { border-collapse: collapse; font-size: .92rem; min-width: 100%; }
+th, td { text-align: left; vertical-align: top; padding: .45rem .7rem; border-bottom: 1px solid var(--line); }
+th { background: var(--surface); }
+
+footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .85rem; }
+footer code { font-size: .8rem; }
+
+@media (max-width: 760px) {
+  .layout { display: block; padding: 0 16px; }
+  .side ul {
+    position: static; display: flex; gap: .25rem; overflow-x: auto;
+    padding: .6rem 0; border-bottom: 1px solid var(--line);
+  }
+  .side li a { white-space: nowrap; padding: .25rem .6rem; }
+  .doc { padding-top: 1rem; }
+  .doc h1 { font-size: 1.6rem; }
+  .top { padding: .6rem 16px; }
+  .copy { opacity: 1; }
+}
