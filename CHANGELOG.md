@@ -8,8 +8,12 @@ is a git tag; nothing between tags is a release.
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.3.0rc1 (2026-10-04)
+
 The release that makes it usable by someone other than its author
-(`docs/0043` to `docs/0050`).
+(`docs/0043` to `docs/0054`). A release candidate: the first upload to PyPI.
 
 ### Added
 - Published on PyPI as **`handcode`** (`agentctl` was taken). The command is
