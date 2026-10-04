@@ -17,7 +17,8 @@ name: release
 
 on:
   push:
-    tags: ["v*"]
+    # A version tag (v0.3.0, v0.3.0rc1), not the Action's moving `v0`.
+    tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       publish:

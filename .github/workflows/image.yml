@@ -9,7 +9,8 @@ on:
     branches: [main]
     paths: [Dockerfile, .dockerignore, "agentctl/**", pyproject.toml,
             .github/workflows/image.yml]
-    tags: ["v*"]
+    # A version tag (v0.3.0, v0.3.0rc1), not the Action's moving `v0`.
+    tags: ["v*.*.*"]
   pull_request:
     paths: [Dockerfile, .dockerignore, "agentctl/**", pyproject.toml]
   workflow_dispatch:
