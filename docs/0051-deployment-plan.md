@@ -411,3 +411,15 @@ details.
 With this, every stage of the plan is built:
 - Stages 1 to 4 each wait on an owner's setting or secret to go live;
 - issue-triggered runs wait on I-26.
+
+## 13. Addendum (2026-10-04): D11 done
+
+Private vulnerability reporting is **enabled**. The owner asked for it to be
+turned on through the API (`PUT
+/repos/csdeepak/HandCode/private-vulnerability-reporting`), and reading it
+back returns `{"enabled": true}`. `SECURITY.md`'s instructions now work as
+written. This closes the last open Stage 0 item (§8).
+
+On the owner's go-ahead the same day, the repository's description and
+website were also set. The description now leads with what HandCode does, and
+the website is <https://csdeepak.github.io/HandCode/>.
