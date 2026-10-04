@@ -185,10 +185,15 @@ Each item was read from the log, not only the job status:
 
 1. **A real run.** Add `OPENROUTER_API_KEY` as a repository secret, and the
    self-test can run one real task. That meets the `0041` rule.
-2. **A real pull request.** Turn on Settings > Actions > General >
-   "Allow GitHub Actions to create and approve pull requests". It is off
-   (`can_approve_pull_request_reviews: false`). Then run `publish` without
-   `dry-run` in a test repository.
+2. **A real pull request.** "Allow GitHub Actions to create and approve pull
+   requests" is **on**. The owner asked for it to be set through the API on
+   2026-10-04, and reading it back gives `can_approve_pull_request_reviews:
+   true` with `default_workflow_permissions: read` unchanged.
+   - A workflow token still starts read-only; only a job that asks for
+     `pull-requests: write` gets it.
+   - The setting also lets such a job **approve** a pull request, though
+     nothing in HandCode does.
+   - Left: run `publish` without `dry-run`, so a real pull request is opened.
 3. **`@v0`.** The guide and `examples/handcode.yml` use `csdeepak/HandCode@v0`.
    That tag should move with each `0.x` release. `RELEASING.md` can add it to
    the release steps once the first release is out.
