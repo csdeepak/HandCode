@@ -4,6 +4,14 @@ Search this page for the exact text agentctl printed.
 
 ---
 
+### `agentctl: command not found` (or "not recognized") after `uv tool install`
+
+uv put the command in a folder your shell does not search yet. Run
+`uv tool update-shell`, then open a new terminal.
+
+The next three entries are for installing with `pip`, or from a clone. The
+`uv tool install` in the [quickstart](quickstart.md) avoids all three.
+
 ### `ERROR: Could not find a version that satisfies the requirement openhands-sdk`
 
 Your Python is older than 3.12. The error does not say so; it lists a hundred

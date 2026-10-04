@@ -38,16 +38,16 @@ which is what makes it free and identical on every OS.
 
 ## Quickstart
 
-Python 3.12+, `git`, and one API key (a free OpenRouter or Gemini key works).
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/), `git`,
+and one API key (a free OpenRouter or Gemini key works). uv fetches Python
+3.12 itself if you do not have it.
 
 ```bash
-git clone https://github.com/csdeepak/HandCode && cd HandCode
-python3 -m venv .venv && source .venv/bin/activate     # Windows: see guide/quickstart.md
-pip install uv && uv pip install -e ".[openhands]"     # uv: seconds, where pip takes minutes
+uv tool install "handcode[openhands]"     # from PyPI; seconds with uv
 
-agentctl demo                                          # see what it is for
-agentctl init                                          # one key, one checked default model
-cd ../your-project
+agentctl demo                             # see what it is for
+agentctl init                             # one key, one checked default model
+cd your-project
 agentctl run "fix the failing date test" --accept "python -m pytest -q"
 ```
 

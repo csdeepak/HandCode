@@ -1,31 +1,42 @@
 # Quickstart
 
-You need Python 3.12 or newer, `git`, and one API key. A free OpenRouter or
-Gemini key works.
+You need `git` and one API key. A free OpenRouter or Gemini key works. The
+installer below brings Python 3.12 itself if you do not have it.
 
 ## 1. Install
 
-**Windows** (PowerShell), in a short path such as `C:\src`:
+HandCode is on PyPI as **`handcode`**. Install it with
+[uv](https://docs.astral.sh/uv/), which also fetches Python 3.12 if you do
+not have it.
 
-```powershell
-git clone https://github.com/csdeepak/HandCode
-cd HandCode
-py -3.12 -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install uv
-uv pip install -e ".[openhands]"
-```
-
-**macOS / Linux:**
+**1. Get uv**, if you do not have it:
 
 ```bash
-git clone https://github.com/csdeepak/HandCode
-cd HandCode
-python3 -m venv .venv          # Ubuntu: sudo apt install python3.12-venv first
-source .venv/bin/activate
-pip install uv
-uv pip install -e ".[openhands]"
+curl -LsSf https://astral.sh/uv/install.sh | sh          # macOS / Linux
 ```
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"   # Windows
+```
+
+**2. Install HandCode:**
+
+```bash
+uv tool install "handcode[openhands]"
+```
+
+This gives you the `agentctl` command (also installed as `handcode`) in its
+own environment, so it cannot clash with your projects' packages. Check it:
+
+```bash
+agentctl --version
+```
+
+If the shell says the command is not found, run `uv tool update-shell` and
+open a new terminal. Upgrade later with `uv tool upgrade handcode`.
+
+To work on HandCode itself, install it from a clone instead
+([CONTRIBUTING.md](../CONTRIBUTING.md)).
 
 **Why `uv`:** the install is about 140 packages, almost all of them pulled in
 by the OpenHands SDK. Measured on clean machines (`docs/0051` §8):
@@ -37,7 +48,7 @@ by the OpenHands SDK. Measured on clean machines (`docs/0051` §8):
 | Windows | 48 s | 23 s |
 | one Windows laptop | 4–13 min | 21 s |
 
-Plain `pip install -e ".[openhands]"` works too; it is only slower.
+Plain `pip install "handcode[openhands]"` works too; it is only slower.
 
 ## 2. See what it is for (no key, no cost)
 

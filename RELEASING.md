@@ -70,8 +70,8 @@ TestPyPI. `pypi` asks for approval before the real index.
 
 ## After the first PyPI release
 
-Switch the install instructions in `README.md` and `guide/quickstart.md`
-from the clone to:
+Done with `0.3.0rc1` (2026-10-04). `README.md` and `guide/quickstart.md`
+install from PyPI:
 
 ```bash
 uv tool install "handcode[openhands]"

@@ -423,3 +423,33 @@ written. This closes the last open Stage 0 item (§8).
 On the owner's go-ahead the same day, the repository's description and
 website were also set. The description now leads with what HandCode does, and
 the website is <https://csdeepak.github.io/HandCode/>.
+
+## 14. Addendum (2026-10-04): `0.3.0rc1` released
+
+The owner set up trusted publishing on TestPyPI and PyPI and a required
+reviewer on the `pypi` environment. Then the tag `v0.3.0rc1` went through
+`release.yml` (run 37213531615):
+
+| Job | Result |
+|---|---|
+| build, then the wheel on Linux, macOS and Windows | green; the demo ran from each install |
+| `publish-testpypi`, then install from TestPyPI on all three | green |
+| `publish-pypi` | waited, the owner approved, published |
+| `github-release` | a pre-release with the wheel and sdist attached |
+
+**Read back afterwards, not taken from the job status:**
+- **pypi.org** lists `handcode 0.3.0rc1`, author `csdeepak`, `Requires-Python
+  >=3.12`, with both files.
+- **The documented command** (`uv tool install "handcode[openhands]"`) was run
+  on the owner's Windows laptop with an empty uv cache and isolated
+  directories. It installed in **34 s**, and uv chose the release candidate,
+  since it is the only version.
+  - `agentctl --version` and `handcode --version` both report `0.3.0rc1`.
+  - `agentctl demo` from that install: plain OpenHands 2 commits, agentctl 1.
+  - The same command without `--python` gave the same result.
+- **The image** `ghcr.io/csdeepak/handcode:0.3.0rc1` can be pulled anonymously,
+  for amd64 and arm64. There is no `latest` tag, as intended for a candidate.
+
+The README and `guide/quickstart.md` now install from PyPI with uv; the clone
+is only for contributors. **Next:** `0.3.0` after a second person has used the
+release candidate (D5). Then move `v0` (`RELEASING.md` step 6).
