@@ -9,6 +9,17 @@ Search this page for the exact text agentctl printed.
 uv put the command in a folder your shell does not search yet. Run
 `uv tool update-shell`, then open a new terminal.
 
+### `error: uv trampoline failed to canonicalize script path`
+
+The `agentctl` launcher points at an install your terminal cannot see:
+for example, one made from a different user account, a different session,
+or a sandboxed tool. `uv tool list` in the same terminal then says
+"No tools installed". Install again from the terminal you use:
+
+```bash
+uv tool install --reinstall "handcode[openhands]"
+```
+
 The next three entries are for installing with `pip`, or from a clone. The
 `uv tool install` in the [quickstart](quickstart.md) avoids all three.
 
