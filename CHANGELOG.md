@@ -8,6 +8,12 @@ is a git tag; nothing between tags is a release.
 
 ## Unreleased
 
+Nothing yet.
+
+## 0.3.0 (2026-10-04)
+
+The first release. Everything in 0.3.0rc1 below, plus:
+
 ### Fixed
 - A policy's effect rules now hold for every effect class (`docs/0055`).
   `external: block` used to compile and then allow everything, and

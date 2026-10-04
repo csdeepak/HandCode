@@ -5,8 +5,8 @@ Your key stays in your repository's secrets, the commands run on GitHub's
 throwaway machines, and nobody, including this project, runs a server.
 
 > **Status.** It runs on a person's say-so only (**Run workflow**), not on
-> issues or comments. The tag `@v0` arrives with the first release; until
-> then, pin a commit (`csdeepak/HandCode@<sha>`).
+> issues or comments. `@v0` follows the latest 0.x release; pin an exact
+> one (`@v0.3.0`) if you want upgrades to be your decision.
 
 ## Set it up (five minutes)
 
