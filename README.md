@@ -14,6 +14,8 @@ and asks you instead of guessing.
 It wraps the [OpenHands](https://github.com/OpenHands/software-agent-sdk)
 agent SDK and works with any provider LiteLLM supports, free tiers included.
 
+**Documentation:** <https://csdeepak.github.io/HandCode/>
+
 ## See it in a minute
 
 ```bash

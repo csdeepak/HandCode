@@ -2,7 +2,7 @@
 Number:        0054
 Title:         The Documentation Site — The Guide, Built Without a Framework
 Type:          DECISION
-Status:        DRAFT
+Status:        ACCEPTED
 Created:       2026-10-04
 Supersedes:    —
 Superseded-by: —
@@ -14,8 +14,8 @@ Depends-on:    0050, 0051, 0053
 `0051` Stage 4: publish `guide/` to GitHub Pages, so the project has a URL
 that is not a repository page.
 - **Built and checked.**
-- **Not published.** Turning on Pages is a repository setting, and it makes
-  the site public, so it is the owner's (§5).
+- **Published** at <https://csdeepak.github.io/HandCode/> on the owner's
+  explicit go-ahead (§6).
 
 ## 1. What is on it
 
@@ -111,3 +111,20 @@ Actions**. Then re-run the `site` workflow, or push to `guide/`.
 - After that, every change to the guide that reaches `main` is published.
 
 Until then nothing is published, and the `site` workflow's notice says why.
+
+## 6. Published (2026-10-04)
+
+The owner said yes to enabling Pages through the API:
+`POST /repos/csdeepak/HandCode/pages` with `build_type=workflow`. It
+answered `html_url: https://csdeepak.github.io/HandCode/, public: true`.
+
+Run 37198304715, dispatched by hand, went `build`, `pages-on`, `deploy`, all
+green. Read back from the live site:
+
+- every page, `style.css` and `site.js` return 200, and a missing page
+  returns 404;
+- the footer says it was built from `b82389c`;
+- in a browser, the deep link to quickstart §6 lands at its heading, and the
+  page's 10 copy buttons are there.
+
+From now on, a guide change that reaches `main` publishes itself.
