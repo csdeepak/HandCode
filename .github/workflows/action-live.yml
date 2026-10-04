@@ -1,0 +1,64 @@
+name: action-live
+
+# docs/0053 §6. The GitHub Action with a REAL model (the OPENROUTER_API_KEY
+# secret), on this repository: the `0041` live run. Started by hand only.
+# `publish` defaults to a dry run; set it to "open" for a real pull request.
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: What the agent should do
+        default: >-
+          Create examples/README.md: three to five plain sentences saying that
+          handcode.yml is a GitHub Actions workflow for HandCode, that it is
+          copied to .github/workflows/handcode.yml in your own repository, and
+          that guide/github-action.md explains the setup. Change no other file.
+      accept:
+        description: The check HandCode runs after the agent
+        default: >-
+          test -s examples/README.md && grep -q handcode.yml examples/README.md
+          && test -z "$(git status --porcelain -- . ':!examples/README.md')"
+      publish:
+        description: '"dry-run" checks and prints the pull request; "open" opens it'
+        type: choice
+        options: [dry-run, open]
+        default: dry-run
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    outputs:
+      outcome: ${{ steps.hc.outputs.outcome }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./
+        id: hc
+        with:
+          task: ${{ inputs.task }}
+          accept: ${{ inputs.accept }}
+          max-budget: "0.50"
+          args: --wait 10m
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
+  pull-request:
+    needs: run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # Only so `./handcode-src/publish` exists; a published action needs none.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          path: handcode-src
+      - uses: ./handcode-src/publish
+        with:
+          dry-run: ${{ inputs.publish == 'dry-run' }}
