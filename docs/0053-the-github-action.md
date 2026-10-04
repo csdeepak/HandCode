@@ -145,8 +145,13 @@ Each item was read from the log, not only the job status:
 | `publish`, dry run | `1 commit(s), 1 file(s), 19ce64ee4c7e..1d459535a2f1 -> handcode/run-37195364924-1`, nothing pushed |
 | The whole thing | 24 s for the run job, 5 s for publish |
 
-**Found by that run.** `setup-uv` saved a cache at the end of the agent's job.
-The cache is now off (the §1 cache-poisoning row), and a test holds it off.
+**Found by that run.** `setup-uv` saved a cache at the end of the agent's job
+(`cache saved with the key: setup-uv-1-x86_64-…`).
+- The cache is now off (the §1 cache-poisoning row), and a test holds it off.
+- The re-run (37195611011) saved no cache, still installed in **2.3 s**, and
+  passed the same checks.
+- The one entry saved earlier came from the scripted model, so it holds
+  nothing hostile. GitHub evicts it after 7 days unused.
 
 ## 4. Left open
 
